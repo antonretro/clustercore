@@ -595,11 +595,34 @@ function calculate_planet_preview_path(_inst) {
     if (_s == 2) _ddy = -1;   // bottom → drop up
     if (_s == 3) _ddx =  1;   // left   → drop right
 
+    // ── Dynamic surface cap ─────────────────────────────────────────────────
+    // Scan for the shallowest (closest to center) occupied cell.
+    // Empty lanes stop at this distance so pieces always land on the planet
+    // surface, not shoot into the void. Drills / heavy bypass this.
+    var _isDrill = (_inst.type == "drill");
+    var _surfaceDist = _cx; // default: allow all the way to center
+    if (!_isDrill && !_isHeavy) {
+        for (var _sy2 = global.HIDDEN_ROWS; _sy2 < global.TOTAL_ROWS - global.HIDDEN_ROWS; _sy2++) {
+            for (var _sx2 = global.HIDDEN_SIDES; _sx2 < global.TOTAL_COLS - global.HIDDEN_SIDES; _sx2++) {
+                if (global.grid[_sy2][_sx2] != undefined) {
+                    var _d2 = max(abs(_sx2 - _cx), abs(_sy2 - _cy));
+                    if (_d2 < _surfaceDist) _surfaceDist = _d2;
+                }
+            }
+        }
+        _surfaceDist = max(_surfaceDist, 1); // always at least 1 step from center
+    }
+
     for (var i = 0; i < global.TOTAL_ROWS + global.TOTAL_COLS; i++) {
 
         var _nx = _tx + _ddx;
         var _ny = _ty + _ddy;
         if (_nx < 0 || _nx >= global.TOTAL_COLS || _ny < 0 || _ny >= global.TOTAL_ROWS) break;
+
+        // Surface cap: don't enter cells closer to center than current surface
+        if (!_isDrill && !_isHeavy) {
+            if (max(abs(_nx - _cx), abs(_ny - _cy)) < _surfaceDist) break;
+        }
 
         if (global.grid[_ny][_nx] != undefined) {
             var _target = global.grid[_ny][_nx];
