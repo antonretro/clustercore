@@ -19,7 +19,7 @@ global.HIDDEN_ROWS = 1; // Top staging area (1 row standard)
 global.TOTAL_COLS = global.COLS + (global.HIDDEN_SIDES * 2);
 global.TOTAL_ROWS = global.ROWS + global.HIDDEN_ROWS + global.HIDDEN_SIDES; 
 // Planet: 9 + 2 = 11x11. Classic: 10 + 0 = 10; 20 + 1 = 21.
-global.PIXEL_SCALE = 5;
+global.PIXEL_SCALE = (global.gameMode == "CLASSIC") ? 3 : 5;
 global.GAME_W = 1920;
 global.GAME_H = 1080;
 global.game_surface = -1;

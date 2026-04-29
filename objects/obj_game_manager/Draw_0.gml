@@ -47,16 +47,15 @@ var _by    = (global.GAME_H - _bh) / 2 + _shakeY;
 var _cw    = 16 * _scale; // one cell width in pixels
 
 // --- Apply board rotation matrix (rotates staging ring, backdrop, grid, lane tints, blocks, and effects together) ---
-// We rotate AROUND the center of the screen, but keep the origin at (0,0) so the existing _bx/_by math works.
-var _cx = global.GAME_W / 2;
-var _cy = global.GAME_H / 2;
-var _matT1 = matrix_build(-_cx, -_cy, 0, 0, 0, 0, 1, 1, 1);
-var _matR  = matrix_build(0, 0, 0, 0, 0, global.boardRotation, 1, 1, 1);
-var _matT2 = matrix_build(_cx, _cy, 0, 0, 0, 0, 1, 1, 1);
-var _matFinal = matrix_multiply(_matT2, matrix_multiply(_matR, _matT1));
-
-matrix_stack_push(_matFinal);
+// We translate the world origin to the screen center. 
+// From here on, (0,0) is the center of the screen.
+var _matRot = matrix_build(global.GAME_W/2, global.GAME_H/2, 0, 0, 0, global.boardRotation, 1, 1, 1);
+matrix_stack_push(_matRot);
 matrix_set(matrix_world, matrix_stack_top());
+
+// Adjust drawing offsets to be relative to the new centered origin
+_bx = -_bw / 2 + _shakeX;
+_by = -_bh / 2 + _shakeY;
 
 // --- Planet staging ring (outer ring of 11x11, drawn outside board bounds) ---
 if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
