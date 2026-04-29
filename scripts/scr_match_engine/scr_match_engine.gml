@@ -41,11 +41,16 @@ function find_matches_in_grid(_grid, _config, _totalRows) {
     return _matches;
 }
 
+function cells_share_match_color(_c1, _c2) {
+    if (_c1 == undefined || _c2 == undefined) return false;
+    return _c1.id == _c2.id;
+}
+
 function check_cells(_c1, _c2, _axis) {
     if (_c1 == undefined || _c2 == undefined) return false;
     if (_c1.type == "bomb" || _c2.type == "bomb") return false;
     if (_c1.type == "dead" || _c2.type == "dead") return false;
-    if (_c1.id != _c2.id) return false;
+    if (!cells_share_match_color(_c1, _c2)) return false;
     
     if (!arrow_allows_axis(_c1, _axis)) return false;
     if (!arrow_allows_axis(_c2, _axis)) return false;
@@ -179,7 +184,7 @@ function add_line_matches(_grid, _cols, _totalRows, _clear_grid) {
             var _curr = (_x < _cols) ? _grid[_y][_x] : undefined;
             
             var _isMatch = false;
-            if (_curr != undefined && _prev != undefined && _curr.id == _prev.id && _curr.type != "bomb" && _prev.type != "bomb") {
+            if (_curr != undefined && _prev != undefined && cells_share_match_color(_curr, _prev) && _curr.type != "bomb" && _prev.type != "bomb") {
                 // Directional Check: Arrows in a horizontal line MUST be horizontal arrows
                 var _prevValid = (_prev.type != "metal" || _prev.dir == 0);
                 var _currValid = (_curr.type != "metal" || _curr.dir == 0);
@@ -207,7 +212,7 @@ function add_line_matches(_grid, _cols, _totalRows, _clear_grid) {
             var _curr = (_y < _totalRows) ? _grid[_y][_x] : undefined;
             
             var _isMatch = false;
-            if (_curr != undefined && _prev != undefined && _curr.id == _prev.id && _curr.type != "bomb" && _prev.type != "bomb") {
+            if (_curr != undefined && _prev != undefined && cells_share_match_color(_curr, _prev) && _curr.type != "bomb" && _prev.type != "bomb") {
                 // Directional Check: Arrows in a vertical line MUST be vertical arrows
                 var _prevValid = (_prev.type != "metal" || _prev.dir == 1);
                 var _currValid = (_curr.type != "metal" || _curr.dir == 1);

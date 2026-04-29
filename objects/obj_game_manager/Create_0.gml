@@ -268,9 +268,11 @@ start_game = function() {
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
         var _cx = floor(global.TOTAL_COLS / 2);
         var _cy = floor(global.TOTAL_ROWS / 2);
-        var _coreData = { type: "core", color: c_white, dir: 0, id: 0 };
+        var _coreId = global.activeColors[irandom(array_length(global.activeColors) - 1)];
+        var _coreCol = get_color_from_id(_coreId);
+        var _coreData = { type: "core", color: _coreCol, dir: 0, id: _coreId };
         var _coreInst = _place_block_instance(_cx, _cy, _coreData);
-        global.grid[_cy][_cx] = { type: "core", color: c_white, dir: 0, id: 0, inst: _coreInst };
+        global.grid[_cy][_cx] = { type: "core", color: _coreCol, dir: 0, id: _coreId, inst: _coreInst };
 
         // Seed 4 blocks around core (N/S = color1, E/W = color2) so the first match
         // opportunity appears within 2-3 turns — removes the dull empty-board opening.
