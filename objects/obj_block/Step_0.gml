@@ -1,5 +1,5 @@
 // Smooth movement interpolation
-x = lerp(x, grid_x * 16, 0.25);
+x = lerp(x, (grid_x - global.HIDDEN_SIDES) * 16, 0.25);
 y = lerp(y, (grid_y - global.HIDDEN_ROWS) * 16, 0.25);
 
 // Recovery from squash/stretch

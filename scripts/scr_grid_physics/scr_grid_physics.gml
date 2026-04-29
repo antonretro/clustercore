@@ -1,4 +1,4 @@
-// =============================================================================
+ï»¿// =============================================================================
 // scr_grid_physics  â€”  collision, locking, dropping, rotation
 //
 // Coordinate contract:
@@ -31,6 +31,8 @@ function move_piece(_dx, _dy) {
     if (check_collision(_dx, _dy)) return false;
     global.activePiece.grid_x += _dx;
     global.activePiece.grid_y += _dy;
+    global.activePiece.x = (global.activePiece.grid_x - global.HIDDEN_SIDES) * 16;
+    global.activePiece.y = (global.activePiece.grid_y - global.HIDDEN_ROWS)  * 16;
     if (_dx != 0) { global.activePiece.scale_x = 0.8; global.activePiece.scale_y = 1.2; }
     return true;
 }
@@ -391,7 +393,7 @@ function apply_grid_gravity() {
 }
 
 // -----------------------------------------------------------------------------
-// calculate_landing_depth  — how many steps inward before collision?
+// calculate_landing_depth  ï¿½ how many steps inward before collision?
 // -----------------------------------------------------------------------------
 function calculate_landing_depth(_gx, _gy) {
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
@@ -420,7 +422,7 @@ function calculate_landing_depth(_gx, _gy) {
 }
 
 // -----------------------------------------------------------------------------
-// rotate_grid_90  — CLASSIC ONLY, called on level-up rotation
+// rotate_grid_90  ï¿½ CLASSIC ONLY, called on level-up rotation
 // -----------------------------------------------------------------------------
 function rotate_grid_90() {
     var _newGrid = array_create(global.TOTAL_ROWS);

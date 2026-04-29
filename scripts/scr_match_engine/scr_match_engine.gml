@@ -27,6 +27,7 @@ function find_matches_in_grid(_grid, _config, _totalRows) {
     }
 
     add_cluster_matches(_grid, _cols, _totalRows, _clear_grid);
+    add_line_matches(_grid, _cols, _totalRows, _clear_grid);
     add_diagonal_matches(_grid, _cols, _totalRows, _clear_grid);
 
     var _matches = [];
@@ -49,6 +50,10 @@ function check_cells(_c1, _c2, _axis) {
     if (!arrow_allows_axis(_c1, _axis)) return false;
     if (!arrow_allows_axis(_c2, _axis)) return false;
     
+    // Directional (Metal) blocks are EXCLUDED from clusters and diagonals. 
+    // They only match via the Line Matcher.
+    if (_c1.type == "metal" || _c2.type == "metal") return false;
+
     return true; 
 }
 
@@ -75,28 +80,11 @@ function add_cluster_matches(_grid, _cols, _totalRows, _clear_grid) {
             var _cluster = [];
             collect_cluster(_grid, _cols, _totalRows, _x, _y, _visited, _cluster);
             
-            // --- MATCH SIZE LOGIC ---
-            // Normal blocks clear at 3+. Metal (arrows) require a row/cluster of 4+ to clear.
-            var _hasMetal = false;
-            var _to_clear_indices = [];
-            for (var i = 0; i < array_length(_cluster); i++) {
-                var _c = _cluster[i];
-                var _target = _grid[_c.y][_c.x];
-                
-                if (_target.type == "metal") _hasMetal = true;
-                
-                if (_target.type == "normal" || _target.type == "metal" || _target.type == "asteroid" || _target.type == "core") {
-                    array_push(_to_clear_indices, i);
-                }
-            }
-
-            // All clusters require 4+ to clear. Metal arrows must connect along their axis.
+            // All clusters require 4+ to clear. (Normal, Asteroid, Core)
             var _required = 4;
-
-            if (array_length(_to_clear_indices) >= _required) {
-                for (var i = 0; i < array_length(_to_clear_indices); i++) {
-                    var _idx = _to_clear_indices[i];
-                    var _c = _cluster[_idx];
+            if (array_length(_cluster) >= _required) {
+                for (var i = 0; i < array_length(_cluster); i++) {
+                    var _c = _cluster[i];
                     _clear_grid[_c.y][_c.x] = true;
                 }
             }
@@ -177,6 +165,64 @@ function add_diagonal_matches(_grid, _cols, _totalRows, _clear_grid) {
             }
             if (_match) {
                 for (var _k = 0; _k < 4; _k++) _clear_grid[_y - _k][_x + _k] = true;
+            }
+        }
+    }
+}
+
+function add_line_matches(_grid, _cols, _totalRows, _clear_grid) {
+    // Horizontal Lines
+    for (var _y = 0; _y < _totalRows; _y++) {
+        var _count = 1;
+        for (var _x = 1; _x <= _cols; _x++) {
+            var _prev = (_x > 0) ? _grid[_y][_x-1] : undefined;
+            var _curr = (_x < _cols) ? _grid[_y][_x] : undefined;
+            
+            var _isMatch = false;
+            if (_curr != undefined && _prev != undefined && _curr.id == _prev.id && _curr.type != "bomb" && _prev.type != "bomb") {
+                // Directional Check: Arrows in a horizontal line MUST be horizontal arrows
+                var _prevValid = (_prev.type != "metal" || _prev.dir == 0);
+                var _currValid = (_curr.type != "metal" || _curr.dir == 0);
+                if (_prevValid && _currValid) _isMatch = true;
+            }
+            
+            if (_isMatch) {
+                _count++;
+            } else {
+                if (_count >= 4) {
+                    for (var i = 0; i < _count; i++) {
+                        _clear_grid[_y][_x - 1 - i] = true;
+                    }
+                }
+                _count = 1;
+            }
+        }
+    }
+    
+    // Vertical Lines
+    for (var _x = 0; _x < _cols; _x++) {
+        var _count = 1;
+        for (var _y = 1; _y <= _totalRows; _y++) {
+            var _prev = (_y > 0) ? _grid[_y-1][_x] : undefined;
+            var _curr = (_y < _totalRows) ? _grid[_y][_x] : undefined;
+            
+            var _isMatch = false;
+            if (_curr != undefined && _prev != undefined && _curr.id == _prev.id && _curr.type != "bomb" && _prev.type != "bomb") {
+                // Directional Check: Arrows in a vertical line MUST be vertical arrows
+                var _prevValid = (_prev.type != "metal" || _prev.dir == 1);
+                var _currValid = (_curr.type != "metal" || _curr.dir == 1);
+                if (_prevValid && _currValid) _isMatch = true;
+            }
+            
+            if (_isMatch) {
+                _count++;
+            } else {
+                if (_count >= 4) {
+                    for (var i = 0; i < _count; i++) {
+                        _clear_grid[_y - 1 - i][_x] = true;
+                    }
+                }
+                _count = 1;
             }
         }
     }

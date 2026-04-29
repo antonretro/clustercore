@@ -133,10 +133,5 @@ function update_level_progress() {
         if (global.level % 3 == 0 && array_length(global.reserveColors) > 0) {
             array_push(global.activeColors, array_shift(global.reserveColors));
         }
-        
-        // GALAXY ROTATION: Only spin in Planet Mode
-        if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-            global.targetRotation += 90;
-        }
     }
 }

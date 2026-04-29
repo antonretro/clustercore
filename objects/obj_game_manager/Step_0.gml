@@ -150,6 +150,9 @@ if (!global.locking) {
             var _pos = get_orbital_pos(global.orbitalSide, global.orbitalX);
             global.activePiece.grid_x = _pos.x;
             global.activePiece.grid_y = _pos.y;
+            // Sync world pixel position so the sprite follows the ring
+            global.activePiece.x = (_pos.x - global.HIDDEN_SIDES) * 16;
+            global.activePiece.y = (_pos.y - global.HIDDEN_ROWS)  * 16;
             global.previewDepth = max(1, calculate_landing_depth(_pos.x, _pos.y));
 
             // Drills always face inward

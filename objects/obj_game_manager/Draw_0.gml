@@ -46,6 +46,18 @@ var _bx    = (global.GAME_W - _bw) / 2 + _shakeX;
 var _by    = (global.GAME_H - _bh) / 2 + _shakeY;
 var _cw    = 16 * _scale; // one cell width in pixels
 
+// --- Apply board rotation matrix (rotates staging ring, backdrop, grid, lane tints, blocks, and effects together) ---
+// We rotate AROUND the center of the screen, but keep the origin at (0,0) so the existing _bx/_by math works.
+var _cx = global.GAME_W / 2;
+var _cy = global.GAME_H / 2;
+var _matT1 = matrix_build(-_cx, -_cy, 0, 0, 0, 0, 1, 1, 1);
+var _matR  = matrix_build(0, 0, 0, 0, 0, global.boardRotation, 1, 1, 1);
+var _matT2 = matrix_build(_cx, _cy, 0, 0, 0, 0, 1, 1, 1);
+var _matFinal = matrix_multiply(_matT2, matrix_multiply(_matR, _matT1));
+
+matrix_stack_push(_matFinal);
+matrix_set(matrix_world, matrix_stack_top());
+
 // --- Planet staging ring (outer ring of 11x11, drawn outside board bounds) ---
 if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
     var _ap_gx    = (global.activePiece != undefined) ? global.activePiece.grid_x : -999;
@@ -82,6 +94,7 @@ if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
     }
     draw_set_alpha(1.0);
 }
+
 
 // --- Board backdrop ---
 draw_set_alpha(0.85);
@@ -210,9 +223,6 @@ if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
 }
 
 // --- Draw blocks (via obj_block instances) ---
-// The surface is rotated by boardRotation about the screen centre via matrix.
-var _matRot = matrix_build(global.GAME_W/2, global.GAME_H/2, 0, 0, 0, global.boardRotation, 1, 1, 1);
-matrix_set(matrix_world, _matRot);
 
 with (obj_block) {
     // Block screen position: board origin + world pixel offset * scale
@@ -288,9 +298,6 @@ with (obj_block) {
     }
 }
 
-// Reset world matrix
-matrix_set(matrix_world, matrix_build(0,0,0,0,0,0,1,1,1));
-
 // --- Beams & particles ---
 for (var i = 0; i < array_length(global.beams); i++) {
     var _b = global.beams[i]; var _ba = _b.life / _b.maxLife;
@@ -306,6 +313,11 @@ for (var i = 0; i < array_length(global.particles); i++) {
     var _p2 = global.particles[i]; draw_set_alpha(_p2.life / 30); draw_set_color(_p2.color);
     draw_rectangle(_bx + _p2.x*_scale - 2, _by + _p2.y*_scale - 2, _bx + _p2.x*_scale + 2, _by + _p2.y*_scale + 2, false);
 }
+
+// Reset world matrix (Back to screen-space for floating text and HUD)
+matrix_stack_pop();
+matrix_set(matrix_world, matrix_build(0,0,0,0,0,0,1,1,1));
+
 for (var i = 0; i < array_length(global.floatingTexts); i++) {
     var _ft = global.floatingTexts[i];
     draw_set_alpha(_ft.life / 90); draw_set_color(_ft.color);
