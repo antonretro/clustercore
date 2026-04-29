@@ -270,7 +270,7 @@ with (obj_block) {
     // Hide blocks behind the board top edge (classic hidden row), except active piece
     if (_cy5 < _by && id != global.activePiece) continue;
 
-    var _renderRot = -global.boardRotation + visualRotation;
+    var _renderRot = (type == "drill") ? visualRotation : (-global.boardRotation + visualRotation);
 
     if (sprite_index != -1) {
         draw_sprite_ext(sprite_index, image_index, _cx5, _cy5,
