@@ -4,16 +4,21 @@ if (!variable_global_exists("gameMode")) global.gameMode = "PLANET";
 global.gameState = "PLAYING"; // Set to PLAYING when the manager is created in the game room
 
 // --- Dynamic Grid Settings ---
+// --- Dynamic Grid Settings ---
 if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-    global.COLS = 7;
-    global.ROWS = 7;
+    global.COLS = 9;   // Playable width
+    global.ROWS = 9;   // Playable height
+    global.HIDDEN_SIDES = 1; // Staging ring
 } else {
-    global.COLS = 5;
-    global.ROWS = 9;
+    global.COLS = 10;  // Classic width
+    global.ROWS = 20;  // Classic height
+    global.HIDDEN_SIDES = 0;
 }
 
-global.HIDDEN_ROWS = 2;
-global.TOTAL_ROWS = global.ROWS + global.HIDDEN_ROWS;
+global.HIDDEN_ROWS = 1; // Top staging area (1 row standard)
+global.TOTAL_COLS = global.COLS + (global.HIDDEN_SIDES * 2);
+global.TOTAL_ROWS = global.ROWS + global.HIDDEN_ROWS + global.HIDDEN_SIDES; 
+// Planet: 9 + 2 = 11x11. Classic: 10 + 0 = 10; 20 + 1 = 21.
 global.PIXEL_SCALE = 5;
 global.GAME_W = 1920;
 global.GAME_H = 1080;
@@ -28,7 +33,7 @@ global.level = 1;
 global.levelScore = 0;
 global.scoreToNext = 1500;
 global.orbitalSide = 0;
-global.orbitalX = floor(global.COLS / 2);
+global.orbitalX = floor(global.TOTAL_COLS / 2);
 global.previewDepth = 1; // Targeting depth for the preview
 global.pieceTimer = 300;
 global.MAX_PIECE_TIME = 300;
@@ -92,7 +97,7 @@ global.canHold = true;
 // --- Board Management ---
 global.grid = array_create(global.TOTAL_ROWS);
 for (var i = 0; i < global.TOTAL_ROWS; i++) {
-    global.grid[i] = array_create(global.COLS, undefined);
+    global.grid[i] = array_create(global.TOTAL_COLS, undefined);
 }
 
 global.activePiece = undefined;
@@ -198,7 +203,7 @@ start_game = function() {
     // Brute force cleanup of all blocks
     with(obj_block) instance_destroy();
     for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
-        for (var _x = 0; _x < global.COLS; _x++) {
+        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
             global.grid[_y][_x] = undefined;
         }
     }
