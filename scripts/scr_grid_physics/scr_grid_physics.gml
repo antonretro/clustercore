@@ -555,47 +555,24 @@ function migrate_core(_oldX, _oldY) {
 function calculate_planet_preview_path(_inst) {
     if (_inst == undefined) return undefined;
 
-    var _tx = _inst.grid_x;
-    var _ty = _inst.grid_y;
-    var _isHeavy = (global.launchCharge >= global.MAX_CHARGE);
-    var _path    = [];
-    var _depth   = 0;
-    var _cx      = floor(global.TOTAL_COLS / 2);
-    var _cy      = floor(global.TOTAL_ROWS / 2);
-    var _s       = ((global.orbitalSide % 4) + 4) % 4;
+    var _tx  = _inst.grid_x;
+    var _ty  = _inst.grid_y;
+    var _cx  = floor(global.TOTAL_COLS / 2);
+    var _cy  = floor(global.TOTAL_ROWS / 2);
+    var _s   = ((global.orbitalSide % 4) + 4) % 4;
+    var _isHeavy     = (global.launchCharge >= global.MAX_CHARGE);
     var _penetration = (_inst.type == "drill") ? 3 : 0;
+    var _path  = [];
+    var _depth = 0;
 
-    // ── Phase 1: slide ALONG the staging-ring edge to align with center axis ──
-    // Side 0/2 (top/bottom): slide horizontally until column == _cx
-    // Side 1/3 (right/left): slide vertically   until row    == _cy
-    if (_s == 0 || _s == 2) {
-        var _slideDir = sign(_cx - _tx);
-        while (_tx != _cx) {
-            var _nx = _tx + _slideDir;
-            if (global.grid[_ty][_nx] != undefined) break;
-            _tx = _nx; _depth++;
-            array_push(_path, {gx: _tx, gy: _ty});
-        }
-    } else {
-        var _slideDir = sign(_cy - _ty);
-        while (_ty != _cy) {
-            var _ny = _ty + _slideDir;
-            if (global.grid[_ny][_tx] != undefined) break;
-            _ty = _ny; _depth++;
-            array_push(_path, {gx: _tx, gy: _ty});
-        }
-    }
-
-    // ── Phase 2: drop straight inward toward center ───────────────────────────
+    // Pure radial direction — straight inward from spawn cell (spoke of a wheel)
     var _ddx = 0, _ddy = 0;
-    if (_s == 0) _ddy = 1;
-    if (_s == 1) _ddx = -1;
-    if (_s == 2) _ddy = -1;
-    if (_s == 3) _ddx = 1;
+    if (_s == 0) _ddy =  1;   // top    → drop down
+    if (_s == 1) _ddx = -1;   // right  → drop left
+    if (_s == 2) _ddy = -1;   // bottom → drop up
+    if (_s == 3) _ddx =  1;   // left   → drop right
 
-    for (var i = 0; i < global.TOTAL_ROWS; i++) {
-        // Already at center — stop
-        if (_tx == _cx && _ty == _cy) break;
+    for (var i = 0; i < global.TOTAL_ROWS + global.TOTAL_COLS; i++) {
 
         var _nx = _tx + _ddx;
         var _ny = _ty + _ddy;
@@ -603,7 +580,8 @@ function calculate_planet_preview_path(_inst) {
 
         if (global.grid[_ny][_nx] != undefined) {
             var _target = global.grid[_ny][_nx];
-            if (_isHeavy || (_penetration > 0 && _target.type != "core" && _target.type != "dead" && _target.type != "bomb")) {
+            if (_isHeavy || (_penetration > 0 && _target.type != "core"
+            && _target.type != "dead" && _target.type != "bomb")) {
                 if (_isHeavy) _isHeavy = false; else _penetration--;
                 var _hx = _nx + _ddx;
                 var _hy = _ny + _ddy;

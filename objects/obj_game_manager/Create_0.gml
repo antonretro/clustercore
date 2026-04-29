@@ -262,13 +262,20 @@ start_game = function() {
     for (var i = 0; i < 3; i++) {
         array_push(global.nextQueue, generate_piece());
     }
-    
+
+    // --- PLANET CORE: pre-place at center so the board has an anchor from turn 1 ---
+    if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
+        var _cx = floor(global.TOTAL_COLS / 2);
+        var _cy = floor(global.TOTAL_ROWS / 2);
+        var _coreData = { type: "core", color: c_white, dir: 0, id: 0 };
+        var _coreInst = _place_block_instance(_cx, _cy, _coreData);
+        global.grid[_cy][_cx] = { type: "core", color: c_white, dir: 0, id: 0, inst: _coreInst };
+    }
+
     update_staging_ring_cache();
     spawn_piece();
+    global.previewData    = undefined; // force recalc on first frame
     global.inputDelayTimer = 10; // ignore fire input for first 10 frames to absorb menu keypress
-
-    // --- PLANET CORE INITIALIZATION ---
-    // Core is no longer spawned automatically. The first block to land in the center becomes the core.
 };
 
 start_game();

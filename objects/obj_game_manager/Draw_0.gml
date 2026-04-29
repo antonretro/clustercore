@@ -141,19 +141,32 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
     var _pulse = 0.22 + abs(sin(current_time * 0.008)) * 0.22;
 
     if (_gx4 != _ap.grid_x || _gy4 != _ap.grid_y) {
-        // Trajectory trail — draw each cell in the L-shaped path
+        // ── Full-lane sight highlight ──────────────────────────────────────────
+        // Draw a faint glow along the ENTIRE drop lane (spoke) from the active
+        // piece's ring cell all the way to the landing cell, like a targeting sight.
         if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.previewData != undefined) {
-            var _path = global.previewData.path;
-            var _pathLen = array_length(_path);
-            var _drawLen = min(global.previewDepth, _pathLen);
+            var _s4 = ((global.orbitalSide % 4) + 4) % 4;
             gpu_set_blendmode(bm_add);
-            for (var _pi = 0; _pi < _drawLen; _pi++) {
-                var _pcell = _path[_pi];
-                var _fade  = (_pi + 1) / max(1, _drawLen);
-                draw_set_alpha(0.08 + 0.20 * _fade); draw_set_color(_ap.color);
-                var _psx = _bx + (_pcell.gx - global.HIDDEN_SIDES) * _cw;
-                var _psy = _by + (_pcell.gy - global.HIDDEN_ROWS)  * _cw;
-                draw_rectangle(_psx, _psy, _psx + _cw, _psy + _cw, false);
+            // Full lane: from piece down to landing, every playable cell in the lane
+            var _lx = _ap.grid_x; var _ly = _ap.grid_y;
+            var _lddx = 0; var _lddy = 0;
+            if (_s4 == 0) _lddy =  1;
+            if (_s4 == 1) _lddx = -1;
+            if (_s4 == 2) _lddy = -1;
+            if (_s4 == 3) _lddx =  1;
+            var _laneStep = 0;
+            var _laneMax  = global.previewData.depth;
+            while (_laneStep < _laneMax) {
+                _lx += _lddx; _ly += _lddy;
+                if (_lx < global.HIDDEN_SIDES || _lx >= global.TOTAL_COLS - global.HIDDEN_SIDES
+                || _ly < global.HIDDEN_ROWS  || _ly >= global.TOTAL_ROWS  - global.HIDDEN_ROWS) break;
+                var _fade = (_laneStep + 1) / max(1, _laneMax);
+                draw_set_alpha((0.04 + 0.18 * _fade) * _pulse * 3);
+                draw_set_color(_ap.color);
+                var _lsx = _bx + (_lx - global.HIDDEN_SIDES) * _cw;
+                var _lsy = _by + (_ly - global.HIDDEN_ROWS)  * _cw;
+                draw_rectangle(_lsx, _lsy, _lsx + _cw, _lsy + _cw, false);
+                _laneStep++;
             }
             gpu_set_blendmode(bm_normal);
         }
