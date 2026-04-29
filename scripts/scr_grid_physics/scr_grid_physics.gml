@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // scr_grid_physics  —  collision, locking, dropping, rotation
 //
 // Coordinate contract:
@@ -128,7 +128,8 @@ function lock_piece() {
     && _px == floor(global.TOTAL_COLS / 2) && _py == floor(global.TOTAL_ROWS / 2)) {
         var _hasCore = false;
         with (obj_block) if (type == "core") { _hasCore = true; break; }
-        if (!_hasCore) {
+        // Bombs and Drills cannot be the core
+        if (!_hasCore && _p.type != "bomb" && _p.type != "drill") {
             _p.type = "core";
             global.grid[_py][_px].type = "core";
             with (_p) update_sprite();
@@ -493,14 +494,15 @@ function settle_matches() {
         award_shards(_pts, array_length(_matches));
         charge_jackpot(array_length(_matches));
         var _coreMigrated = false;
-        for (var i = 0; i < array_length(_matches); i++) {
+        // Backward loop to safely handle array_delete when a core migrates
+        for (var i = array_length(_matches) - 1; i >= 0; i--) {
             var _m = _matches[i];
             var _cell = global.grid[_m.y][_m.x];
             if (_cell == undefined) continue;
             if (_cell.type == "core" && !_coreMigrated) {
                 migrate_core(_m.x, _m.y);
                 _coreMigrated = true;
-                // Protect the new core from being cleared — remove its position from matches
+                // Find and protect the NEW core from this clearing cycle
                 for (var _ci = array_length(_matches) - 1; _ci >= 0; _ci--) {
                     var _nc = global.grid[_matches[_ci].y][_matches[_ci].x];
                     if (_nc != undefined && _nc.type == "core") {
@@ -508,8 +510,11 @@ function settle_matches() {
                         break;
                     }
                 }
-                // Mark old core as normal so it falls through to regular clearing below
+                // Mark old core as normal so it clears
                 _cell.type = "normal";
+                // Recalculate cell reference just in case array_delete shifted things
+                _cell = global.grid[_m.y][_m.x];
+                if (_cell == undefined) continue;
             }
             if (_cell.type == "asteroid" && _cell.inst.shield_hp > 1) {
                 _cell.inst.shield_hp--;
@@ -571,7 +576,7 @@ function migrate_core(_oldX, _oldY) {
         if (_nx < 0 || _nx >= global.TOTAL_COLS || _ny < 0 || _ny >= global.TOTAL_ROWS) continue;
         var _cell = global.grid[_ny][_nx];
         if (_cell != undefined && _cell.type != "core" && _cell.type != "bomb"
-        && _cell.type != "drill" && !_cell.inst.clearing) {
+        && _cell.type != "drill" && _cell.type != "dead" && !_cell.inst.clearing) {
             array_push(_candidates, {x: _nx, y: _ny});
         }
     }
@@ -587,4 +592,50 @@ function migrate_core(_oldX, _oldY) {
         var _sp = _grid_screen_pos(_oldX, _oldY);
         create_floating_text_ext(_sp.x, _sp.y, "CORE CLEARED!", c_yellow, 1.5);
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// calculate_planet_preview_path — Traces the path from spawn to landing
+// Returns: { path: [{gx, gy}], target: {gx, gy}, depth: int }
+// ─────────────────────────────────────────────────────────────────────────────
+function calculate_planet_preview_path(_inst) {
+    if (_inst == undefined) return undefined;
+    
+    var _tx = _inst.grid_x;
+    var _ty = _inst.grid_y;
+    var _isHeavy = (global.launchCharge >= global.MAX_CHARGE);
+    var _path = [];
+    var _depth = 0;
+    var _centerGX = floor(global.TOTAL_COLS / 2);
+    var _centerGY = floor(global.TOTAL_ROWS / 2);
+    
+    var _penetration = (_inst.type == "drill") ? 3 : 0;
+    
+    for (var i = 0; i < global.TOTAL_ROWS; i++) {
+        var _ddx = sign(_centerGX - _tx);
+        var _ddy = sign(_centerGY - _ty);
+        if (_ddx == 0 && _ddy == 0) break;
+        if (abs(_centerGX - _tx) >= abs(_centerGY - _ty)) _ddy = 0; else _ddx = 0;
+        var _nx = _tx + _ddx;
+        var _ny = _ty + _ddy;
+        if (_nx < 0 || _nx >= global.TOTAL_COLS || _ny < 0 || _ny >= global.TOTAL_ROWS) break;
+        if (global.grid[_ny][_nx] != undefined) {
+            var _target = global.grid[_ny][_nx];
+            if (_isHeavy || (_penetration > 0 && _target.type != "core" && _target.type != "dead" && _target.type != "bomb")) {
+                if (_isHeavy) _isHeavy = false; else _penetration--;
+                var _hx = _nx + _ddx;
+                var _hy = _ny + _ddy;
+                if (_hx >= 0 && _hx < global.TOTAL_COLS && _hy >= 0 && _hy < global.TOTAL_ROWS
+                && global.grid[_hy][_hx] == undefined) {
+                    _tx = _nx; _ty = _ny; _depth++;
+                    array_push(_path, {gx: _tx, gy: _ty});
+                    continue;
+                }
+            }
+            break; 
+        }
+        _tx = _nx; _ty = _ny; _depth++;
+        array_push(_path, {gx: _tx, gy: _ty});
+    }
+    return { path: _path, target: {gx: _tx, gy: _ty}, depth: _depth };
 }

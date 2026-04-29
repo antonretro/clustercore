@@ -101,6 +101,7 @@ for (var i = 0; i < global.TOTAL_ROWS; i++) {
 }
 
 global.activePiece = undefined;
+global.activePieceID = -1;
 global.locking = false;
 global.hitstop = 0;
 global.jackpotFlash = 0;
@@ -108,6 +109,8 @@ global.dasTimer = 0;
 global.dasRepeatTimer = 0;
 global.gp_prev_stick_x = 0;
 global.gp_prev_stick_y = 0;
+global.stagingRingCells = [];
+global.previewData = undefined;
 
 // Load persisted high score
 global.highScore = 0;
@@ -181,6 +184,47 @@ setup_story_planet = function() {
     }
 };
 
+update_staging_ring_cache = function() {
+    global.stagingRingCells = [];
+    // Side 0: Top (y=0)
+    for (var i = 1; i <= global.COLS; i++)  array_push(global.stagingRingCells, {sx: i, sy: 0});
+    // Side 1: Right (x=10)
+    for (var i = 1; i <= global.ROWS; i++)  array_push(global.stagingRingCells, {sx: global.TOTAL_COLS - 1, sy: i});
+    // Side 2: Bottom (y=10)
+    for (var i = global.COLS; i >= 1; i--)  array_push(global.stagingRingCells, {sx: i, sy: global.TOTAL_ROWS - 1});
+    // Side 3: Left (x=0)
+    for (var i = global.ROWS; i >= 1; i--)  array_push(global.stagingRingCells, {sx: 0, sy: i});
+};
+
+draw_block_instance = function(_inst, _bx, _by, _scale, _alpha = -1, _altX = -1, _altY = -1) {
+    var _instAlpha = (_alpha == -1) ? _inst.image_alpha : _alpha;
+    var _drawX = (_altX == -1) ? (_bx + _inst.x * _scale) : (_altX - 8 * _scale);
+    var _drawY = (_altY == -1) ? (_by + _inst.y * _scale) : (_altY - 8 * _scale);
+    var _cx = _drawX + 8 * _scale;
+    var _cy = _drawY + 8 * _scale;
+    var _renderRot = -global.boardRotation + _inst.visualRotation + _inst.rotation;
+    
+    if (_inst.sprite_index != -1) {
+        draw_sprite_ext(_inst.sprite_index, _inst.image_index, _cx, _cy,
+            _scale * _inst.scale_x, _scale * _inst.scale_y, _renderRot, c_white, _instAlpha);
+    }
+    if (_inst.type == "metal") {
+        var _arSpr = (_inst.dir == 0) ? spr_lr_arrows : spr_ud_arrows;
+        // Arrows rotate WITH board (relative 0)
+        draw_sprite_ext(_arSpr, 0, _cx, _cy, _scale * _inst.scale_x, _scale * _inst.scale_y, 0, c_white, _instAlpha);
+    }
+    if (_inst.type == "core") {
+        gpu_set_blendmode(bm_add);
+        var _cp2 = 0.3 + abs(sin(current_time * 0.005)) * 0.4;
+        draw_sprite_ext(_inst.sprite_index, _inst.image_index, _cx, _cy, _scale*_inst.scale_x*1.4, _scale*_inst.scale_y*1.4, _renderRot, c_white, _cp2 * 0.5 * _instAlpha);
+        gpu_set_blendmode(bm_normal);
+        draw_set_color(c_white); draw_set_alpha((_cp2 + 0.2) * _instAlpha);
+        draw_rectangle(_cx - 9*_scale, _cy - 9*_scale, _cx + 9*_scale, _cy + 9*_scale, true);
+        draw_rectangle(_cx - 10*_scale, _cy-10*_scale, _cx+10*_scale, _cy+10*_scale, true);
+        draw_set_alpha(1.0);
+    }
+};
+
 // --- Core Flow Functions ---
 start_game = function() {
     global.gameState = "PLAYING";
@@ -219,6 +263,7 @@ start_game = function() {
         array_push(global.nextQueue, generate_piece());
     }
     
+    update_staging_ring_cache();
     spawn_piece();
     global.inputDelayTimer = 10; // ignore fire input for first 10 frames to absorb menu keypress
 

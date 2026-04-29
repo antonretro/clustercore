@@ -68,6 +68,7 @@
     {"id":{"name":"spr_pinkSprite","path":"sprites/spr_pinkSprite/spr_pinkSprite.yy",},},
     {"id":{"name":"spr_redSprite","path":"sprites/spr_redSprite/spr_redSprite.yy",},},
     {"id":{"name":"spr_shield_block","path":"sprites/spr_shield_block/spr_shield_block.yy",},},
+    {"id":{"name":"spr_space_rock","path":"sprites/spr_space_rock/spr_space_rock.yy",},},
     {"id":{"name":"spr_ud_arrows","path":"sprites/spr_ud_arrows/spr_ud_arrows.yy",},},
     {"id":{"name":"spr_uldr_arrows","path":"sprites/spr_uldr_arrows/spr_uldr_arrows.yy",},},
     {"id":{"name":"spr_yellowSprite","path":"sprites/spr_yellowSprite/spr_yellowSprite.yy",},},

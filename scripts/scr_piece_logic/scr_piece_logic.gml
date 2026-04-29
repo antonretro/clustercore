@@ -42,9 +42,9 @@ function get_orbital_pos(_side, _orbX) {
 function generate_piece() {
     if (global.level >= 5 && random(1) < 0.10)
         return { type: "dead",     color: c_dkgray, dir: 0, id: 999 };
-    if (random(1) < 0.02 + (global.level * 0.005))
+    if (random(1) < 0.01 + (global.level * 0.0015))
         return { type: "bomb",     color: c_black,  dir: 0, id: 888 };
-    if (global.level >= 1 && random(1) < 0.015 + (global.level * 0.0025))
+    if (global.level >= 1 && random(1) < 0.008 + (global.level * 0.001))
         return { type: "drill",    color: c_silver, dir: 0, id: 777 };
     if (random(1) < 0.15) {
         var _cid = global.activeColors[irandom(array_length(global.activeColors) - 1)];
@@ -108,16 +108,8 @@ function spawn_piece() {
         _gy = _pos.y;
 
         var _inst = _place_block_instance(_gx, _gy, _p);
-
-        // Drills auto-orient to point inward from their staging side
-        if (_p.type == "drill") {
-            var _s = ((global.orbitalSide % 4) + 4) % 4;
-            if (_s == 0) { _inst.dir = 1; _inst.visualRotation =   0; } // top    → drill downward
-            if (_s == 1) { _inst.dir = 0; _inst.visualRotation = 270; } // right  → drill leftward
-            if (_s == 2) { _inst.dir = 1; _inst.visualRotation = 180; } // bottom → drill upward
-            if (_s == 3) { _inst.dir = 0; _inst.visualRotation =  90; } // left   → drill rightward
-            _inst.rotation = 0;
-        }
+        _inst.visualRotation = 0; // Exactly like blocks
+        _inst.rotation = 0;
 
         global.activePiece  = _inst;
         global.canHold      = true;

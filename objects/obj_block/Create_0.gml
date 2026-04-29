@@ -39,7 +39,7 @@ function update_sprite() {
     // Core blocks now look like normal colored blocks to keep them matchable
     if (type == "asteroid") {
         if (asset_get_index("spr_asteroid") != -1) {
-            sprite_index = spr_asteroid;
+            sprite_index = spr_space_rock;
             image_index = (shield_hp <= 1 ? 1 : 0);
         }
     }

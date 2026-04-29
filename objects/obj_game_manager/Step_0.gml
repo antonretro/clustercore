@@ -149,33 +149,47 @@ if (!global.locking) {
         // Update active piece grid position and ghost depth
         if (global.activePiece != undefined) {
             var _pos = get_orbital_pos(global.orbitalSide, global.orbitalX);
-            var _posChanged = (global.activePiece.grid_x != _pos.x || global.activePiece.grid_y != _pos.y);
+            var _isNewPiece = (global.activePieceID != global.activePiece.id);
+            var _posChanged = _isNewPiece || (global.activePiece.grid_x != _pos.x || global.activePiece.grid_y != _pos.y);
+            global.activePieceID = global.activePiece.id;
             global.activePiece.grid_x = _pos.x;
             global.activePiece.grid_y = _pos.y;
             // Sync world pixel position so the sprite follows the ring
             global.activePiece.x = (_pos.x - global.HIDDEN_SIDES) * 16;
             global.activePiece.y = (_pos.y - global.HIDDEN_ROWS)  * 16;
-            var _maxDepth = max(1, calculate_landing_depth(_pos.x, _pos.y));
-            // Reset to max depth on new position; clamp if nudging
-            if (_posChanged) global.previewDepth = _maxDepth;
-            else             global.previewDepth = clamp(global.previewDepth, 1, _maxDepth);
-
-            // Default to max depth; up/down lets player choose shallower — never floats
-            global.previewDepth = clamp(global.previewDepth, 1, _maxDepth);
-            if (_down && global.previewDepth < _maxDepth) { global.previewDepth++; sfx_piece_move(); }
-            if (_up   && global.previewDepth > 1)         { global.previewDepth--; sfx_piece_move(); }
-
-            // Drills always face inward
-            if (global.activePiece.type == "drill") {
-                var _s = ((global.orbitalSide % 4) + 4) % 4;
-                if (_s == 0) { global.activePiece.dir = 1; global.activePiece.visualRotation =   0; }
-                if (_s == 1) { global.activePiece.dir = 0; global.activePiece.visualRotation = 270; }
-                if (_s == 2) { global.activePiece.dir = 1; global.activePiece.visualRotation = 180; }
-                if (_s == 3) { global.activePiece.dir = 0; global.activePiece.visualRotation =  90; }
-                global.activePiece.rotation = 0;
+            // Update active piece grid position and ghost path
+            if (global.activePieceID != global.activePiece.id || _posChanged) {
+                global.previewData = calculate_planet_preview_path(global.activePiece);
+                if (global.previewData != undefined) global.previewDepth = global.previewData.depth;
             } else {
-                global.activePiece.rotation = -global.boardRotation;
+                // If position hasn't changed, we still might need to clamp depth if the player nudged it
+                var _maxDepth = (global.previewData != undefined) ? global.previewData.depth : 1;
+                global.previewDepth = clamp(global.previewDepth, 1, _maxDepth);
             }
+            if (_down && global.previewDepth < _maxDepth) { global.previewDepth++; sfx_piece_move(); }
+            if (_up && global.previewDepth > 1) {
+                // Find grid position at previewDepth-1 steps inward
+                var _ptx = _pos.x; var _pty = _pos.y;
+                for (var _pi = 0; _pi < global.previewDepth - 1; _pi++) {
+                    var _pdx = sign(floor(global.TOTAL_COLS/2) - _ptx);
+                    var _pdy = sign(floor(global.TOTAL_ROWS/2) - _pty);
+                    if (abs(floor(global.TOTAL_COLS/2) - _ptx) >= abs(floor(global.TOTAL_ROWS/2) - _pty)) _pdy = 0; else _pdx = 0;
+                    _ptx += _pdx; _pty += _pdy;
+                }
+                // Allow only if that position has an adjacent placed block
+                var _nbDirs = [[-1,0],[1,0],[0,-1],[0,1]];
+                var _hasNeighbor = false;
+                for (var _ni = 0; _ni < 4; _ni++) {
+                    var _nx2 = _ptx + _nbDirs[_ni][0]; var _ny2 = _pty + _nbDirs[_ni][1];
+                    if (_nx2 >= 0 && _nx2 < global.TOTAL_COLS && _ny2 >= 0 && _ny2 < global.TOTAL_ROWS
+                    && global.grid[_ny2][_nx2] != undefined) { _hasNeighbor = true; break; }
+                }
+                if (_hasNeighbor) { global.previewDepth--; sfx_piece_move(); }
+                else sfx_piece_blocked();
+            }
+
+            // All pieces now follow standard block orientation (fixed to grid/upright)
+            global.activePiece.rotation = 0;
             if (_prevSide != global.orbitalSide) sfx_piece_move();
         }
 
