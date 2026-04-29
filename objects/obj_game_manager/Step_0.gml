@@ -111,7 +111,6 @@ if (!global.locking) {
     var _fire     = _inputReady && (keyboard_check_pressed(vk_space) || (_gp && gamepad_button_check_pressed(0, gp_face1)));
     var _fireHeld = _inputReady && (keyboard_check(vk_space)         || (_gp && gamepad_button_check(0, gp_face1)));
     var _fireRel  = _inputReady && (keyboard_check_released(vk_space)|| (_gp && gamepad_button_check_released(0, gp_face1)));
-    // vk_up rotates in Classic (standard Tetris). In Planet it adjusts depth — handled below.
     var _hold     = keyboard_check_pressed(ord("C")) || keyboard_check_pressed(vk_lshift)
                  || (_gp && gamepad_button_check_pressed(0, gp_face2));
     var _rotL     = keyboard_check_pressed(ord("Q")) || (_gp && gamepad_button_check_pressed(0, gp_shoulderl));
@@ -140,55 +139,49 @@ if (!global.locking) {
         // Orbital movement with wrap
         if (_moveDir != 0) {
             global.orbitalX += _moveDir;
-            if (global.orbitalX < 0)              { global.orbitalSide--; global.orbitalX = global.COLS - 1; }
-            if (global.orbitalX >= global.COLS)    { global.orbitalSide++; global.orbitalX = 0; }
+            if (global.orbitalX < 0)           { global.orbitalSide--; global.orbitalX = global.COLS - 1; }
+            if (global.orbitalX >= global.COLS) { global.orbitalSide++; global.orbitalX = 0; }
             global.targetRotation = global.orbitalSide * 90;
             sfx_piece_move();
         }
 
-        // Update active piece grid position and ghost depth
+        // Update active piece grid position and recalculate ghost path
         if (global.activePiece != undefined) {
-            var _pos = get_orbital_pos(global.orbitalSide, global.orbitalX);
-            var _isNewPiece = (global.activePieceID != global.activePiece.id);
-            var _posChanged = _isNewPiece || (global.activePiece.grid_x != _pos.x || global.activePiece.grid_y != _pos.y);
-            global.activePieceID = global.activePiece.id;
+            var _pos        = get_orbital_pos(global.orbitalSide, global.orbitalX);
+            var _posChanged = (global.activePiece.grid_x != _pos.x || global.activePiece.grid_y != _pos.y);
             global.activePiece.grid_x = _pos.x;
             global.activePiece.grid_y = _pos.y;
-            // Sync world pixel position so the sprite follows the ring
             global.activePiece.x = (_pos.x - global.HIDDEN_SIDES) * 16;
             global.activePiece.y = (_pos.y - global.HIDDEN_ROWS)  * 16;
-            // Update active piece grid position and ghost path
-            if (global.activePieceID != global.activePiece.id || _posChanged) {
-                global.previewData = calculate_planet_preview_path(global.activePiece);
-                if (global.previewData != undefined) global.previewDepth = global.previewData.depth;
-            } else {
-                // If position hasn't changed, we still might need to clamp depth if the player nudged it
-                var _maxDepth = (global.previewData != undefined) ? global.previewData.depth : 1;
-                global.previewDepth = clamp(global.previewDepth, 1, _maxDepth);
-            }
-            if (_down && global.previewDepth < _maxDepth) { global.previewDepth++; sfx_piece_move(); }
-            if (_up && global.previewDepth > 1) {
-                // Find grid position at previewDepth-1 steps inward
-                var _ptx = _pos.x; var _pty = _pos.y;
-                for (var _pi = 0; _pi < global.previewDepth - 1; _pi++) {
-                    var _pdx = sign(floor(global.TOTAL_COLS/2) - _ptx);
-                    var _pdy = sign(floor(global.TOTAL_ROWS/2) - _pty);
-                    if (abs(floor(global.TOTAL_COLS/2) - _ptx) >= abs(floor(global.TOTAL_ROWS/2) - _pty)) _pdy = 0; else _pdx = 0;
-                    _ptx += _pdx; _pty += _pdy;
-                }
-                // Allow only if that position has an adjacent placed block
-                var _nbDirs = [[-1,0],[1,0],[0,-1],[0,1]];
-                var _hasNeighbor = false;
-                for (var _ni = 0; _ni < 4; _ni++) {
-                    var _nx2 = _ptx + _nbDirs[_ni][0]; var _ny2 = _pty + _nbDirs[_ni][1];
-                    if (_nx2 >= 0 && _nx2 < global.TOTAL_COLS && _ny2 >= 0 && _ny2 < global.TOTAL_ROWS
-                    && global.grid[_ny2][_nx2] != undefined) { _hasNeighbor = true; break; }
-                }
-                if (_hasNeighbor) { global.previewDepth--; sfx_piece_move(); }
-                else sfx_piece_blocked();
-            }
 
-            // All pieces now follow standard block orientation (fixed to grid/upright)
+            if (_posChanged || global.previewData == undefined) {
+                global.previewData  = calculate_planet_preview_path(global.activePiece);
+                global.previewDepth = (global.previewData != undefined) ? global.previewData.depth : 1;
+            }
+            var _maxDepth = (global.previewData != undefined) ? global.previewData.depth : 1;
+            global.previewDepth = clamp(global.previewDepth, 1, _maxDepth);
+
+            // Nudge depth shallower (up) — step back along cached L-path
+            if (_up && global.previewDepth > 1) {
+                var _pathLen   = (global.previewData != undefined) ? array_length(global.previewData.path) : 0;
+                var _targetIdx = global.previewDepth - 2;
+                if (_pathLen > 0 && _targetIdx >= 0) {
+                    var _prevCell    = global.previewData.path[_targetIdx];
+                    var _nbDirs      = [[-1,0],[1,0],[0,-1],[0,1]];
+                    var _hasNeighbor = false;
+                    for (var _ni = 0; _ni < 4; _ni++) {
+                        var _nx2 = _prevCell.gx + _nbDirs[_ni][0];
+                        var _ny2 = _prevCell.gy + _nbDirs[_ni][1];
+                        if (_nx2 >= 0 && _nx2 < global.TOTAL_COLS && _ny2 >= 0 && _ny2 < global.TOTAL_ROWS
+                        && global.grid[_ny2][_nx2] != undefined) { _hasNeighbor = true; break; }
+                    }
+                    if (_hasNeighbor) { global.previewDepth--; sfx_piece_move(); }
+                    else sfx_piece_blocked();
+                }
+            }
+            // Nudge depth deeper (down)
+            if (_down && global.previewDepth < _maxDepth) { global.previewDepth++; sfx_piece_move(); }
+
             global.activePiece.rotation = 0;
             if (_prevSide != global.orbitalSide) sfx_piece_move();
         }

@@ -123,18 +123,15 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
     var _ap  = global.activePiece;
     var _gx4 = _ap.grid_x; var _gy4 = _ap.grid_y;
     
-    // Ghost target cell calculation (using cached data from Step event)
+    // Ghost target cell — read from the cached path, clamped to previewDepth
     if (global.previewData != undefined) {
-        var _target = global.previewData.target;
-        // The player can nudge the piece shallower, so we trace the path up to global.previewDepth
-        var _tx4 = _ap.grid_x; var _ty4 = _ap.grid_y;
-        for (var i = 0; i < global.previewDepth; i++) {
-            var _ddx = sign(_centerGX - _tx4);
-            var _ddy = sign(_centerGY - _ty4);
-            if (abs(_centerGX - _tx4) >= abs(_centerGY - _ty4)) _ddy = 0; else _ddx = 0;
-            _tx4 += _ddx; _ty4 += _ddy;
+        var _path = global.previewData.path;
+        var _pathLen = array_length(_path);
+        var _clampedDepth = clamp(global.previewDepth, 0, _pathLen) - 1;
+        if (_clampedDepth >= 0 && _pathLen > 0) {
+            _gx4 = _path[_clampedDepth].gx;
+            _gy4 = _path[_clampedDepth].gy;
         }
-        _gx4 = _tx4; _gy4 = _ty4;
     }
 
     var _gpcx  = _bx + (_gx4 - global.HIDDEN_SIDES) * _cw + 8 * _scale;
@@ -144,19 +141,18 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
     var _pulse = 0.22 + abs(sin(current_time * 0.008)) * 0.22;
 
     if (_gx4 != _ap.grid_x || _gy4 != _ap.grid_y) {
-        // Trajectory trail
-        if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-            var _ptx = _ap.grid_x; var _pty = _ap.grid_y;
+        // Trajectory trail — draw each cell in the L-shaped path
+        if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.previewData != undefined) {
+            var _path = global.previewData.path;
+            var _pathLen = array_length(_path);
+            var _drawLen = min(global.previewDepth, _pathLen);
             gpu_set_blendmode(bm_add);
-            for (var _pi = 0; _pi < global.previewDepth; _pi++) {
-                var _pdx = sign(_centerGX - _ptx);
-                var _pdy = sign(_centerGY - _pty);
-                if (abs(_centerGX - _ptx) >= abs(_centerGY - _pty)) _pdy = 0; else _pdx = 0;
-                _ptx += _pdx; _pty += _pdy;
-                var _fade = (_pi + 1) / max(1, global.previewDepth);
+            for (var _pi = 0; _pi < _drawLen; _pi++) {
+                var _pcell = _path[_pi];
+                var _fade  = (_pi + 1) / max(1, _drawLen);
                 draw_set_alpha(0.08 + 0.20 * _fade); draw_set_color(_ap.color);
-                var _psx = _bx + (_ptx - global.HIDDEN_SIDES) * _cw;
-                var _psy = _by + (_pty - global.HIDDEN_ROWS)  * _cw;
+                var _psx = _bx + (_pcell.gx - global.HIDDEN_SIDES) * _cw;
+                var _psy = _by + (_pcell.gy - global.HIDDEN_ROWS)  * _cw;
                 draw_rectangle(_psx, _psy, _psx + _cw, _psy + _cw, false);
             }
             gpu_set_blendmode(bm_normal);
