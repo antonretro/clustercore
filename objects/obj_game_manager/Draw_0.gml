@@ -53,34 +53,33 @@ if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
     var _ringPulse = 0.18 + abs(sin(current_time * 0.007)) * 0.22;
     var _apColor  = (global.activePiece != undefined) ? global.activePiece.color : c_white;
 
-    // Helper macro — draw one staging cell at grid (sx, sy)
-    var _drawStagingCell = function(_sx, _sy) {
-        var _tx    = _bx + (_sx - global.HIDDEN_SIDES) * _cw;
-        var _ty    = _by + (_sy - global.HIDDEN_ROWS)  * _cw;
+    // Build flat list of all 4 staging sides, draw inline (no lambda — GML closures can't capture locals)
+    var _ring = [];
+    for (var _i = 1; _i <= global.COLS; _i++)  array_push(_ring, {sx: _i,                   sy: 0});
+    for (var _i = 1; _i <= global.ROWS; _i++)  array_push(_ring, {sx: global.TOTAL_COLS-1,  sy: _i});
+    for (var _i = global.COLS; _i >= 1; _i--)  array_push(_ring, {sx: _i,                   sy: global.TOTAL_ROWS-1});
+    for (var _i = global.ROWS; _i >= 1; _i--)  array_push(_ring, {sx: 0,                    sy: _i});
+
+    for (var _ri = 0; _ri < array_length(_ring); _ri++) {
+        var _sx    = _ring[_ri].sx;
+        var _sy    = _ring[_ri].sy;
+        var _stx   = _bx + (_sx - global.HIDDEN_SIDES) * _cw;
+        var _sty   = _by + (_sy - global.HIDDEN_ROWS)  * _cw;
         var _isAct = (_sx == _ap_gx && _sy == _ap_gy);
         draw_set_alpha(_isAct ? 0.55 : 0.25);
         draw_set_color(_isAct ? _apColor : make_color_rgb(50, 30, 80));
-        draw_rectangle(_tx, _ty, _tx + _cw, _ty + _cw, false);
+        draw_rectangle(_stx, _sty, _stx + _cw, _sty + _cw, false);
         draw_set_alpha(_isAct ? 0.9 : 0.35);
         draw_set_color(_isAct ? _apColor : make_color_rgb(110, 60, 160));
-        draw_rectangle(_tx, _ty, _tx + _cw, _ty + _cw, true);
+        draw_rectangle(_stx, _sty, _stx + _cw, _sty + _cw, true);
         if (_isAct) {
             gpu_set_blendmode(bm_add);
             draw_set_alpha(_ringPulse * 0.7);
             draw_set_color(_apColor);
-            draw_rectangle(_tx - 2, _ty - 2, _tx + _cw + 2, _ty + _cw + 2, false);
+            draw_rectangle(_stx - 2, _sty - 2, _stx + _cw + 2, _sty + _cw + 2, false);
             gpu_set_blendmode(bm_normal);
         }
-    };
-
-    // Top row: y=0, x=1..9
-    for (var _gx = 1; _gx <= global.COLS; _gx++) _drawStagingCell(_gx, 0);
-    // Right col: x=10, y=1..9
-    for (var _gy2 = 1; _gy2 <= global.ROWS; _gy2++) _drawStagingCell(global.TOTAL_COLS - 1, _gy2);
-    // Bottom row: y=10, x=9..1
-    for (var _gx = global.COLS; _gx >= 1; _gx--) _drawStagingCell(_gx, global.TOTAL_ROWS - 1);
-    // Left col: x=0, y=9..1
-    for (var _gy2 = global.ROWS; _gy2 >= 1; _gy2--) _drawStagingCell(0, _gy2);
+    }
     draw_set_alpha(1.0);
 }
 
