@@ -270,12 +270,38 @@ start_game = function() {
         var _coreData = { type: "core", color: c_white, dir: 0, id: 0 };
         var _coreInst = _place_block_instance(_cx, _cy, _coreData);
         global.grid[_cy][_cx] = { type: "core", color: c_white, dir: 0, id: 0, inst: _coreInst };
+
+        // Seed 4 blocks around core (N/S = color1, E/W = color2) so the first match
+        // opportunity appears within 2-3 turns — removes the dull empty-board opening.
+        if (array_length(global.activeColors) >= 2) {
+            var _c1   = global.activeColors[0];
+            var _c2   = global.activeColors[1];
+            var _col1 = get_color_from_id(_c1);
+            var _col2 = get_color_from_id(_c2);
+            var _seeds = [
+                { dx:  0, dy: -1, cid: _c1, col: _col1 },
+                { dx:  1, dy:  0, cid: _c2, col: _col2 },
+                { dx:  0, dy:  1, cid: _c1, col: _col1 },
+                { dx: -1, dy:  0, cid: _c2, col: _col2 },
+            ];
+            for (var _si = 0; _si < 4; _si++) {
+                var _sx = _cx + _seeds[_si].dx;
+                var _sy = _cy + _seeds[_si].dy;
+                if (global.grid[_sy][_sx] == undefined) {
+                    var _sd = { type: "normal", color: _seeds[_si].col, dir: 0, id: _seeds[_si].cid };
+                    var _si2 = _place_block_instance(_sx, _sy, _sd);
+                    global.grid[_sy][_sx] = { type: "normal", color: _seeds[_si].col,
+                                              dir: 0, id: _seeds[_si].cid, inst: _si2 };
+                }
+            }
+        }
     }
 
     update_staging_ring_cache();
     spawn_piece();
     global.previewData    = undefined; // force recalc on first frame
-    global.inputDelayTimer = 10; // ignore fire input for first 10 frames to absorb menu keypress
+    global.tutorialTimer  = 600;       // show controls hint for 10 seconds
+    global.inputDelayTimer = 10;
 };
 
 start_game();

@@ -535,12 +535,35 @@ function migrate_core(_oldX, _oldY) {
         }
     }
     if (array_length(_candidates) > 0) {
-        var _pick = _candidates[irandom(array_length(_candidates) - 1)];
-        var _newCore = global.grid[_pick.y][_pick.x];
+        // Smart migration: score each candidate by number of same-color neighbors.
+        // Core migrates toward where play is densest, rewarding strategic thinking.
+        var _bestScore = -999;
+        var _bestPick  = _candidates[0];
+        for (var _ci = 0; _ci < array_length(_candidates); _ci++) {
+            var _cand     = _candidates[_ci];
+            var _candCell = global.grid[_cand.y][_cand.x];
+            var _score    = 0;
+            // Bonus for same-color neighbors (makes a near-match even nearer)
+            for (var _cd = 0; _cd < 4; _cd++) {
+                var _cnx = _cand.x + _dirs[_cd][0];
+                var _cny = _cand.y + _dirs[_cd][1];
+                if (_cnx < 0 || _cnx >= global.TOTAL_COLS || _cny < 0 || _cny >= global.TOTAL_ROWS) continue;
+                var _nb = global.grid[_cny][_cnx];
+                if (_nb != undefined && _nb.id == _candCell.id) _score += 4;
+                if (_nb != undefined && _nb.type != undefined) _score += 1; // any neighbor = more active
+            }
+            // Prefer staying closer to center (fairer, less likely to get stuck in corner)
+            var _dist = max(abs(_cand.x - floor(global.TOTAL_COLS/2)), abs(_cand.y - floor(global.TOTAL_ROWS/2)));
+            _score -= _dist;
+            // Small random tie-break so same-scored cells still vary
+            _score += random(0.5);
+            if (_score > _bestScore) { _bestScore = _score; _bestPick = _cand; }
+        }
+        var _newCore = global.grid[_bestPick.y][_bestPick.x];
         _newCore.type = "core";
         _newCore.inst.type = "core";
         with (_newCore.inst) update_sprite();
-        var _sp = _grid_screen_pos(_pick.x, _pick.y);
+        var _sp = _grid_screen_pos(_bestPick.x, _bestPick.y);
         create_floating_text_ext(_sp.x, _sp.y, "CORE MIGRATED!", c_white, 1.2);
     } else {
         var _sp = _grid_screen_pos(_oldX, _oldY);

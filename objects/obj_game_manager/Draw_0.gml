@@ -191,6 +191,63 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
         draw_line_width(_gpcx, _gpcy + 5*_scale,  _gpcx, _gpcy + 13*_scale, max(1,_scale));
         draw_set_alpha(1.0);
     }
+
+    // ── Match-potential highlight ──────────────────────────────────────────────
+    // When landing cell is adjacent to same-color blocks, highlight that cluster.
+    // Extra bright border when it would complete a match-4 or better.
+    if (_gx4 >= 0 && _gx4 < global.TOTAL_COLS && _gy4 >= 0 && _gy4 < global.TOTAL_ROWS) {
+        // BFS: collect connected same-color cells from landing position's neighbors
+        var _hlList = [];
+        var _hlQueue = [];
+        var _hlVis   = [];
+        for (var _vy = 0; _vy < global.TOTAL_ROWS; _vy++) {
+            _hlVis[_vy] = array_create(global.TOTAL_COLS, false);
+        }
+        _hlVis[_gy4][_gx4] = true;
+        var _nbDirs2 = [[-1,0],[1,0],[0,-1],[0,1]];
+        for (var _nd = 0; _nd < 4; _nd++) {
+            var _nnx = _gx4 + _nbDirs2[_nd][0];
+            var _nny = _gy4 + _nbDirs2[_nd][1];
+            if (_nnx < 0 || _nnx >= global.TOTAL_COLS || _nny < 0 || _nny >= global.TOTAL_ROWS) continue;
+            var _nc = global.grid[_nny][_nnx];
+            if (_nc != undefined && _nc.id == _ap.color_id && !_hlVis[_nny][_nnx]) {
+                _hlVis[_nny][_nnx] = true;
+                array_push(_hlList,  {x: _nnx, y: _nny});
+                array_push(_hlQueue, {x: _nnx, y: _nny});
+            }
+        }
+        while (array_length(_hlQueue) > 0) {
+            var _curr2 = _hlQueue[0]; array_delete(_hlQueue, 0, 1);
+            for (var _nd = 0; _nd < 4; _nd++) {
+                var _nnx = _curr2.x + _nbDirs2[_nd][0];
+                var _nny = _curr2.y + _nbDirs2[_nd][1];
+                if (_nnx < 0 || _nnx >= global.TOTAL_COLS || _nny < 0 || _nny >= global.TOTAL_ROWS) continue;
+                var _nc = global.grid[_nny][_nnx];
+                if (_nc != undefined && _nc.id == _ap.color_id && !_hlVis[_nny][_nnx]) {
+                    _hlVis[_nny][_nnx] = true;
+                    array_push(_hlList,  {x: _nnx, y: _nny});
+                    array_push(_hlQueue, {x: _nnx, y: _nny});
+                }
+            }
+        }
+        // Draw highlights: 2+ neighbors = near match, 3+ = match ready (1 more = 4)
+        var _hlCount = array_length(_hlList);
+        if (_hlCount >= 1) {
+            var _hlPulse    = 0.45 + abs(sin(current_time * 0.012)) * 0.45;
+            var _isMatchRdy = (_hlCount >= 3); // landing piece would make 4+
+            gpu_set_blendmode(bm_add);
+            for (var _hi = 0; _hi < _hlCount; _hi++) {
+                var _hcell = _hlList[_hi];
+                var _hsx = _bx + (_hcell.x - global.HIDDEN_SIDES) * _cw;
+                var _hsy = _by + (_hcell.y - global.HIDDEN_ROWS)  * _cw;
+                draw_set_color(_isMatchRdy ? c_lime : _ap.color);
+                draw_set_alpha((_isMatchRdy ? 0.55 : 0.30) * _hlPulse);
+                draw_rectangle(_hsx + _scale, _hsy + _scale,
+                                _hsx + _cw - _scale, _hsy + _cw - _scale, true);
+            }
+            gpu_set_blendmode(bm_normal);
+        }
+    }
 }
 
 // --- Core Hologram ---
@@ -262,6 +319,26 @@ matrix_set(matrix_world, matrix_build(0,0,0,0,0,0,1,1,1));
 for (var i = 0; i < array_length(global.floatingTexts); i++) {
     var _ft = global.floatingTexts[i]; draw_set_alpha(_ft.life / 90); draw_set_color(_ft.color);
     draw_set_font(main_font); draw_set_halign(fa_center); draw_text_transformed(_ft.x, _ft.y, _ft.text, _ft.scale, _ft.scale, 0);
+}
+
+// --- Controls Hint (fades out after 10 seconds) ---
+if (global.gameState == "PLAYING" && global.tutorialTimer > 0) {
+    global.tutorialTimer--;
+    var _hintAlpha = min(1.0, global.tutorialTimer / 60.0); // fade out over last 60 frames
+    var _isPlanet  = (global.gameMode == "PLANET" || global.gameMode == "STORY");
+    var _hintY     = global.GAME_H - 22;
+    draw_set_font(main_font); draw_set_halign(fa_center); draw_set_valign(fa_middle);
+    draw_set_alpha(_hintAlpha * 0.5); draw_set_color(c_black);
+    draw_rectangle(0, _hintY - 12, global.GAME_W, _hintY + 14, false);
+    draw_set_alpha(_hintAlpha * 0.85); draw_set_color(make_color_rgb(200, 210, 255));
+    if (_isPlanet) {
+        draw_text_transformed(global.GAME_W/2, _hintY,
+            "← →  Move     SPACE  Fire     Q / E  Change Side     C  Hold", 0.75, 0.75, 0);
+    } else {
+        draw_text_transformed(global.GAME_W/2, _hintY,
+            "← →  Move     ↓  Soft Drop     SPACE  Hard Drop     C  Hold", 0.75, 0.75, 0);
+    }
+    draw_set_alpha(1.0); draw_set_valign(fa_top);
 }
 
 if (global.gameState == "GAMEOVER") {
