@@ -1,3 +1,15 @@
+// Returns { x, y } staging-ring grid position for a given orbital side + position.
+// Single source of truth — used by spawn_piece, hold_piece, and Step_0 input.
+function get_orbital_pos(_side, _orbX) {
+    var _s = (_side % 4 + 4) % 4;
+    var _x = 0, _y = 0;
+    if (_s == 0) { _x = _orbX;                         _y = global.HIDDEN_ROWS - 1; }
+    if (_s == 1) { _x = global.COLS;                    _y = global.HIDDEN_ROWS + _orbX; }
+    if (_s == 2) { _x = (global.COLS - 1) - _orbX;     _y = global.TOTAL_ROWS; }
+    if (_s == 3) { _x = -1;                             _y = (global.TOTAL_ROWS - 1) - _orbX; }
+    return { x: _x, y: _y };
+}
+
 function generate_piece() {
     if (global.level >= 5 && random(1) < 0.10) {
         return { type: "dead", color: c_dkgray, dir: 0, id: 999 };
@@ -38,54 +50,43 @@ function get_color_from_id(_id) {
 function spawn_piece() {
     var _p = array_shift(global.nextQueue);
     array_push(global.nextQueue, generate_piece());
-    
+
     var _nx = floor(global.COLS / 2);
     var _ny = 0;
-    
+
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-        var _s = (global.orbitalSide % 4 + 4) % 4;
-        if (_s == 0) { _nx = global.orbitalX; _ny = global.HIDDEN_ROWS - 1; }
-        if (_s == 1) { _nx = global.COLS; _ny = global.HIDDEN_ROWS + global.orbitalX; }
-        if (_s == 2) { _nx = (global.COLS - 1) - global.orbitalX; _ny = global.TOTAL_ROWS; }
-        if (_s == 3) { _nx = -1; _ny = (global.TOTAL_ROWS - 1) - global.orbitalX; }
-    } else {
-        _ny = 0;
-        _nx = floor(global.COLS / 2);
+        var _pos = get_orbital_pos(global.orbitalSide, global.orbitalX);
+        _nx = _pos.x;
+        _ny = _pos.y;
     }
 
     var _inst = instance_create_layer(_nx * 16, (_ny - global.HIDDEN_ROWS) * 16, "Instances", obj_block);
-    _inst.type = _p.type;
-    _inst.color = _p.color;
-    _inst.dir = _p.dir;
+    _inst.type     = _p.type;
+    _inst.color    = _p.color;
+    _inst.dir      = _p.dir;
     _inst.color_id = _p.id;
-    _inst.grid_x = _nx;
-    _inst.grid_y = _ny;
-    
+    _inst.grid_x   = _nx;
+    _inst.grid_y   = _ny;
     with(_inst) update_sprite();
-    
-    global.activePiece = _inst;
-    global.canHold = true;
-    global.pieceTimer = global.MAX_PIECE_TIME;
+
+    global.activePiece  = _inst;
+    global.canHold      = true;
+    global.pieceTimer   = global.MAX_PIECE_TIME;
     global.launchCharge = 0;
-    global.previewDepth = calculate_landing_depth(_nx, _ny);
+    global.previewDepth = max(1, calculate_landing_depth(_nx, _ny));
 
     // --- GAME OVER CHECK ---
     var _isOver = false;
-
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-        // Planet mode: game over if the piece can't move even one step toward center
+        // Game over only when the piece can't enter the board at all (stuck in staging ring)
         var _cx = floor(global.COLS / 2);
         var _cy = global.HIDDEN_ROWS + floor(global.ROWS / 2);
-        var _ddx = sign(_cx - _nx);
-        var _ddy = sign(_cy - _ny);
-        if (abs(_cx - _nx) >= abs(_cy - _ny)) _ddy = 0; else _ddx = 0;
-        if (_ddx == 0 && _ddy == 0) {
-            _isOver = true; // already at center — board completely full
+        if (_nx == _cx && _ny == _cy) {
+            _isOver = true; // spawned exactly at center — completely full
         } else {
-            _isOver = check_collision(_ddx, _ddy);
+            _isOver = (calculate_landing_depth(_nx, _ny) == 0);
         }
     } else {
-        // Classic mode: top-out — spawn column is occupied
         if (_nx >= 0 && _nx < global.COLS && _ny >= 0 && _ny < global.TOTAL_ROWS) {
             var _occupant = global.grid[_ny][_nx];
             _isOver = (_occupant != undefined && !_occupant.inst.clearing);
@@ -126,27 +127,25 @@ function hold_piece() {
         var _spawnX = floor(global.COLS / 2);
         var _spawnY = 0;
         if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-            var _s = (global.orbitalSide % 4 + 4) % 4;
-            if (_s == 0) { _spawnX = global.orbitalX;               _spawnY = global.HIDDEN_ROWS - 1; }
-            if (_s == 1) { _spawnX = global.COLS;                    _spawnY = global.HIDDEN_ROWS + global.orbitalX; }
-            if (_s == 2) { _spawnX = (global.COLS - 1) - global.orbitalX; _spawnY = global.TOTAL_ROWS; }
-            if (_s == 3) { _spawnX = -1;                             _spawnY = (global.TOTAL_ROWS - 1) - global.orbitalX; }
+            var _pos = get_orbital_pos(global.orbitalSide, global.orbitalX);
+            _spawnX = _pos.x;
+            _spawnY = _pos.y;
         }
-        
+
         instance_destroy(global.activePiece);
-        
+
         var _inst = instance_create_layer(_spawnX * 16, (_spawnY - global.HIDDEN_ROWS) * 16, "Instances", obj_block);
-        _inst.type = _p.type;
-        _inst.color = _p.color;
-        _inst.dir = _p.dir;
+        _inst.type     = _p.type;
+        _inst.color    = _p.color;
+        _inst.dir      = _p.dir;
         _inst.color_id = _p.id;
-        _inst.grid_x = _spawnX;
-        _inst.grid_y = _spawnY;
+        _inst.grid_x   = _spawnX;
+        _inst.grid_y   = _spawnY;
         with(_inst) update_sprite();
-        
-        global.activePiece = _inst;
-        global.holdPiece = _temp;
-        global.previewDepth = calculate_landing_depth(_spawnX, _spawnY);
+
+        global.activePiece  = _inst;
+        global.holdPiece    = _temp;
+        global.previewDepth = max(1, calculate_landing_depth(_spawnX, _spawnY));
     }
     
     global.canHold = false;

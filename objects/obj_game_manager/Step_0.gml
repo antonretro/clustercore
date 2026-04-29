@@ -187,20 +187,13 @@ if (!global.locking) {
             sfx_piece_move();
         }
 
-        // --- GUIDED SNIPER POSITIONING (staging ring coords) ---
+        // --- GUIDED SNIPER POSITIONING ---
         if (global.activePiece != undefined) {
-            var _s = (global.orbitalSide % 4 + 4) % 4;
-            var _nx = 0, _ny = 0;
-            if (_s == 0) { _nx = global.orbitalX;                    _ny = global.HIDDEN_ROWS - 1; }
-            if (_s == 1) { _nx = global.COLS;                        _ny = global.HIDDEN_ROWS + global.orbitalX; }
-            if (_s == 2) { _nx = (global.COLS - 1) - global.orbitalX; _ny = global.TOTAL_ROWS; }
-            if (_s == 3) { _nx = -1;                                 _ny = (global.TOTAL_ROWS - 1) - global.orbitalX; }
-
-            global.activePiece.grid_x = _nx;
-            global.activePiece.grid_y = _ny;
-            global.previewDepth = calculate_landing_depth(_nx, _ny);
+            var _pos = get_orbital_pos(global.orbitalSide, global.orbitalX);
+            global.activePiece.grid_x = _pos.x;
+            global.activePiece.grid_y = _pos.y;
+            global.previewDepth       = max(1, calculate_landing_depth(_pos.x, _pos.y));
             global.activePiece.rotation = -global.boardRotation;
-
             if (_prevSide != global.orbitalSide) sfx_piece_move();
         }
         

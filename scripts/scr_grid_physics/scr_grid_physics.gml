@@ -550,15 +550,28 @@ function apply_grid_gravity() {
                     
                     if (_nx >= 0 && _nx < global.COLS && _ny >= 0 && _ny < global.TOTAL_ROWS) {
                         if (global.grid[_ny][_nx] == undefined) {
-                            // MOVE TOWARD CORE
                             global.grid[_ny][_nx] = _cell;
-                            global.grid[_y][_x] = undefined;
+                            global.grid[_y][_x]   = undefined;
                             _cell.inst.grid_x = _nx;
                             _cell.inst.grid_y = _ny;
-                            
-                            // Let the Step lerp handle the slide animation
-                            
                             _changed = true;
+                        } else {
+                            // Primary axis blocked — try the secondary axis so blocks don't float
+                            var _dx2 = sign(_cx - _x);
+                            var _dy2 = sign(_cy - _y);
+                            if (abs(_cx - _x) >= abs(_cy - _y)) _dx2 = 0; else _dy2 = 0;
+                            var _nx2 = _x + _dx2;
+                            var _ny2 = _y + _dy2;
+                            if ((_dx2 != 0 || _dy2 != 0)
+                                && _nx2 >= 0 && _nx2 < global.COLS
+                                && _ny2 >= 0 && _ny2 < global.TOTAL_ROWS
+                                && global.grid[_ny2][_nx2] == undefined) {
+                                global.grid[_ny2][_nx2] = _cell;
+                                global.grid[_y][_x]     = undefined;
+                                _cell.inst.grid_x = _nx2;
+                                _cell.inst.grid_y = _ny2;
+                                _changed = true;
+                            }
                         }
                     }
                 }
@@ -610,7 +623,7 @@ function calculate_landing_depth(_gx, _gy) {
         _depth++;
     }
     
-    return max(1, _depth);
+    return _depth; // raw 0 = piece can't enter board at all (game over zone)
 }
 function migrate_core(_oldX, _oldY) {
     global.coresCleared++;
@@ -634,8 +647,10 @@ function migrate_core(_oldX, _oldY) {
     var _by_m = (global.GAME_H - (global.ROWS * 16 * global.PIXEL_SCALE)) / 2;
     if (array_length(_candidates) > 0) {
         var _pick = _candidates[irandom(array_length(_candidates) - 1)];
-        global.grid[_pick.y][_pick.x].type = "core";
-        with(global.grid[_pick.y][_pick.x].inst) update_sprite();
+        var _newCore = global.grid[_pick.y][_pick.x];
+        _newCore.type      = "core"; // grid cell
+        _newCore.inst.type = "core"; // instance — needed for Draw glow + update_sprite
+        with(_newCore.inst) update_sprite();
         var _ftx = _bx_m + (_pick.x * 16 * global.PIXEL_SCALE) + (8 * global.PIXEL_SCALE);
         var _fty = _by_m + ((_pick.y - global.HIDDEN_ROWS) * 16 * global.PIXEL_SCALE);
         create_floating_text_ext(_ftx, _fty, "CORE MIGRATED!", c_white, 1.2);
