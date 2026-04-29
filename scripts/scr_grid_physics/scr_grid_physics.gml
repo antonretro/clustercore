@@ -86,7 +86,7 @@ function lock_piece() {
 
     // ── PLANET / STORY: game over if still in staging ring ───────────────────
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-        var _dist = max(abs(_px - global.GRID_CX), abs(_py - global.GRID_CY));
+        var _dist = max(abs(_px - floor(global.TOTAL_COLS / 2)), abs(_py - floor(global.TOTAL_ROWS / 2)));
         if (_dist >= 5) {
             global.gameState = "GAMEOVER";
             sfx_game_over();
@@ -121,7 +121,7 @@ function lock_piece() {
 
     // ── PLANET: first piece to land on center becomes the core ───────────────
     if ((global.gameMode == "PLANET" || global.gameMode == "STORY")
-    && _px == global.GRID_CX && _py == global.GRID_CY) {
+    && _px == floor(global.TOTAL_COLS / 2) && _py == floor(global.TOTAL_ROWS / 2)) {
         var _hasCore = false;
         with (obj_block) if (type == "core") { _hasCore = true; break; }
         if (!_hasCore) {
@@ -153,9 +153,9 @@ function lock_piece() {
         if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
             // Straight line toward center
             var _gx = _px; var _gy = _py;
-            var _vx = (_px <= global.GRID_CX) ? 1 : -1;
-            var _vy = (_py <= global.GRID_CY) ? 1 : -1;
-            if (abs(_px - global.GRID_CX) >= abs(_py - global.GRID_CY)) _vy = 0; else _vx = 0;
+            var _vx = (_px <= floor(global.TOTAL_COLS / 2)) ? 1 : -1;
+            var _vy = (_py <= floor(global.TOTAL_ROWS / 2)) ? 1 : -1;
+            if (abs(_px - floor(global.TOTAL_COLS / 2)) >= abs(_py - floor(global.TOTAL_ROWS / 2))) _vy = 0; else _vx = 0;
             if (_vx == 0 && _vy == 0) _vy = 1;
 
             while (true) {
@@ -169,7 +169,7 @@ function lock_piece() {
                     _drilled++;
                 }
                 create_beam((_gx - global.HIDDEN_SIDES) * 16, (_gy - global.HIDDEN_ROWS) * 16, 16, 16, c_white);
-                if (_gx == global.GRID_CX && _gy == global.GRID_CY) break;
+                if (_gx == floor(global.TOTAL_COLS / 2) && _gy == floor(global.TOTAL_ROWS / 2)) break;
                 _gx += _vx; _gy += _vy;
                 if (_gx < 0 || _gx >= global.TOTAL_COLS || _gy < 0 || _gy >= global.TOTAL_ROWS) break;
             }
@@ -306,9 +306,9 @@ function hard_drop_radial() {
     for (var i = 0; i < _depth; i++) {
         var _gx = global.activePiece.grid_x;
         var _gy = global.activePiece.grid_y;
-        var _dx = sign(global.GRID_CX - _gx);
-        var _dy = sign(global.GRID_CY - _gy);
-        if (abs(global.GRID_CX - _gx) >= abs(global.GRID_CY - _gy)) _dy = 0; else _dx = 0;
+        var _dx = sign(floor(global.TOTAL_COLS / 2) - _gx);
+        var _dy = sign(floor(global.TOTAL_ROWS / 2) - _gy);
+        if (abs(floor(global.TOTAL_COLS / 2) - _gx) >= abs(floor(global.TOTAL_ROWS / 2) - _gy)) _dy = 0; else _dx = 0;
         if (_dx == 0 && _dy == 0) break;
 
         if (!move_piece(_dx, _dy)) {
@@ -354,11 +354,11 @@ function apply_grid_gravity() {
                 for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
                     var _cell = global.grid[_y][_x];
                     if (_cell == undefined || _cell.type == "core") continue;
-                    var _dx = sign(global.GRID_CX - _x);
-                    var _dy = sign(global.GRID_CY - _y);
+                    var _dx = sign(floor(global.TOTAL_COLS / 2) - _x);
+                    var _dy = sign(floor(global.TOTAL_ROWS / 2) - _y);
                     if (_dx == 0 && _dy == 0) continue;
                     // Dominant axis first
-                    if (abs(global.GRID_CX - _x) >= abs(global.GRID_CY - _y)) _dy = 0; else _dx = 0;
+                    if (abs(floor(global.TOTAL_COLS / 2) - _x) >= abs(floor(global.TOTAL_ROWS / 2) - _y)) _dy = 0; else _dx = 0;
                     var _nx = _x + _dx; var _ny = _y + _dy;
                     if (_nx >= 0 && _nx < global.TOTAL_COLS && _ny >= 0 && _ny < global.TOTAL_ROWS
                     && global.grid[_ny][_nx] == undefined) {
@@ -397,10 +397,10 @@ function calculate_landing_depth(_gx, _gy) {
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
         var _tx = _gx; var _ty = _gy; var _depth = 0;
         while (_depth < global.TOTAL_ROWS) {
-            var _dx = sign(global.GRID_CX - _tx);
-            var _dy = sign(global.GRID_CY - _ty);
+            var _dx = sign(floor(global.TOTAL_COLS / 2) - _tx);
+            var _dy = sign(floor(global.TOTAL_ROWS / 2) - _ty);
             if (_dx == 0 && _dy == 0) break;
-            if (abs(global.GRID_CX - _tx) >= abs(global.GRID_CY - _ty)) _dy = 0; else _dx = 0;
+            if (abs(floor(global.TOTAL_COLS / 2) - _tx) >= abs(floor(global.TOTAL_ROWS / 2) - _ty)) _dy = 0; else _dx = 0;
             var _nx = _tx + _dx; var _ny = _ty + _dy;
             if (_nx < 0 || _nx >= global.TOTAL_COLS || _ny < 0 || _ny >= global.TOTAL_ROWS) break;
             if (global.grid[_ny][_nx] != undefined) break;

@@ -105,7 +105,7 @@ draw_roundrect_ext(_bx - 12, _by - 12, _bx + _bw + 12, _by + _bh + 12, 20, 20, t
 if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
     for (var _gy3 = global.HIDDEN_ROWS; _gy3 < global.TOTAL_ROWS - global.HIDDEN_SIDES; _gy3++) {
         for (var _gx3 = global.HIDDEN_SIDES; _gx3 < global.TOTAL_COLS - global.HIDDEN_SIDES; _gx3++) {
-            var _dist = max(abs(_gx3 - global.GRID_CX), abs(_gy3 - global.GRID_CY));
+            var _dist = max(abs(_gx3 - floor(global.TOTAL_COLS / 2)), abs(_gy3 - floor(global.TOTAL_ROWS / 2)));
             if (_dist == 0) continue;
             var _tx = _bx + (_gx3 - global.HIDDEN_SIDES) * _cw;
             var _ty = _by + (_gy3 - global.HIDDEN_ROWS)  * _cw;
@@ -133,10 +133,10 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
         var _tx4 = _gx4; var _ty4 = _gy4;
         var _isHeavy = (global.launchCharge >= global.MAX_CHARGE);
         for (var i = 0; i < global.previewDepth; i++) {
-            var _ddx = sign(global.GRID_CX - _tx4);
-            var _ddy = sign(global.GRID_CY - _ty4);
+            var _ddx = sign(floor(global.TOTAL_COLS / 2) - _tx4);
+            var _ddy = sign(floor(global.TOTAL_ROWS / 2) - _ty4);
             if (_ddx == 0 && _ddy == 0) break;
-            if (abs(global.GRID_CX - _tx4) >= abs(global.GRID_CY - _ty4)) _ddy = 0; else _ddx = 0;
+            if (abs(floor(global.TOTAL_COLS / 2) - _tx4) >= abs(floor(global.TOTAL_ROWS / 2) - _ty4)) _ddy = 0; else _ddx = 0;
             var _nx4 = _tx4 + _ddx; var _ny4 = _ty4 + _ddy;
             if (_nx4 < 0 || _nx4 >= global.TOTAL_COLS || _ny4 < 0 || _ny4 >= global.TOTAL_ROWS) break;
             if (global.grid[_ny4][_nx4] != undefined) {
@@ -202,8 +202,8 @@ if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
     var _hasCore = false;
     with (obj_block) if (type == "core") { _hasCore = true; break; }
     if (!_hasCore) {
-        var _cpx = _bx + (global.GRID_CX - global.HIDDEN_SIDES) * _cw + 8 * _scale;
-        var _cpy = _by + (global.GRID_CY - global.HIDDEN_ROWS)  * _cw + 8 * _scale;
+        var _cpx = _bx + (floor(global.TOTAL_COLS / 2) - global.HIDDEN_SIDES) * _cw + 8 * _scale;
+        var _cpy = _by + (floor(global.TOTAL_ROWS / 2) - global.HIDDEN_ROWS)  * _cw + 8 * _scale;
         var _hp  = 0.15 + abs(sin(current_time * 0.003)) * 0.1;
         var _hc  = (global.activePiece != undefined) ? global.activePiece.color : c_white;
         draw_sprite_ext(spr_pinkSprite, 0, _cpx, _cpy, _scale, _scale, 0, _hc, _hp);
