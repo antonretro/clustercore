@@ -50,6 +50,31 @@ function rotate_piece() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// hard_drop  — Classic Mode: drop straight down to landing
+// ─────────────────────────────────────────────────────────────────────────────
+function hard_drop() {
+    if (global.activePiece == undefined || global.locking) return;
+    var _depth = calculate_landing_depth(global.activePiece.grid_x, global.activePiece.grid_y);
+    global.activePiece.grid_y += _depth;
+    global.activePiece.y = (global.activePiece.grid_y - global.HIDDEN_ROWS) * 16;
+    lock_piece();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// hard_drop_radial  — Planet Mode: drop inward along the straight orbital axis
+// ─────────────────────────────────────────────────────────────────────────────
+function hard_drop_radial() {
+    if (global.activePiece == undefined || global.locking) return;
+    var _pData = calculate_planet_preview_path(global.activePiece);
+    if (_pData == undefined) return;
+    global.activePiece.grid_x = _pData.target.gx;
+    global.activePiece.grid_y = _pData.target.gy;
+    global.activePiece.x = (global.activePiece.grid_x - global.HIDDEN_SIDES) * 16;
+    global.activePiece.y = (global.activePiece.grid_y - global.HIDDEN_ROWS) * 16;
+    lock_piece();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // story_advance_planet  — Story Mode: move to next planet or end game
 // ─────────────────────────────────────────────────────────────────────────────
 function story_advance_planet() {
@@ -295,69 +320,7 @@ function lock_piece() {
     settle_matches();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// hard_drop  — CLASSIC only: fall straight down then lock
-// ─────────────────────────────────────────────────────────────────────────────
-function hard_drop() {
-    var _startY = global.activePiece.grid_y;
-    while (!check_collision(0, 1)) global.activePiece.grid_y++;
-    var _endY = global.activePiece.grid_y;
-    if (_endY > _startY) {
-        create_beam(global.activePiece.grid_x * 16, (_startY - global.HIDDEN_ROWS) * 16,
-                    16, (_endY - _startY) * 16, global.activePiece.color);
-        for (var _ty = _startY; _ty < _endY; _ty++) {
-            if (_ty >= global.HIDDEN_ROWS)
-                create_trail_particles(global.activePiece.grid_x * 16 + 8, (_ty - global.HIDDEN_ROWS) * 16 + 8, global.activePiece.color);
-        }
-    }
-    sfx_hard_drop();
-    lock_piece();
-}
 
-// ─────────────────────────────────────────────────────────────────────────────
-// hard_drop_radial  — PLANET/STORY only: fire piece inward and lock
-// ─────────────────────────────────────────────────────────────────────────────
-function hard_drop_radial() {
-    if (global.activePiece == undefined) return;
-    var _depth   = global.previewDepth; // land exactly where the ghost/target shows
-    var _isHeavy = (global.launchCharge >= global.MAX_CHARGE);
-
-    for (var i = 0; i < _depth; i++) {
-        var _gx = global.activePiece.grid_x;
-        var _gy = global.activePiece.grid_y;
-        var _dx = sign(floor(global.TOTAL_COLS / 2) - _gx);
-        var _dy = sign(floor(global.TOTAL_ROWS / 2) - _gy);
-        if (abs(floor(global.TOTAL_COLS / 2) - _gx) >= abs(floor(global.TOTAL_ROWS / 2) - _gy)) _dy = 0; else _dx = 0;
-        if (_dx == 0 && _dy == 0) break;
-
-        if (!move_piece(_dx, _dy)) {
-            // Heavy: try to displace one block
-            if (_isHeavy) {
-                var _tx = _gx + _dx; var _ty = _gy + _dy;
-                if (_tx >= 0 && _tx < global.TOTAL_COLS && _ty >= 0 && _ty < global.TOTAL_ROWS) {
-                    var _hit = global.grid[_ty][_tx];
-                    var _hx = _tx + _dx; var _hy = _ty + _dy;
-                    if (_hit != undefined && _hit.type != "core"
-                    && _hx >= 0 && _hx < global.TOTAL_COLS && _hy >= 0 && _hy < global.TOTAL_ROWS
-                    && global.grid[_hy][_hx] == undefined) {
-                        global.grid[_hy][_hx] = _hit; global.grid[_ty][_tx] = undefined;
-                        _hit.inst.grid_x = _hx; _hit.inst.grid_y = _hy;
-                        _hit.inst.x = (_hx - global.HIDDEN_SIDES) * 16;
-                        _hit.inst.y = (_hy - global.HIDDEN_ROWS) * 16;
-                        sfx_drill();
-                        if (global.settings.shakeEnabled) global.shakeAmount = 10;
-                        _isHeavy = false;
-                        if (move_piece(_dx, _dy)) continue;
-                    }
-                }
-            }
-            break;
-        }
-    }
-    lock_piece();
-    global.previewDepth = 1;
-    global.launchCharge = 0;
-}
 
 // =============================================================================
 // GRAVITY
@@ -427,6 +390,10 @@ function calculate_landing_depth(_gx, _gy) {
             var _nx = _tx + _dx;
             var _ny = _ty + _dy;
             if (_nx < 0 || _nx >= global.TOTAL_COLS || _ny < 0 || _ny >= global.TOTAL_ROWS) break;
+            
+            // Stop at center
+            if (_tx == floor(global.TOTAL_COLS / 2) && _ty == floor(global.TOTAL_ROWS / 2)) break;
+
             if (global.grid[_ny][_nx] != undefined) break;
             _tx = _nx; _ty = _ny; _depth++;
         }
@@ -627,6 +594,10 @@ function calculate_planet_preview_path(_inst) {
         var _nx = _tx + _ddx;
         var _ny = _ty + _ddy;
         if (_nx < 0 || _nx >= global.TOTAL_COLS || _ny < 0 || _ny >= global.TOTAL_ROWS) break;
+
+        // Stop at the center if nothing else hit
+        if (_tx == floor(global.TOTAL_COLS / 2) && _ty == floor(global.TOTAL_ROWS / 2)) break;
+
         if (global.grid[_ny][_nx] != undefined) {
             var _target = global.grid[_ny][_nx];
             if (_isHeavy || (_penetration > 0 && _target.type != "core" && _target.type != "dead" && _target.type != "bomb")) {
