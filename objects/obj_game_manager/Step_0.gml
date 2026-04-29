@@ -165,14 +165,14 @@ if (!global.locking) {
     if (_planetRules) {
         var _prevSide = global.orbitalSide;
         
-        // Instant Side Jumps
-        if (_rotL) { global.orbitalSide--; sfx_piece_move(); }
-        if (_rotR) { global.orbitalSide++; sfx_piece_move(); }
+        // Instant Side Jumps — also update board rotation target
+        if (_rotL) { global.orbitalSide--; global.targetRotation = global.orbitalSide * 90; sfx_piece_move(); }
+        if (_rotR) { global.orbitalSide++; global.targetRotation = global.orbitalSide * 90; sfx_piece_move(); }
 
         // DAS-Powered Orbital Movement
         if (_moveDir != 0) {
             global.orbitalX += _moveDir;
-            
+
             // Wrap around corners
             if (global.orbitalX < 0) {
                 global.orbitalSide--;
@@ -182,47 +182,26 @@ if (!global.locking) {
                 global.orbitalSide++;
                 global.orbitalX = 0;
             }
-            
-            // Sync Visual Rotation
+
             global.targetRotation = global.orbitalSide * 90;
-            
-            if (global.activePiece != undefined) {
-                var _nx = 0; var _ny = 0;
-                var _s = (global.orbitalSide % 4 + 4) % 4;
-                if (_s == 0) { _nx = global.orbitalX; _ny = global.HIDDEN_ROWS; }
-                if (_s == 1) { _nx = global.COLS - 1; _ny = global.HIDDEN_ROWS + global.orbitalX; }
-                if (_s == 2) { _nx = (global.COLS - 1) - global.orbitalX; _ny = global.TOTAL_ROWS - 1; }
-                if (_s == 3) { _nx = 0; _ny = (global.TOTAL_ROWS - 1) - global.orbitalX; }
-                
-                global.activePiece.grid_x = _nx;
-                global.activePiece.grid_y = _ny;
-                global.previewDepth = calculate_landing_depth(_nx, _ny);
-                
-                global.activePiece.rotation = -global.boardRotation;
-            }
             sfx_piece_move();
         }
-        
-        // --- GUIDED SNIPER POSITIONING ---
+
+        // --- GUIDED SNIPER POSITIONING (staging ring coords) ---
         if (global.activePiece != undefined) {
-            if (!_isRotating) {
-                var _s = (global.orbitalSide % 4 + 4) % 4;
-                var _nx = 0, _ny = 0;
-                
-                if (_s == 0) { _nx = global.orbitalX; _ny = global.HIDDEN_ROWS; }
-                if (_s == 1) { _nx = global.COLS - 1; _ny = global.HIDDEN_ROWS + global.orbitalX; }
-                if (_s == 2) { _nx = (global.COLS - 1) - global.orbitalX; _ny = global.TOTAL_ROWS - 1; }
-                if (_s == 3) { _nx = 0; _ny = (global.TOTAL_ROWS - 1) - global.orbitalX; }
-                
-                global.activePiece.grid_x = _nx;
-                global.activePiece.grid_y = _ny;
-                global.previewDepth = calculate_landing_depth(_nx, _ny);
-            
-            // Visual Orientation: Counter-rotate to stay vertical on the monitor
+            var _s = (global.orbitalSide % 4 + 4) % 4;
+            var _nx = 0, _ny = 0;
+            if (_s == 0) { _nx = global.orbitalX;                    _ny = global.HIDDEN_ROWS - 1; }
+            if (_s == 1) { _nx = global.COLS;                        _ny = global.HIDDEN_ROWS + global.orbitalX; }
+            if (_s == 2) { _nx = (global.COLS - 1) - global.orbitalX; _ny = global.TOTAL_ROWS; }
+            if (_s == 3) { _nx = -1;                                 _ny = (global.TOTAL_ROWS - 1) - global.orbitalX; }
+
+            global.activePiece.grid_x = _nx;
+            global.activePiece.grid_y = _ny;
+            global.previewDepth = calculate_landing_depth(_nx, _ny);
             global.activePiece.rotation = -global.boardRotation;
-            
+
             if (_prevSide != global.orbitalSide) sfx_piece_move();
-            }
         }
         
         // --- MANUALLY MOVE THE PREVIEW (GHOST) ---
