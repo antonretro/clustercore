@@ -410,17 +410,22 @@ function apply_grid_gravity() {
 }
 
 // -----------------------------------------------------------------------------
-// calculate_landing_depth  � how many steps inward before collision?
+// calculate_landing_depth   how many steps inward before collision?
 // -----------------------------------------------------------------------------
 function calculate_landing_depth(_gx, _gy) {
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-        var _tx = _gx; var _ty = _gy; var _depth = 0;
-        while (_depth < global.TOTAL_ROWS) {
-            var _dx = sign(floor(global.TOTAL_COLS / 2) - _tx);
-            var _dy = sign(floor(global.TOTAL_ROWS / 2) - _ty);
-            if (_dx == 0 && _dy == 0) break;
-            if (abs(floor(global.TOTAL_COLS / 2) - _tx) >= abs(floor(global.TOTAL_ROWS / 2) - _ty)) _dy = 0; else _dx = 0;
-            var _nx = _tx + _dx; var _ny = _ty + _dy;
+        var _tx = _gx, _ty = _gy;
+        var _depth = 0;
+        var _s = ((global.orbitalSide % 4) + 4) % 4;
+        var _dx = 0, _dy = 0;
+        if (_s == 0) _dy = 1;
+        if (_s == 1) _dx = -1;
+        if (_s == 2) _dy = -1;
+        if (_s == 3) _dx = 1;
+
+        for (var i = 0; i < global.TOTAL_ROWS; i++) {
+            var _nx = _tx + _dx;
+            var _ny = _ty + _dy;
             if (_nx < 0 || _nx >= global.TOTAL_COLS || _ny < 0 || _ny >= global.TOTAL_ROWS) break;
             if (global.grid[_ny][_nx] != undefined) break;
             _tx = _nx; _ty = _ny; _depth++;
@@ -611,11 +616,14 @@ function calculate_planet_preview_path(_inst) {
     
     var _penetration = (_inst.type == "drill") ? 3 : 0;
     
+    var _s = ((global.orbitalSide % 4) + 4) % 4;
+    var _ddx = 0, _ddy = 0;
+    if (_s == 0) _ddy = 1;
+    if (_s == 1) _ddx = -1;
+    if (_s == 2) _ddy = -1;
+    if (_s == 3) _ddx = 1;
+
     for (var i = 0; i < global.TOTAL_ROWS; i++) {
-        var _ddx = sign(_centerGX - _tx);
-        var _ddy = sign(_centerGY - _ty);
-        if (_ddx == 0 && _ddy == 0) break;
-        if (abs(_centerGX - _tx) >= abs(_centerGY - _ty)) _ddy = 0; else _ddx = 0;
         var _nx = _tx + _ddx;
         var _ny = _ty + _ddy;
         if (_nx < 0 || _nx >= global.TOTAL_COLS || _ny < 0 || _ny >= global.TOTAL_ROWS) break;
