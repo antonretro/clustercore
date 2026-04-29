@@ -10,6 +10,7 @@ function sfx_drill()                { /* sfx_play(snd_drill);     */ }
 function sfx_fever()                { /* sfx_play(snd_fever);     */ }
 function sfx_level_up()             { /* sfx_play(snd_level_up);  */ }
 function sfx_game_over()            { /* sfx_play(snd_game_over); */ }
+function sfx_piece_blocked()        { /* sfx_play(snd_blocked);   */ }
 function sfx_clear(_count, _chain) {
     // var _snd = snd_clear_1;
     // if (_chain >= 2) _snd = snd_clear_2;
