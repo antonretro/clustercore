@@ -122,9 +122,10 @@ if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
 if (global.gameState == "PLAYING" && global.activePiece != undefined && global.settings.ghostEnabled) {
     var _ap  = global.activePiece;
     var _gx4 = _ap.grid_x; var _gy4 = _ap.grid_y;
+    var _isPlanetMode = (global.gameMode == "PLANET" || global.gameMode == "STORY");
     
     // Ghost target cell — read from the cached path, clamped to previewDepth
-    if (global.previewData != undefined) {
+    if (_isPlanetMode && global.previewData != undefined) {
         var _path = global.previewData.path;
         var _pathLen = array_length(_path);
         var _clampedDepth = clamp(global.previewDepth, 0, _pathLen) - 1;
@@ -132,6 +133,9 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
             _gx4 = _path[_clampedDepth].gx;
             _gy4 = _path[_clampedDepth].gy;
         }
+    } else if (!_isPlanetMode) {
+        var _classicDepth = calculate_landing_depth(_ap.grid_x, _ap.grid_y);
+        _gy4 = _ap.grid_y + _classicDepth;
     }
 
     var _gpcx  = _bx + (_gx4 - global.HIDDEN_SIDES) * _cw + 8 * _scale;
@@ -144,7 +148,7 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
         // ── Full-lane sight highlight ──────────────────────────────────────────
         // Draw a faint glow along the ENTIRE drop lane (spoke) from the active
         // piece's ring cell all the way to the landing cell, like a targeting sight.
-        if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.previewData != undefined) {
+        if (_isPlanetMode && global.previewData != undefined) {
             var _s4 = ((global.orbitalSide % 4) + 4) % 4;
             gpu_set_blendmode(bm_add);
             // Full lane: from piece down to landing, every playable cell in the lane

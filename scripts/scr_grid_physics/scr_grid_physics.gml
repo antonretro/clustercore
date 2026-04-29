@@ -147,6 +147,7 @@ function lock_piece() {
         id:    _p.color_id,
         inst:  _p
     };
+    _p.just_landed = true;
 
     // ── PLANET: first piece to land on center becomes the core ───────────────
     if ((global.gameMode == "PLANET" || global.gameMode == "STORY")
@@ -198,9 +199,12 @@ function lock_piece() {
                 if (_vx == 0 && _vy == 0) _vy = 1;
             }
 
-            // Force drill travel direction to screen-down.
-            _vx = 0;
-            _vy = 1;
+            // Drill travels screen-down, mapped into current board-facing grid axis.
+            var _sDown = ((global.orbitalSide % 4) + 4) % 4;
+            if (_sDown == 0) { _vx =  0; _vy =  1; } // board unrotated
+            if (_sDown == 1) { _vx =  1; _vy =  0; } // board rotated 90°
+            if (_sDown == 2) { _vx =  0; _vy = -1; } // board rotated 180°
+            if (_sDown == 3) { _vx = -1; _vy =  0; } // board rotated 270°
             var _gx = _px; var _gy = _py;
             while (true) {
                 var _cell = global.grid[_gy][_gx];
@@ -339,6 +343,7 @@ function apply_grid_gravity() {
                 for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
                     var _cell = global.grid[_y][_x];
                     if (_cell == undefined || _cell.type == "core") continue;
+                    if (_cell.inst != undefined && variable_instance_exists(_cell.inst, "just_landed") && _cell.inst.just_landed) continue;
                     var _dx = sign(floor(global.TOTAL_COLS / 2) - _x);
                     var _dy = sign(floor(global.TOTAL_ROWS / 2) - _y);
                     if (_dx == 0 && _dy == 0) continue;
@@ -352,6 +357,15 @@ function apply_grid_gravity() {
                         _cell.inst.grid_x = _nx; _cell.inst.grid_y = _ny;
                         _changed = true;
                     }
+                }
+            }
+        }
+        // Clear one-tick landing protection after gravity resolution.
+        for (var _cy = 0; _cy < global.TOTAL_ROWS; _cy++) {
+            for (var _cx = 0; _cx < global.TOTAL_COLS; _cx++) {
+                var _cc = global.grid[_cy][_cx];
+                if (_cc != undefined && _cc.inst != undefined && variable_instance_exists(_cc.inst, "just_landed") && _cc.inst.just_landed) {
+                    _cc.inst.just_landed = false;
                 }
             }
         }
@@ -433,6 +447,46 @@ function rotate_grid_90() {
 // =============================================================================
 
 function settle_matches() {
+    // Stabilize core matching: ensure every core has a valid color id.
+    // This repairs legacy/in-flight runs where core id could be 0 despite colored visuals.
+    for (var _sy = 0; _sy < global.TOTAL_ROWS; _sy++) {
+        for (var _sx = 0; _sx < global.TOTAL_COLS; _sx++) {
+            var _cellFix = global.grid[_sy][_sx];
+            if (_cellFix == undefined || _cellFix.type != "core") continue;
+            if (_cellFix.id > 0) continue;
+
+            var _fixedId = 0;
+            var _dirsFix = [[-1,0],[1,0],[0,-1],[0,1]];
+            var _idCounts = array_create(7, 0); // color ids 1..6
+            for (var _di = 0; _di < 4; _di++) {
+                var _nxFix = _sx + _dirsFix[_di][0];
+                var _nyFix = _sy + _dirsFix[_di][1];
+                if (_nxFix < 0 || _nxFix >= global.TOTAL_COLS || _nyFix < 0 || _nyFix >= global.TOTAL_ROWS) continue;
+                var _nbFix = global.grid[_nyFix][_nxFix];
+                if (_nbFix != undefined && _nbFix.id > 0 && _nbFix.id < array_length(_idCounts)) {
+                    _idCounts[_nbFix.id]++;
+                }
+            }
+            var _bestCount = 0;
+            for (var _id = 1; _id < array_length(_idCounts); _id++) {
+                if (_idCounts[_id] > _bestCount) { _bestCount = _idCounts[_id]; _fixedId = _id; }
+            }
+            if (_fixedId <= 0 && _cellFix.inst != undefined && variable_instance_exists(_cellFix.inst, "color_id")) {
+                _fixedId = _cellFix.inst.color_id;
+            }
+            if (_fixedId <= 0 && array_length(global.activeColors) > 0) _fixedId = global.activeColors[0];
+            if (_fixedId > 0) {
+                _cellFix.id = _fixedId;
+                _cellFix.color = get_color_from_id(_fixedId);
+                if (_cellFix.inst != undefined) {
+                    _cellFix.inst.color_id = _fixedId;
+                    _cellFix.inst.color = _cellFix.color;
+                    with (_cellFix.inst) update_sprite();
+                }
+            }
+        }
+    }
+
     var _matches = find_matches_in_grid(global.grid, { cols: global.TOTAL_COLS }, global.TOTAL_ROWS);
     if (array_length(_matches) > 0) {
         global.comboChain++;
