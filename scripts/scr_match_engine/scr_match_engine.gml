@@ -1,3 +1,22 @@
+function debug_largest_cluster_size() {
+    var _visited = array_create(global.TOTAL_ROWS);
+    for (var i = 0; i < global.TOTAL_ROWS; i++) {
+        _visited[i] = array_create(global.COLS, false);
+    }
+    var _best = 0;
+    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+        for (var _x = 0; _x < global.COLS; _x++) {
+            if (_visited[_y][_x]) continue;
+            var _cell = global.grid[_y][_x];
+            if (_cell == undefined || _cell.type == "bomb" || _cell.type == "dead") continue;
+            var _cluster = [];
+            collect_cluster(global.grid, global.COLS, global.TOTAL_ROWS, _x, _y, _visited, _cluster);
+            _best = max(_best, array_length(_cluster));
+        }
+    }
+    return _best;
+}
+
 function find_matches_in_grid(_grid, _config, _totalRows) {
     var _cols = _config.cols;
     
@@ -9,7 +28,6 @@ function find_matches_in_grid(_grid, _config, _totalRows) {
 
     add_cluster_matches(_grid, _cols, _totalRows, _clear_grid);
     add_diagonal_matches(_grid, _cols, _totalRows, _clear_grid);
-    expand_core_set(_grid, _cols, _totalRows, _clear_grid);
 
     var _matches = [];
     for (var _y = 0; _y < _totalRows; _y++) {
@@ -27,7 +45,18 @@ function check_cells(_c1, _c2, _axis) {
     if (_c1.type == "bomb" || _c2.type == "bomb") return false;
     if (_c1.type == "dead" || _c2.type == "dead") return false;
     if (_c1.id != _c2.id) return false;
+    
+    if (!arrow_allows_axis(_c1, _axis)) return false;
+    if (!arrow_allows_axis(_c2, _axis)) return false;
+    
     return true; 
+}
+
+function arrow_allows_axis(_cell, _axis) {
+    if (_cell.type != "metal") return true;
+    if (_axis == "h") return _cell.dir == 0;
+    if (_axis == "v") return _cell.dir == 1;
+    return false;
 }
 
 function add_cluster_matches(_grid, _cols, _totalRows, _clear_grid) {
@@ -46,31 +75,25 @@ function add_cluster_matches(_grid, _cols, _totalRows, _clear_grid) {
             var _cluster = [];
             collect_cluster(_grid, _cols, _totalRows, _x, _y, _visited, _cluster);
             
-            // --- NEW LOGIC: VALIDATE TOTAL CLEAR COUNT ---
-            // We only clear a cluster if the total number of blocks being cleared is 4+
+            // --- MATCH SIZE LOGIC ---
+            // Normal blocks clear at 3+. Metal (arrows) require a row/cluster of 4+ to clear.
+            var _hasMetal = false;
             var _to_clear_indices = [];
             for (var i = 0; i < array_length(_cluster); i++) {
                 var _c = _cluster[i];
                 var _target = _grid[_c.y][_c.x];
                 
-                if (_target.type == "normal") {
+                if (_target.type == "metal") _hasMetal = true;
+                
+                if (_target.type == "normal" || _target.type == "metal" || _target.type == "asteroid" || _target.type == "core") {
                     array_push(_to_clear_indices, i);
-                } else if (_target.type == "metal") {
-                    var _lineH = 1;
-                    var _lineV = 1;
-                    var _tx = _c.x - 1; while (_tx >= 0 && in_cluster(_tx, _c.y, _cluster)) { _lineH++; _tx--; }
-                    _tx = _c.x + 1; while (_tx < _cols && in_cluster(_tx, _c.y, _cluster)) { _lineH++; _tx++; }
-                    var _ty = _c.y - 1; while (_ty >= 0 && in_cluster(_c.x, _ty, _cluster)) { _lineV++; _ty--; }
-                    _ty = _c.y + 1; while (_ty < _totalRows && in_cluster(_c.x, _ty, _cluster)) { _lineV++; _ty++; }
-                    
-                    if ((_target.dir == 0 && _lineH >= 4) || (_target.dir == 1 && _lineV >= 4)) {
-                        array_push(_to_clear_indices, i);
-                    }
                 }
             }
 
-            // Only mark for clearing if the RESULTING match is at least 4 blocks
-            if (array_length(_to_clear_indices) >= 4) {
+            // All clusters require 4+ to clear. Metal arrows must connect along their axis.
+            var _required = 4;
+
+            if (array_length(_to_clear_indices) >= _required) {
                 for (var i = 0; i < array_length(_to_clear_indices); i++) {
                     var _idx = _to_clear_indices[i];
                     var _c = _cluster[_idx];
@@ -96,12 +119,13 @@ function collect_cluster(_grid, _cols, _totalRows, _startX, _startY, _visited, _
             var _d = _dirs[i];
             var _nx = _current.x + _d[0];
             var _ny = _current.y + _d[1];
+            var _axis = (_d[0] != 0) ? "h" : "v";
 
             if (_nx < 0 || _nx >= _cols || _ny < 0 || _ny >= _totalRows) continue;
             if (_visited[_ny][_nx]) continue;
 
             var _neighbor = _grid[_ny][_nx];
-            if (check_cells(_cell, _neighbor, "c")) {
+            if (check_cells(_cell, _neighbor, _axis)) {
                 _visited[_ny][_nx] = true;
                 var _node = { x: _nx, y: _ny };
                 array_push(_cluster, _node);
@@ -123,11 +147,11 @@ function add_diagonal_matches(_grid, _cols, _totalRows, _clear_grid) {
         for (var _x = 0; _x < _cols - 3; _x++) {
             var _match = true;
             var _first = _grid[_y][_x];
-            if (_first == undefined || _first.type != "normal") continue;
+            if (_first == undefined || (_first.type == "bomb" || _first.type == "dead")) continue;
 
             for (var _k = 1; _k < 4; _k++) {
                 var _next = _grid[_y + _k][_x + _k];
-                if (!check_cells(_first, _next, "d") || _next.type != "normal") {
+                if (!check_cells(_first, _next, "d") || (_next.type == "bomb" || _next.type == "dead")) {
                     _match = false;
                     break;
                 }
@@ -142,49 +166,17 @@ function add_diagonal_matches(_grid, _cols, _totalRows, _clear_grid) {
         for (var _x = 0; _x < _cols - 3; _x++) {
             var _match = true;
             var _first = _grid[_y][_x];
-            if (_first == undefined || _first.type != "normal") continue;
+            if (_first == undefined || (_first.type == "bomb" || _first.type == "dead")) continue;
 
             for (var _k = 1; _k < 4; _k++) {
                 var _next = _grid[_y - _k][_x + _k];
-                if (!check_cells(_first, _next, "d") || _next.type != "normal") {
+                if (!check_cells(_first, _next, "d") || (_next.type == "bomb" || _next.type == "dead")) {
                     _match = false;
                     break;
                 }
             }
             if (_match) {
                 for (var _k = 0; _k < 4; _k++) _clear_grid[_y - _k][_x + _k] = true;
-            }
-        }
-    }
-}
-
-function expand_core_set(_grid, _cols, _totalRows, _clear_grid) {
-    var _expanding = true;
-    while (_expanding) {
-        _expanding = false;
-        for (var _y = 0; _y < _totalRows; _y++) {
-            for (var _x = 0; _x < _cols; _x++) {
-                if (!_clear_grid[_y][_x]) continue;
-
-                var _coreCell = _grid[_y][_x];
-                if (_coreCell == undefined) continue;
-
-                var _dirs = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-                for (var i = 0; i < array_length(_dirs); i++) {
-                    var _d = _dirs[i];
-                    var _nx = _x + _d[0];
-                    var _ny = _y + _d[1];
-                    if (_nx < 0 || _nx >= _cols || _ny < 0 || _ny >= _totalRows) continue;
-
-                    var _neighbor = _grid[_ny][_nx];
-                    if (_neighbor == undefined) continue;
-                    if (_neighbor.id != _coreCell.id) continue;
-                    if (_neighbor.type != "normal") continue; 
-                    if (_clear_grid[_ny][_nx]) continue;
-                    
-                    _clear_grid[_ny][_nx] = true;
-                    _expanding = true;
-                }
             }
         }
     }

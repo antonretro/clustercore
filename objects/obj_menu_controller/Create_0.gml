@@ -1,13 +1,12 @@
 display_set_gui_size(1920, 1080);
 
 menu_index = 0;
-menu_items = ["Start Run", "Story Mode", "Core Lab", "Challenges", "Settings"];
+menu_items = ["STORY MODE", "PLANET MODE", "CLASSIC MODE", "SETTINGS"];
 menu_hint = [
-    "Drop blocks, chain clears, earn Core Shards.",
-    "Coming later: chapters, dialogue, weird boards, and unlocks.",
-    "Permanent upgrades live here next.",
-    "Mission room can branch from here.",
-    "Audio, controls, and accessibility toggles."
+    "Clear a chain of corrupted planets, one objective at a time.",
+    "The Galaxy Experience: Rotating board, Core planet, and Mining gravity.",
+    "The Arcade Classic: Pure matching, No rotation, Clean grid.",
+    "Audio, Controls, and Accessibility toggles."
 ];
 
 global.launch_mode = "endless";

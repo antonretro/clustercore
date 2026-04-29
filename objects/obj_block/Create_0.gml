@@ -12,9 +12,12 @@ render_y = y;
 scale_x = 1.0;
 scale_y = 1.0;
 rotation = 0;
+visualRotation = 0;
 clearing = false;
 clear_timer = 0;
 clear_timer_max = 20;
+
+shield_hp = 2;
 
 // Sprite assignment (to be handled in Draw or here)
 function update_sprite() {
@@ -33,6 +36,13 @@ function update_sprite() {
     if (type == "bomb") sprite_index = spr_bomb;
     if (type == "dead") sprite_index = spr_deadmetal;
     if (type == "drill") sprite_index = spr_drill;
+    // Core blocks now look like normal colored blocks to keep them matchable
+    if (type == "asteroid") {
+        if (asset_get_index("spr_asteroid") != -1) {
+            sprite_index = spr_asteroid;
+            image_index = (shield_hp <= 1 ? 1 : 0);
+        }
+    }
     // Metal blocks KEEP their color sprite, but will have an arrow drawn on top.
 }
 

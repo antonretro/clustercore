@@ -1,7 +1,7 @@
 var _guiW = display_get_gui_width();
 var _guiH = display_get_gui_height();
 draw_set_font(main_font);
-gpu_set_texfilter(true);
+gpu_set_texfilter(true); // smooth for fonts — toggled to false only around pixel art sprites
 
 // --- In-Game HUD ---
 if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.gameState == "GAMEOVER") {
@@ -18,21 +18,33 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
             var _char = string_char_at(_text, i);
             var _offY = sin(_timer + (i * 0.5)) * 10;
             var _charW = string_width(_char) * _scale;
-            draw_text_transformed(_x - (_len * 10 * _scale) + (i * 20 * _scale), _y + _offY, _char, _scale, _scale, 0);
+            draw_text_transformed(floor(_x - (_len * 10 * _scale) + (i * 20 * _scale)), floor(_y + _offY), _char, _scale, _scale, 0);
         }
     }
 
     function draw_stat_panel(_x, _y, _w, _h, _label, _val, _scale = 2) {
-        draw_set_alpha(0.2); draw_set_color(c_black);
-        draw_roundrect_ext(_x+4, _y+4, _x+_w+4, _y+_h+4, 15, 15, false);
-        draw_set_alpha(0.1); draw_set_color(c_white);
+        _x = floor(_x); _y = floor(_y);
+        // Drop shadow
+        draw_set_alpha(0.28); draw_set_color(c_black);
+        draw_roundrect_ext(_x+5, _y+5, _x+_w+5, _y+_h+5, 15, 15, false);
+        // Panel body with slight blue tint
+        draw_set_alpha(0.18); draw_set_color(make_color_rgb(30, 40, 80));
         draw_roundrect_ext(_x, _y, _x + _w, _y + _h, 15, 15, false);
-        draw_set_alpha(0.6); draw_set_color((global.feverTimer > 0) ? c_yellow : global.COLOR_ACCENT);
+        draw_set_alpha(0.08); draw_set_color(c_white);
+        draw_roundrect_ext(_x, _y, _x + _w, _y + _h, 15, 15, false);
+        // Border
+        var _accentCol = (global.feverTimer > 0) ? c_yellow : global.COLOR_ACCENT;
+        draw_set_alpha(0.65); draw_set_color(_accentCol);
         draw_roundrect_ext(_x, _y, _x + _w, _y + _h, 15, 15, true);
-        draw_set_alpha(1.0); draw_set_color(global.COLOR_ACCENT);
-        draw_text_transformed(_x + 10, _y + 10, _label, 1.2, 1.2, 0);
-        draw_set_color(c_white);
-        draw_text_transformed(_x + 10, _y + 35, _val, _scale, _scale, 0);
+        // Top highlight line
+        draw_set_alpha(0.18); draw_set_color(c_white);
+        draw_roundrect_ext(_x+2, _y+2, _x+_w-2, _y+14, 10, 10, false);
+        // Label
+        draw_set_alpha(0.7); draw_set_color(_accentCol);
+        draw_text_transformed(floor(_x + 12), floor(_y + 10), _label, 1.1, 1.1, 0);
+        // Value
+        draw_set_alpha(1.0); draw_set_color(c_white);
+        draw_text_transformed(floor(_x + 12), floor(_y + 34), _val, _scale, _scale, 0);
     }
 
     // Board position (matches Draw_0)
@@ -75,7 +87,13 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
         if (global.holdPiece.type == "bomb") _hSpr = spr_bomb;
         if (global.holdPiece.type == "drill") _hSpr = spr_drill;
         if (global.holdPiece.type == "dead") _hSpr = spr_deadmetal;
+        gpu_set_texfilter(false);
         draw_sprite_ext(_hSpr, 0, _hcx, _hcy, _hScale, _hScale, 0, c_white, global.canHold ? 1.0 : 0.4);
+        if (global.holdPiece.type == "metal") {
+            var _hArrow = (global.holdPiece.dir == 0) ? spr_lr_arrows : spr_ud_arrows;
+            draw_sprite_ext(_hArrow, 0, _hcx, _hcy, _hScale, _hScale, 0, c_white, global.canHold ? 1.0 : 0.4);
+        }
+        gpu_set_texfilter(true);
     }
 
     // --- RIGHT COLUMN (dynamic heights, always fills _bh2 exactly) ---
@@ -90,6 +108,7 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     draw_stat_panel(_rx, _rOff1, _pw, _shH, "SHARDS", "+" + string(global.runShards),    2 * global.ui_scales.shards);
     draw_stat_panel(_rx, _rOff2, _pw, _coH, "COMBO",  "x" + string(global.comboChain),   2 * global.ui_scales.combo);
 
+    gpu_set_texfilter(false);
     for (var i = 0; i < array_length(global.nextQueue); i++) {
         var _qPiece = global.nextQueue[i];
         var _qScale = (i == 0) ? 3.5 : 2.2;
@@ -108,7 +127,12 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
         if (_qPiece.type == "drill") _qSpr = spr_drill;
         if (_qPiece.type == "dead") _qSpr = spr_deadmetal;
         draw_sprite_ext(_qSpr, 0, _qcx, _qcy, _qScale, _qScale, 0, c_white, (i == 0 ? 1.0 : 0.5));
+        if (_qPiece.type == "metal") {
+            var _qArrow = (_qPiece.dir == 0) ? spr_lr_arrows : spr_ud_arrows;
+            draw_sprite_ext(_qArrow, 0, _qcx, _qcy, _qScale, _qScale, 0, c_white, (i == 0 ? 1.0 : 0.5));
+        }
     }
+    gpu_set_texfilter(true);
 
     // --- VERTICAL GAUGES (flanking the board) ---
     var _gx = _bx2 - 32;
@@ -136,23 +160,61 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
 
     draw_set_halign(fa_center);
     draw_text_transformed(_bx2 + _bw2 / 2, _by2 + _bh2 + 24, (global.feverTimer > 0) ? "FEVER MODE" : "", 2, 2, 0);
+    
+    if (global.gameMode == "STORY") {
+        var _storyPct = clamp(global.coresCleared / max(1, global.storyTarget), 0, 1);
+        var _storyY = _by2 - 54;
+        draw_set_color(c_black);
+        draw_set_alpha(0.55);
+        draw_roundrect_ext(_bx2, _storyY, _bx2 + _bw2, _storyY + 18, 6, 6, false);
+        draw_set_color(global.COLOR_GLOW);
+        draw_set_alpha(1.0);
+        draw_roundrect_ext(_bx2, _storyY, _bx2 + (_bw2 * _storyPct), _storyY + 18, 6, 6, false);
+        draw_set_color(c_white);
+        draw_text_transformed(_bx2 + _bw2 / 2, _storyY - 30, global.storyName + "  CORES: " + string(global.coresCleared) + "/" + string(global.storyTarget), 1.3, 1.3, 0);
+        draw_set_alpha(1.0);
+    }
 
     // Overlays
     if (global.gameState == "PAUSED") {
-        draw_set_color(global.COLOR_BG2); draw_set_alpha(0.85);
+        draw_set_color(c_black); draw_set_alpha(0.82);
         draw_rectangle(0, 0, _guiW, _guiH, false);
-        draw_set_alpha(1.0); draw_set_halign(fa_center); draw_set_color(c_white);
-        draw_text_transformed(_guiW / 2, _guiH / 2 - 40, "PAUSED", 4, 4, 0);
+        draw_set_alpha(1.0); draw_set_halign(fa_center);
+
+        draw_set_color(c_white);
+        draw_text_transformed(_guiW / 2, 160, "PAUSED", 4.5, 4.5, 0);
+
+        // Rules card
+        var _cx = _guiW / 2;
+        var _cw = 700; var _ch = 320;
+        var _cy = 300;
+        draw_set_alpha(0.15); draw_set_color(c_white);
+        draw_roundrect_ext(_cx - _cw/2, _cy, _cx + _cw/2, _cy + _ch, 16, 16, false);
+        draw_set_alpha(0.5); draw_set_color(global.COLOR_ACCENT);
+        draw_roundrect_ext(_cx - _cw/2, _cy, _cx + _cw/2, _cy + _ch, 16, 16, true);
+
+        draw_set_alpha(1.0);
+        draw_set_color(c_yellow);
+        draw_text_transformed(_cx, _cy + 24, "HOW TO PLAY", 1.4, 1.4, 0);
+        draw_set_color(c_white);
+        draw_text_transformed(_cx, _cy + 70,  "Connect 4+ same-color blocks to clear them", 1.1, 1.1, 0);
+        draw_text_transformed(_cx, _cy + 110, "Arrow blocks only clear in a line of 4+ in their direction", 1.0, 1.0, 0);
+        draw_text_transformed(_cx, _cy + 150, "Diagonal lines of 4 also count!", 1.0, 1.0, 0);
+        draw_text_transformed(_cx, _cy + 195, "Aim at the glowing CORE to score big", 1.0, 1.0, 0);
+        draw_set_color(make_color_rgb(160, 180, 255));
+        draw_text_transformed(_cx, _cy + 245, "SPACE  Fire    Arrow Keys  Move    C / Shift  Hold", 1.0, 1.0, 0);
+        draw_text_transformed(_cx, _cy + 278, "Q / E  Side Jump    Z / Up  Rotate    G  Ghost    S  Shake", 1.0, 1.0, 0);
+
         draw_set_color(make_color_rgb(180, 180, 180));
-        draw_text_transformed(_guiW / 2, _guiH / 2 + 40, "ESC  Resume    ESC  Menu", 1.5, 1.5, 0);
+        draw_text_transformed(_cx, 680, "ESC  Resume", 1.5, 1.5, 0);
     }
 
     if (global.gameState == "GAMEOVER") {
         draw_set_color(c_black); draw_set_alpha(0.78);
         draw_rectangle(0, 0, _guiW, _guiH, false);
         draw_set_alpha(1.0); draw_set_halign(fa_center);
-        draw_set_color(global.COLOR_DANGER);
-        draw_text_transformed(_guiW / 2, _guiH / 2 - 80, "GAME OVER", 5, 5, 0);
+        draw_set_color(global.storyComplete ? c_yellow : global.COLOR_DANGER);
+        draw_text_transformed(_guiW / 2, _guiH / 2 - 80, global.storyComplete ? "STORY CLEAR" : "GAME OVER", 5, 5, 0);
         draw_set_color(c_white);
         draw_text_transformed(_guiW / 2, _guiH / 2 + 10,  "SCORE  " + string(global.score), 2.5, 2.5, 0);
         draw_set_color((global.score >= global.highScore) ? c_yellow : make_color_rgb(180, 200, 255));
@@ -179,9 +241,14 @@ draw_set_alpha(1);
 draw_set_halign(fa_left);
 draw_set_valign(fa_top);
 
-// --- Retro Post-Processing ---
-draw_set_alpha(0.08);
-for(var i=0; i<_guiH; i+=6) {
-    draw_set_color(c_black); draw_line_width(0, i, _guiW, i, 1);
+// --- Screen Vignette ---
+// Darkens the corners/edges for a cinematic feel
+var _vigSteps = 12;
+for (var i = 0; i < _vigSteps; i++) {
+    var _t   = i / _vigSteps;
+    var _pad = _t * 420;
+    draw_set_alpha((1 - _t) * 0.045);
+    draw_set_color(c_black);
+    draw_roundrect_ext(_pad, _pad, _guiW - _pad, _guiH - _pad, 80 + _pad * 0.5, 80 + _pad * 0.5, false);
 }
 draw_set_alpha(1.0);

@@ -7,6 +7,7 @@ var _h     = room_height;
 
 draw_set_halign(fa_center);
 draw_set_valign(fa_middle);
+draw_set_font(main_font);
 
 // --- Radial rays behind logo ---
 for (var _ray = 0; _ray < 24; _ray++) {
