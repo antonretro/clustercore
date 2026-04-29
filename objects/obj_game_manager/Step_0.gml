@@ -66,7 +66,9 @@ if (global.hitstop > 0) {
     exit;
 }
 
-if (keyboard_check_pressed(vk_escape)) {
+var _gp = gamepad_is_connected(0); // slot 0 — first connected controller
+
+if (keyboard_check_pressed(vk_escape) || (_gp && gamepad_button_check_pressed(0, gp_start))) {
     if (global.gameState == "PLAYING") global.gameState = "PAUSED";
     else if (global.gameState == "PAUSED") global.gameState = "PLAYING";
 }
@@ -76,8 +78,8 @@ if (keyboard_check_pressed(ord("G"))) global.settings.ghostEnabled  = !global.se
 if (keyboard_check_pressed(ord("S"))) global.settings.shakeEnabled  = !global.settings.shakeEnabled;
 
 if (global.gameState == "GAMEOVER") {
-    if (keyboard_check_pressed(ord("R"))) room_goto(room_game);
-    if (keyboard_check_pressed(vk_escape)) room_goto(room_menu);
+    if (keyboard_check_pressed(ord("R"))   || (_gp && gamepad_button_check_pressed(0, gp_face1))) room_goto(room_game);
+    if (keyboard_check_pressed(vk_escape)  || (_gp && gamepad_button_check_pressed(0, gp_start))) room_goto(room_menu);
     exit;
 }
 
@@ -107,21 +109,38 @@ if (!global.locking) {
         }
     }
 
-    // --- INPUT CAPTURE (With DAS/Holding Support) ---
-    var _leftPress  = keyboard_check_pressed(vk_left);
-    var _rightPress = keyboard_check_pressed(vk_right);
-    var _leftHold   = keyboard_check(vk_left);
-    var _rightHold  = keyboard_check(vk_right);
-    
-    var _up    = keyboard_check_pressed(vk_up);
-    var _down  = keyboard_check_pressed(vk_down);
-    var _space = keyboard_check_pressed(vk_space);
-    var _rotate = keyboard_check_pressed(ord("Z")) || keyboard_check_pressed(ord("X")) || keyboard_check_pressed(vk_up);
-    var _hold  = keyboard_check_pressed(ord("C")) || keyboard_check_pressed(vk_lshift);
-    
-    // Dedicated Side-Rotation (Instant 90-degree jumps)
-    var _rotL = keyboard_check_pressed(ord("Q"));
-    var _rotR = keyboard_check_pressed(ord("E"));
+    // --- INPUT CAPTURE (keyboard + gamepad merged) ---
+    // D-pad OR left stick for movement
+    var _stickX     = _gp ? gamepad_axis_value(0, gp_axislh) : 0;
+    var _stickY     = _gp ? gamepad_axis_value(0, gp_axislv) : 0;
+    var _gp_left    = _gp && (gamepad_button_check(0, gp_padl)  || _stickX < -0.5);
+    var _gp_right   = _gp && (gamepad_button_check(0, gp_padr)  || _stickX >  0.5);
+    var _gp_lpPress = _gp && (gamepad_button_check_pressed(0, gp_padl) || (_stickX < -0.5 && global.gp_prev_stick_x >= -0.5));
+    var _gp_rpPress = _gp && (gamepad_button_check_pressed(0, gp_padr) || (_stickX >  0.5 && global.gp_prev_stick_x <=  0.5));
+    global.gp_prev_stick_x = _stickX;
+
+    var _leftPress  = keyboard_check_pressed(vk_left)  || _gp_lpPress;
+    var _rightPress = keyboard_check_pressed(vk_right) || _gp_rpPress;
+    var _leftHold   = keyboard_check(vk_left)          || _gp_left;
+    var _rightHold  = keyboard_check(vk_right)         || _gp_right;
+
+    var _up    = keyboard_check_pressed(vk_up)   || (_gp && (gamepad_button_check_pressed(0, gp_padu) || (_stickY < -0.5 && global.gp_prev_stick_y >= -0.5)));
+    var _down  = keyboard_check_pressed(vk_down) || (_gp && (gamepad_button_check_pressed(0, gp_padd) || (_stickY >  0.5 && global.gp_prev_stick_y <=  0.5)));
+    global.gp_prev_stick_y = _stickY;
+
+    // Fire: tap space/A = instant, hold = charge, release = fire
+    var _fireHeld     = keyboard_check(vk_space)          || (_gp && gamepad_button_check(0, gp_face1));
+    var _fireReleased = keyboard_check_released(vk_space) || (_gp && gamepad_button_check_released(0, gp_face1));
+    var _space        = keyboard_check_pressed(vk_space)  || (_gp && gamepad_button_check_pressed(0, gp_face1));
+
+    var _rotate = keyboard_check_pressed(ord("Z")) || keyboard_check_pressed(ord("X")) || keyboard_check_pressed(vk_up)
+                || (_gp && gamepad_button_check_pressed(0, gp_face4)); // Y button
+    var _hold   = keyboard_check_pressed(ord("C")) || keyboard_check_pressed(vk_lshift)
+                || (_gp && gamepad_button_check_pressed(0, gp_face2)); // B button
+
+    // Side jumps: Q/E  or  LB/RB
+    var _rotL = keyboard_check_pressed(ord("Q")) || (_gp && gamepad_button_check_pressed(0, gp_shoulderl));
+    var _rotR = keyboard_check_pressed(ord("E")) || (_gp && gamepad_button_check_pressed(0, gp_shoulderr));
 
     // --- DAS (Delayed Auto Shift) LOGIC ---
     var _moveDir = 0;
@@ -216,10 +235,14 @@ if (!global.locking) {
             if (global.previewDepth < 1) global.previewDepth = 1;
         }
         
-        if (_space) {
-            hard_drop_radial(); // Launch to target
-            global.previewDepth = 1; // Reset for next piece
-            _space = false;
+        // Charge while fire is held; fire on release or at max charge
+        if (_fireHeld) {
+            global.launchCharge = min(global.launchCharge + 1, global.MAX_CHARGE);
+        }
+        if (_fireReleased || global.launchCharge >= global.MAX_CHARGE) {
+            hard_drop_radial();
+            global.previewDepth = 1;
+            global.launchCharge = 0;
         }
     } else {
         // --- CLASSIC INPUT ---

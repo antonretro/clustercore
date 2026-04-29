@@ -66,6 +66,7 @@ function spawn_piece() {
     global.activePiece = _inst;
     global.canHold = true;
     global.pieceTimer = global.MAX_PIECE_TIME;
+    global.launchCharge = 0;
     global.previewDepth = calculate_landing_depth(_nx, _ny);
 
     // --- GAME OVER CHECK ---

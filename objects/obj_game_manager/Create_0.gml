@@ -101,6 +101,8 @@ global.hitstop = 0;
 global.jackpotFlash = 0;
 global.dasTimer = 0;
 global.dasRepeatTimer = 0;
+global.gp_prev_stick_x = 0;
+global.gp_prev_stick_y = 0;
 
 // Load persisted high score
 global.highScore = 0;
