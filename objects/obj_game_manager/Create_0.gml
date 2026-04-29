@@ -200,6 +200,12 @@ start_game = function() {
         setup_story_planet();
     }
 
+    // Clear all visual FX from the previous run
+    global.particles     = [];
+    global.floatingTexts = [];
+    global.beams         = [];
+    global.shakeAmount   = 0;
+
     // Brute force cleanup of all blocks
     with(obj_block) instance_destroy();
     for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
@@ -214,7 +220,8 @@ start_game = function() {
     }
     
     spawn_piece();
-    
+    global.inputDelayTimer = 10; // ignore fire input for first 10 frames to absorb menu keypress
+
     // --- PLANET CORE INITIALIZATION ---
     // Core is no longer spawned automatically. The first block to land in the center becomes the core.
 };

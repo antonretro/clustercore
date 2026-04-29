@@ -16,6 +16,11 @@ function sfx_piece_rotate() {
     // sfx_play(snd_rotate);
 }
 
+// snd_blocked: short dull thud / low buzz — piece can't move deeper
+function sfx_piece_blocked() {
+    // sfx_play(snd_blocked);
+}
+
 // snd_lock:   thud/clunk, mid pitch, ~100ms
 function sfx_piece_lock() {
     // sfx_play(snd_lock);

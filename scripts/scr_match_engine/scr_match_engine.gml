@@ -1,16 +1,16 @@
 function debug_largest_cluster_size() {
     var _visited = array_create(global.TOTAL_ROWS);
     for (var i = 0; i < global.TOTAL_ROWS; i++) {
-        _visited[i] = array_create(global.COLS, false);
+        _visited[i] = array_create(global.TOTAL_COLS, false);
     }
     var _best = 0;
     for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
-        for (var _x = 0; _x < global.COLS; _x++) {
+        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
             if (_visited[_y][_x]) continue;
             var _cell = global.grid[_y][_x];
             if (_cell == undefined || _cell.type == "bomb" || _cell.type == "dead") continue;
             var _cluster = [];
-            collect_cluster(global.grid, global.COLS, global.TOTAL_ROWS, _x, _y, _visited, _cluster);
+            collect_cluster(global.grid, global.TOTAL_COLS, global.TOTAL_ROWS, _x, _y, _visited, _cluster);
             _best = max(_best, array_length(_cluster));
         }
     }

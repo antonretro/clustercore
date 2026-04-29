@@ -125,15 +125,7 @@ function spawn_piece() {
         global.launchCharge = 0;
         global.previewDepth = max(1, calculate_landing_depth(_gx, _gy));
 
-        // Game over: piece has zero depth (staging ring completely blocked)
-        if (calculate_landing_depth(_gx, _gy) == 0) {
-            global.gameState = "GAMEOVER";
-            sfx_game_over();
-            if (global.score > global.highScore) {
-                global.highScore = global.score;
-                save_high_score();
-            }
-        }
+        // Game over is handled by lock_piece (dist >= 5) when the piece can't enter the board.
 
     // ── CLASSIC ──────────────────────────────────────────────────────────────
     } else {

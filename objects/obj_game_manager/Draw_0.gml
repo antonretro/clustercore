@@ -124,12 +124,26 @@ if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
             if (_dist == 1) _col = make_color_rgb(30, 10, 50);
             if (_dist == 2) _col = make_color_rgb(20, 5, 30);
             if (_dist == 3) _col = make_color_rgb(10, 2, 15);
+            if (_dist == 4) _col = make_color_rgb(45, 8, 8); // danger ring
             draw_set_alpha(0.5); draw_set_color(_col);
             draw_rectangle(_tx, _ty, _tx + _cw, _ty + _cw, false);
             draw_set_alpha(0.05); draw_set_color(c_white);
             draw_rectangle(_tx, _ty, _tx + _cw, _ty + _cw, true);
         }
     }
+    // Pulsing red border on the danger ring (ring 4 = game-over zone)
+    var _dangerPulse = 0.08 + abs(sin(current_time * 0.004)) * 0.12;
+    gpu_set_blendmode(bm_add);
+    for (var _gy4b = global.HIDDEN_ROWS; _gy4b < global.TOTAL_ROWS - global.HIDDEN_ROWS; _gy4b++) {
+        for (var _gx4b = global.HIDDEN_SIDES; _gx4b < global.TOTAL_COLS - global.HIDDEN_SIDES; _gx4b++) {
+            if (max(abs(_gx4b - floor(global.TOTAL_COLS/2)), abs(_gy4b - floor(global.TOTAL_ROWS/2))) != 4) continue;
+            var _tx2 = _bx + (_gx4b - global.HIDDEN_SIDES) * _cw;
+            var _ty2 = _by + (_gy4b - global.HIDDEN_ROWS)  * _cw;
+            draw_set_alpha(_dangerPulse); draw_set_color(global.COLOR_DANGER);
+            draw_rectangle(_tx2, _ty2, _tx2 + _cw, _ty2 + _cw, true);
+        }
+    }
+    gpu_set_blendmode(bm_normal);
     draw_set_alpha(1.0);
 }
 
@@ -182,6 +196,29 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
     var _pulse = 0.22 + abs(sin(current_time * 0.008)) * 0.22;
 
     if (!_same) {
+        // ── Planet trajectory trail (every cell the piece will pass through) ──
+        if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
+            var _ptx = _ap.grid_x; var _pty = _ap.grid_y;
+            gpu_set_blendmode(bm_add);
+            for (var _pi = 0; _pi < global.previewDepth; _pi++) {
+                var _pdx = sign(floor(global.TOTAL_COLS / 2) - _ptx);
+                var _pdy = sign(floor(global.TOTAL_ROWS / 2) - _pty);
+                if (_pdx == 0 && _pdy == 0) break;
+                if (abs(floor(global.TOTAL_COLS / 2) - _ptx) >= abs(floor(global.TOTAL_ROWS / 2) - _pty)) _pdy = 0; else _pdx = 0;
+                _ptx += _pdx; _pty += _pdy;
+                if (_ptx < 0 || _ptx >= global.TOTAL_COLS || _pty < 0 || _pty >= global.TOTAL_ROWS) break;
+                if (global.grid[_pty][_ptx] != undefined) break;
+                // Fade in toward landing (0 = near piece, 1 = at landing)
+                var _fade = (_pi + 1) / max(1, global.previewDepth);
+                draw_set_alpha(0.08 + 0.20 * _fade);
+                draw_set_color(_ap.color);
+                var _psx = _bx + (_ptx - global.HIDDEN_SIDES) * _cw;
+                var _psy = _by + (_pty - global.HIDDEN_ROWS)  * _cw;
+                draw_rectangle(_psx, _psy, _psx + _cw, _psy + _cw, false);
+            }
+            gpu_set_blendmode(bm_normal);
+            draw_set_alpha(1.0);
+        }
         // Laser
         gpu_set_blendmode(bm_add);
         draw_set_alpha(0.30 + _pulse); draw_set_color(_ap.color);

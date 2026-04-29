@@ -106,11 +106,12 @@ if (!global.locking) {
     var _down       = keyboard_check_pressed(vk_down) || (_gp && (gamepad_button_check_pressed(0, gp_padd) || (_stickY >  0.5 && global.gp_prev_stick_y <=  0.5)));
     global.gp_prev_stick_y = _stickY;
 
-    var _fire     = keyboard_check_pressed(vk_space) || (_gp && gamepad_button_check_pressed(0, gp_face1));
-    var _fireHeld = keyboard_check(vk_space)         || (_gp && gamepad_button_check(0, gp_face1));
-    var _fireRel  = keyboard_check_released(vk_space)|| (_gp && gamepad_button_check_released(0, gp_face1));
-    var _rotate   = keyboard_check_pressed(ord("Z")) || keyboard_check_pressed(ord("X"))
-                 || keyboard_check_pressed(vk_up)    || (_gp && gamepad_button_check_pressed(0, gp_face4));
+    if (global.inputDelayTimer > 0) global.inputDelayTimer--;
+    var _inputReady = (global.inputDelayTimer <= 0);
+    var _fire     = _inputReady && (keyboard_check_pressed(vk_space) || (_gp && gamepad_button_check_pressed(0, gp_face1)));
+    var _fireHeld = _inputReady && (keyboard_check(vk_space)         || (_gp && gamepad_button_check(0, gp_face1)));
+    var _fireRel  = _inputReady && (keyboard_check_released(vk_space)|| (_gp && gamepad_button_check_released(0, gp_face1)));
+    // vk_up rotates in Classic (standard Tetris). In Planet it adjusts depth — handled below.
     var _hold     = keyboard_check_pressed(ord("C")) || keyboard_check_pressed(vk_lshift)
                  || (_gp && gamepad_button_check_pressed(0, gp_face2));
     var _rotL     = keyboard_check_pressed(ord("Q")) || (_gp && gamepad_button_check_pressed(0, gp_shoulderl));
@@ -148,12 +149,25 @@ if (!global.locking) {
         // Update active piece grid position and ghost depth
         if (global.activePiece != undefined) {
             var _pos = get_orbital_pos(global.orbitalSide, global.orbitalX);
+            var _posChanged = (global.activePiece.grid_x != _pos.x || global.activePiece.grid_y != _pos.y);
             global.activePiece.grid_x = _pos.x;
             global.activePiece.grid_y = _pos.y;
             // Sync world pixel position so the sprite follows the ring
             global.activePiece.x = (_pos.x - global.HIDDEN_SIDES) * 16;
             global.activePiece.y = (_pos.y - global.HIDDEN_ROWS)  * 16;
-            global.previewDepth = max(1, calculate_landing_depth(_pos.x, _pos.y));
+            var _maxDepth = max(1, calculate_landing_depth(_pos.x, _pos.y));
+            // Reset to max depth on new position; clamp if nudging
+            if (_posChanged) global.previewDepth = _maxDepth;
+            else             global.previewDepth = clamp(global.previewDepth, 1, _maxDepth);
+
+            // Up/down: adjust landing depth — DOWN capped at _maxDepth so piece never floats
+            if (_down) {
+                if (global.previewDepth < _maxDepth) { global.previewDepth++; sfx_piece_move(); }
+                else sfx_piece_blocked();
+            }
+            if (_up) {
+                if (global.previewDepth > 1) { global.previewDepth--; sfx_piece_move(); }
+            }
 
             // Drills always face inward
             if (global.activePiece.type == "drill") {
@@ -169,10 +183,6 @@ if (!global.locking) {
             if (_prevSide != global.orbitalSide) sfx_piece_move();
         }
 
-        // Manual preview depth nudge (up/down)
-        if (_down) { global.previewDepth = min(global.previewDepth + 1, global.TOTAL_ROWS); }
-        if (_up)   { global.previewDepth = max(global.previewDepth - 1, 1); }
-
         // Charge + fire
         if (_fireHeld) global.launchCharge = min(global.launchCharge + 1, global.MAX_CHARGE);
         if (_fireRel || global.launchCharge >= global.MAX_CHARGE) {
@@ -187,8 +197,7 @@ if (!global.locking) {
         if (_fire)  hard_drop();
     }
 
-    if (_rotate) { rotate_piece(); sfx_piece_rotate(); }
-    if (_hold)   hold_piece();
+    if (_hold) hold_piece();
 }
 
 // Visibility: hide blocks still in the hidden top row (but always show active piece)

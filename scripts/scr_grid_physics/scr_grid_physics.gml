@@ -86,7 +86,9 @@ function lock_piece() {
     var _px = _p.grid_x;
     var _py = _p.grid_y;
 
-    // ── PLANET / STORY: game over if still in staging ring ───────────────────
+    // ── PLANET / STORY: game over if piece locks in the staging ring (dist≥5) ─
+    // Ring 4 is the outermost PLAYABLE ring — pieces can fill it safely.
+    // Game over only fires when the piece can't enter the board at all (staging ring, dist=5).
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
         var _dist = max(abs(_px - floor(global.TOTAL_COLS / 2)), abs(_py - floor(global.TOTAL_ROWS / 2)));
         if (_dist >= 5) {
@@ -137,40 +139,52 @@ function lock_piece() {
 
     // ── DRILL: blast through the planet (Planet) or column (Classic) ─────────
     if (_p.type == "drill") {
-        var _sp = _grid_screen_pos(_px, _py);
-        // Rotate floating text position with board
+        // Compute screen position for floating text (board-rotation-aware)
+        var _sp  = _grid_screen_pos(_px, _py);
         var _ang = degtorad(global.boardRotation);
         var _ccx = global.GAME_W / 2; var _ccy = global.GAME_H / 2;
         var _ftx = _ccx + (_sp.x - _ccx) * cos(_ang) - (_sp.y - _ccy) * sin(_ang);
         var _fty = _ccy + (_sp.x - _ccx) * sin(_ang) + (_sp.y - _ccy) * cos(_ang);
-        create_floating_text_ext(_ftx, _fty, "DRILL PAYOUT", c_white, 1.6);
+
         if (global.settings.shakeEnabled) global.shakeAmount = 12;
         global.hitstop = 4;
         sfx_drill();
-        // Remove from grid (drill destroys itself by boring)
-        global.grid[_py][_px] = undefined;
+        global.grid[_py][_px] = undefined; // consume the drill itself
 
         var _drilled = 0;
+        var _drillCol = make_color_rgb(200, 220, 255); // icy-silver drill colour
 
         if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-            // Straight line toward center
-            var _gx = _px; var _gy = _py;
-            var _vx = (_px <= floor(global.TOTAL_COLS / 2)) ? 1 : -1;
-            var _vy = (_py <= floor(global.TOTAL_ROWS / 2)) ? 1 : -1;
-            if (abs(_px - floor(global.TOTAL_COLS / 2)) >= abs(_py - floor(global.TOTAL_ROWS / 2))) _vy = 0; else _vx = 0;
-            if (_vx == 0 && _vy == 0) _vy = 1;
+            // Direction comes from the drill's facing (set at spawn, kept current in Step_0).
+            // Using visualRotation is correct even at equidistant-corner positions where the
+            // old position-geometry approach would pick the wrong axis.
+            var _vx = 0; var _vy = 0;
+            var _rot = ((_p.visualRotation % 360) + 360) % 360;
+            if      (_rot ==   0) _vy =  1;   // top staging    → drill downward
+            else if (_rot ==  90) _vx =  1;   // left staging   → drill rightward
+            else if (_rot == 180) _vy = -1;   // bottom staging → drill upward
+            else if (_rot == 270) _vx = -1;   // right staging  → drill leftward
+            else {
+                // Fallback for any unexpected rotation value
+                _vx = (_px <= floor(global.TOTAL_COLS / 2)) ? 1 : -1;
+                _vy = (_py <= floor(global.TOTAL_ROWS / 2)) ? 1 : -1;
+                if (abs(_px - floor(global.TOTAL_COLS / 2)) >= abs(_py - floor(global.TOTAL_ROWS / 2))) _vy = 0; else _vx = 0;
+                if (_vx == 0 && _vy == 0) _vy = 1;
+            }
 
+            var _gx = _px; var _gy = _py;
             while (true) {
                 var _cell = global.grid[_gy][_gx];
                 if (_cell != undefined) {
                     if (_cell.type == "core") migrate_core(_gx, _gy);
-                    create_particles((_gx - global.HIDDEN_SIDES) * 16 * global.PIXEL_SCALE,
-                                     (_gy - global.HIDDEN_ROWS)  * 16 * global.PIXEL_SCALE, c_white);
+                    // Correct particle coords: block-space pixels (Draw_0 applies PIXEL_SCALE)
+                    create_particles((_gx - global.HIDDEN_SIDES) * 16,
+                                     (_gy - global.HIDDEN_ROWS)  * 16, _drillCol);
                     _cell.inst.clearing = true;
                     global.grid[_gy][_gx] = undefined;
                     _drilled++;
                 }
-                create_beam((_gx - global.HIDDEN_SIDES) * 16, (_gy - global.HIDDEN_ROWS) * 16, 16, 16, c_white);
+                create_beam((_gx - global.HIDDEN_SIDES) * 16, (_gy - global.HIDDEN_ROWS) * 16, 16, 16, _drillCol);
                 if (_gx == floor(global.TOTAL_COLS / 2) && _gy == floor(global.TOTAL_ROWS / 2)) break;
                 _gx += _vx; _gy += _vy;
                 if (_gx < 0 || _gx >= global.TOTAL_COLS || _gy < 0 || _gy >= global.TOTAL_ROWS) break;
@@ -180,16 +194,18 @@ function lock_piece() {
             for (var i = 0; i < global.TOTAL_ROWS; i++) {
                 var _cell = global.grid[i][_px];
                 if (_cell != undefined && _cell.type != "core") {
-                    create_particles(_px * 16, (i - global.HIDDEN_ROWS) * 16, c_white);
+                    create_particles((_px - global.HIDDEN_SIDES) * 16, (i - global.HIDDEN_ROWS) * 16, _drillCol);
                     _cell.inst.clearing = true;
                     global.grid[i][_px] = undefined;
                     _drilled++;
                 }
             }
-            create_beam(_px * 16, 0, 16, (global.TOTAL_ROWS - global.HIDDEN_ROWS) * 16, c_white);
+            create_beam((_px - global.HIDDEN_SIDES) * 16, 0, 16, (global.TOTAL_ROWS - global.HIDDEN_ROWS) * 16, _drillCol);
         }
 
         if (_drilled > 0) {
+            global.hitstop = min(4 + _drilled, 12); // scale freeze with destruction
+            create_floating_text_ext(_ftx, _fty, "DRILLED " + string(_drilled) + "!", _drillCol, 1.6);
             var _pts = _drilled * 150 * ((global.feverTimer > 0) ? 2 : 1);
             global.score += _pts; global.levelScore += _pts;
             if (global.gameMode == "STORY") global.storyCleared += _drilled;
@@ -197,6 +213,8 @@ function lock_piece() {
             award_shards(_pts, _drilled);
             charge_jackpot(_drilled + 2);
             update_level_progress();
+        } else {
+            create_floating_text_ext(_ftx, _fty, "DRILL MISS", make_color_rgb(150, 150, 170), 1.2);
         }
         instance_destroy(_p);
         global.activePiece = undefined;
@@ -215,19 +233,17 @@ function lock_piece() {
         sfx_bomb();
 
         var _blasted = 0;
-        for (var _dy = -2; _dy <= 2; _dy++) {
-            for (var _dx2 = -2; _dx2 <= 2; _dx2++) {
-                if (abs(_dx2) + abs(_dy) > 3) continue;
-                var _bx2 = _px + _dx2; var _by2 = _py + _dy;
-                if (_bx2 < 0 || _bx2 >= global.TOTAL_COLS || _by2 < 0 || _by2 >= global.TOTAL_ROWS) continue;
-                var _cell = global.grid[_by2][_bx2];
-                if (_cell != undefined && _cell.type != "core") {
-                    create_particles((_bx2 - global.HIDDEN_SIDES)*16*global.PIXEL_SCALE,
-                                     (_by2 - global.HIDDEN_ROWS)*16*global.PIXEL_SCALE, _cell.color);
-                    _cell.inst.clearing = true;
-                    global.grid[_by2][_bx2] = undefined;
-                    _blasted++;
-                }
+        var _bdirs = [[-1,0],[1,0],[0,-1],[0,1]];
+        for (var _bi = 0; _bi < 4; _bi++) {
+            var _bx2 = _px + _bdirs[_bi][0]; var _by2 = _py + _bdirs[_bi][1];
+            if (_bx2 < 0 || _bx2 >= global.TOTAL_COLS || _by2 < 0 || _by2 >= global.TOTAL_ROWS) continue;
+            var _cell = global.grid[_by2][_bx2];
+            if (_cell != undefined && _cell.type != "core") {
+                create_particles((_bx2 - global.HIDDEN_SIDES) * 16,
+                                 (_by2 - global.HIDDEN_ROWS)  * 16, _cell.color);
+                _cell.inst.clearing = true;
+                global.grid[_by2][_bx2] = undefined;
+                _blasted++;
             }
         }
         global.grid[_py][_px] = undefined;
@@ -302,7 +318,7 @@ function hard_drop() {
 // ─────────────────────────────────────────────────────────────────────────────
 function hard_drop_radial() {
     if (global.activePiece == undefined) return;
-    var _depth  = calculate_landing_depth(global.activePiece.grid_x, global.activePiece.grid_y);
+    var _depth   = global.previewDepth; // land exactly where the ghost/target shows
     var _isHeavy = (global.launchCharge >= global.MAX_CHARGE);
 
     for (var i = 0; i < _depth; i++) {
@@ -494,7 +510,8 @@ function settle_matches() {
                 continue;
             }
             var _sp = _grid_screen_pos(_m.x, _m.y);
-            create_floating_text_ext(_sp.x, _sp.y, "+100", _cell.color, 0.8);
+            var _pts_each = 100 * global.comboChain * ((global.feverTimer > 0) ? 2 : 1);
+            create_floating_text_ext(_sp.x, _sp.y, "+" + string(_pts_each), _cell.color, 0.8);
             create_particles((_m.x - global.HIDDEN_SIDES) * 16 * global.PIXEL_SCALE,
                              (_m.y - global.HIDDEN_ROWS)  * 16 * global.PIXEL_SCALE, _cell.color);
             _cell.inst.clearing = true;
@@ -503,12 +520,13 @@ function settle_matches() {
         apply_grid_gravity();
         alarm[0] = 15;
     } else {
+        global.bestCombo = max(global.bestCombo, global.comboChain);
         global.locking = false;
         global.comboChain = 0;
         var _bestCluster = debug_largest_cluster_size();
-        if (_bestCluster > 0 && _bestCluster < 4) {
+        if (_bestCluster == 3) {
             create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.55,
-                "NEED " + string(4 - _bestCluster) + " MORE", make_color_rgb(200,200,200), 0.9);
+                "1 MORE!", make_color_rgb(200, 200, 200), 0.9);
         }
         if (global.gameMode == "STORY" && global.coresCleared >= global.storyTarget) {
             story_advance_planet();
