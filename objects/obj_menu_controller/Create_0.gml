@@ -1,4 +1,4 @@
-display_set_gui_size(room_width, room_height);
+display_set_gui_size(1920, 1080);
 
 menu_index = 0;
 menu_items = ["Start Run", "Story Mode", "Core Lab", "Challenges", "Settings"];

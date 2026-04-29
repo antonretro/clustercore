@@ -9,6 +9,7 @@ if (global.shakeAmount > 0) {
     if (global.shakeAmount < 0.1) global.shakeAmount = 0;
 }
 
+gpu_set_texfilter(false);
 surface_set_target(global.game_surface);
 draw_clear_alpha(c_black, 0);
 
@@ -38,7 +39,7 @@ var _scale = global.PIXEL_SCALE;
 var _bw = global.COLS * 16 * _scale; 
 var _bh = global.ROWS * 16 * _scale;
 var _bx = (global.GAME_W - _bw) / 2 + _shakeX;
-var _by = (global.GAME_H - _bh) / 2 + _shakeY - 40; 
+var _by = (global.GAME_H - _bh) / 2 + _shakeY;
 
 // Board Backdrop (Glassmorphism)
 draw_set_alpha(0.85);
@@ -88,12 +89,13 @@ with(obj_block) {
     var _drawY = _by + (y * _scale);
     var _cx = _drawX + (8 * _scale);
     var _cy = _drawY + (8 * _scale);
+    if (_cy < _by) continue; // clip hidden rows
     if (sprite_index != -1) {
-        draw_sprite_ext(sprite_index, image_index, _cx, _cy, _scale * scale_x, _scale * scale_y, rotation, c_white, image_alpha * (visible ? 1 : 0));
+        draw_sprite_ext(sprite_index, image_index, _cx, _cy, _scale * scale_x, _scale * scale_y, rotation, c_white, image_alpha);
     }
     if (type == "metal") {
         var _arrowSpr = (dir == 0) ? spr_lr_arrows : spr_ud_arrows;
-        draw_sprite_ext(_arrowSpr, 0, _cx, _cy, _scale * scale_x, _scale * scale_y, rotation, c_white, image_alpha * (visible ? 1 : 0));
+        draw_sprite_ext(_arrowSpr, 0, _cx, _cy, _scale * scale_x, _scale * scale_y, rotation, c_white, image_alpha);
     }
 }
 
@@ -121,8 +123,18 @@ for (var i = 0; i < array_length(global.particles); i++) {
 }
 
 draw_set_alpha(1.0);
+
+// --- Jackpot Flash ---
+if (global.jackpotFlash > 0) {
+    draw_set_alpha((global.jackpotFlash / 45) * 0.75);
+    draw_set_color(c_yellow);
+    draw_rectangle(0, 0, global.GAME_W, global.GAME_H, false);
+    draw_set_alpha(1.0);
+}
+
 surface_reset_target();
 
 // --- Draw the Upscaled Surface ---
-gpu_set_texfilter(false); 
+gpu_set_texfilter(false);
 draw_surface(global.game_surface, 0, 0);
+gpu_set_texfilter(true);

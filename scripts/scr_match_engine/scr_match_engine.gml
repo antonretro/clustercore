@@ -1,6 +1,7 @@
 function find_matches_in_grid(_grid, _config, _totalRows) {
     var _cols = _config.cols;
     
+    // In GML, we use a 2D array to mark blocks for clearing.
     var _clear_grid = array_create(_totalRows);
     for (var i = 0; i < _totalRows; i++) {
         _clear_grid[i] = array_create(_cols, false);
@@ -45,31 +46,35 @@ function add_cluster_matches(_grid, _cols, _totalRows, _clear_grid) {
             var _cluster = [];
             collect_cluster(_grid, _cols, _totalRows, _x, _y, _visited, _cluster);
             
-            if (array_length(_cluster) < 3) continue;
-
+            // --- NEW LOGIC: VALIDATE TOTAL CLEAR COUNT ---
+            // We only clear a cluster if the total number of blocks being cleared is 4+
+            var _to_clear_indices = [];
             for (var i = 0; i < array_length(_cluster); i++) {
                 var _c = _cluster[i];
                 var _target = _grid[_c.y][_c.x];
                 
                 if (_target.type == "normal") {
-                    // Normal blocks clear in 3+ clusters
-                    _clear_grid[_c.y][_c.x] = true;
+                    array_push(_to_clear_indices, i);
                 } else if (_target.type == "metal") {
-                    // ARROWS ONLY CLEAR IF IN A LINE OF 4 (Horizontal or Vertical)
                     var _lineH = 1;
                     var _lineV = 1;
-                    
-                    // Check Horizontal Line in cluster
                     var _tx = _c.x - 1; while (_tx >= 0 && in_cluster(_tx, _c.y, _cluster)) { _lineH++; _tx--; }
                     _tx = _c.x + 1; while (_tx < _cols && in_cluster(_tx, _c.y, _cluster)) { _lineH++; _tx++; }
-                    
-                    // Check Vertical Line in cluster
                     var _ty = _c.y - 1; while (_ty >= 0 && in_cluster(_c.x, _ty, _cluster)) { _lineV++; _ty--; }
                     _ty = _c.y + 1; while (_ty < _totalRows && in_cluster(_c.x, _ty, _cluster)) { _lineV++; _ty++; }
                     
-                    if (_lineH >= 4 || _lineV >= 4) {
-                        _clear_grid[_c.y][_c.x] = true;
+                    if ((_target.dir == 0 && _lineH >= 4) || (_target.dir == 1 && _lineV >= 4)) {
+                        array_push(_to_clear_indices, i);
                     }
+                }
+            }
+
+            // Only mark for clearing if the RESULTING match is at least 4 blocks
+            if (array_length(_to_clear_indices) >= 4) {
+                for (var i = 0; i < array_length(_to_clear_indices); i++) {
+                    var _idx = _to_clear_indices[i];
+                    var _c = _cluster[_idx];
+                    _clear_grid[_c.y][_c.x] = true;
                 }
             }
         }
@@ -114,15 +119,13 @@ function in_cluster(_x, _y, _cluster) {
 }
 
 function add_diagonal_matches(_grid, _cols, _totalRows, _clear_grid) {
-    // Normal blocks clear in 3-diagonals, Arrows only if they are part of a 4-line elsewhere
-    // Keeping this simple: diagonals only clear normal blocks
-    for (var _y = 0; _y < _totalRows - 2; _y++) {
-        for (var _x = 0; _x < _cols - 2; _x++) {
+    for (var _y = 0; _y < _totalRows - 3; _y++) {
+        for (var _x = 0; _x < _cols - 3; _x++) {
             var _match = true;
             var _first = _grid[_y][_x];
             if (_first == undefined || _first.type != "normal") continue;
 
-            for (var _k = 1; _k < 3; _k++) {
+            for (var _k = 1; _k < 4; _k++) {
                 var _next = _grid[_y + _k][_x + _k];
                 if (!check_cells(_first, _next, "d") || _next.type != "normal") {
                     _match = false;
@@ -130,18 +133,18 @@ function add_diagonal_matches(_grid, _cols, _totalRows, _clear_grid) {
                 }
             }
             if (_match) {
-                for (var _k = 0; _k < 3; _k++) _clear_grid[_y + _k][_x + _k] = true;
+                for (var _k = 0; _k < 4; _k++) _clear_grid[_y + _k][_x + _k] = true;
             }
         }
     }
 
-    for (var _y = 2; _y < _totalRows; _y++) {
-        for (var _x = 0; _x < _cols - 2; _x++) {
+    for (var _y = 3; _y < _totalRows; _y++) {
+        for (var _x = 0; _x < _cols - 3; _x++) {
             var _match = true;
             var _first = _grid[_y][_x];
             if (_first == undefined || _first.type != "normal") continue;
 
-            for (var _k = 1; _k < 3; _k++) {
+            for (var _k = 1; _k < 4; _k++) {
                 var _next = _grid[_y - _k][_x + _k];
                 if (!check_cells(_first, _next, "d") || _next.type != "normal") {
                     _match = false;
@@ -149,7 +152,7 @@ function add_diagonal_matches(_grid, _cols, _totalRows, _clear_grid) {
                 }
             }
             if (_match) {
-                for (var _k = 0; _k < 3; _k++) _clear_grid[_y - _k][_x + _k] = true;
+                for (var _k = 0; _k < 4; _k++) _clear_grid[_y - _k][_x + _k] = true;
             }
         }
     }
@@ -176,14 +179,11 @@ function expand_core_set(_grid, _cols, _totalRows, _clear_grid) {
                     var _neighbor = _grid[_ny][_nx];
                     if (_neighbor == undefined) continue;
                     if (_neighbor.id != _coreCell.id) continue;
-                    if (_neighbor.type == "dead" || _neighbor.type == "bomb") continue;
+                    if (_neighbor.type != "normal") continue; 
                     if (_clear_grid[_ny][_nx]) continue;
                     
-                    // Only expand to normal blocks or arrows that are part of their own 4-line
-                    if (_neighbor.type == "normal") {
-                        _clear_grid[_ny][_nx] = true;
-                        _expanding = true;
-                    }
+                    _clear_grid[_ny][_nx] = true;
+                    _expanding = true;
                 }
             }
         }
