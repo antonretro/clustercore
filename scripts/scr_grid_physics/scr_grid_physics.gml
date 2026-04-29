@@ -116,7 +116,7 @@ function lock_piece() {
     // Game over only fires when the piece can't enter the board at all (staging ring, dist=5).
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
         var _dist = max(abs(_px - floor(global.TOTAL_COLS / 2)), abs(_py - floor(global.TOTAL_ROWS / 2)));
-        if (_dist >= 5) {
+        if (_dist >= 5 && _p.type != "drill") {
             global.gameState = "GAMEOVER";
             sfx_game_over();
             if (global.score > global.highScore) { global.highScore = global.score; save_high_score(); }
@@ -198,6 +198,9 @@ function lock_piece() {
                 if (_vx == 0 && _vy == 0) _vy = 1;
             }
 
+            // Force drill travel direction to screen-down.
+            _vx = 0;
+            _vy = 1;
             var _gx = _px; var _gy = _py;
             while (true) {
                 var _cell = global.grid[_gy][_gx];
@@ -352,6 +355,8 @@ function apply_grid_gravity() {
                 }
             }
         }
+        // Keep adaptive orbital lane width in sync with current planet shape.
+        recalculate_planet_surface();
     } else {
         // Classic: fall straight down
         for (var _x = 0; _x < global.COLS; _x++) {
@@ -572,6 +577,27 @@ function migrate_core(_oldX, _oldY) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// recalculate_planet_surface — Caches the shallowest block distance for performance
+// ─────────────────────────────────────────────────────────────────────────────
+function recalculate_planet_surface() {
+    var _cx = floor(global.TOTAL_COLS / 2);
+    var _cy = floor(global.TOTAL_ROWS / 2);
+    var _minDist = _cx;
+    var _maxDist = 1;
+    for (var _sy = global.HIDDEN_ROWS; _sy < global.TOTAL_ROWS - global.HIDDEN_ROWS; _sy++) {
+        for (var _sx = global.HIDDEN_SIDES; _sx < global.TOTAL_COLS - global.HIDDEN_SIDES; _sx++) {
+            if (global.grid[_sy][_sx] != undefined) {
+                var _d = max(abs(_sx - _cx), abs(_sy - _cy));
+                if (_d < _minDist) _minDist = _d;
+                if (_d > _maxDist) _maxDist = _d;
+            }
+        }
+    }
+    global.planetSurfaceDist = max(_minDist, 1);
+    global.planetOuterRadius = max(_maxDist, 1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // calculate_planet_preview_path — Traces the path from spawn to landing
 // Returns: { path: [{gx, gy}], target: {gx, gy}, depth: int }
 // ─────────────────────────────────────────────────────────────────────────────
@@ -584,6 +610,7 @@ function calculate_planet_preview_path(_inst) {
     var _cy  = floor(global.TOTAL_ROWS / 2);
     var _s   = ((global.orbitalSide % 4) + 4) % 4;
     var _isHeavy     = (global.launchCharge >= global.MAX_CHARGE);
+    var _isDrill     = (_inst.type == "drill");
     var _penetration = (_inst.type == "drill") ? 3 : 0;
     var _path  = [];
     var _depth = 0;
@@ -595,23 +622,8 @@ function calculate_planet_preview_path(_inst) {
     if (_s == 2) _ddy = -1;   // bottom → drop up
     if (_s == 3) _ddx =  1;   // left   → drop right
 
-    // ── Dynamic surface cap ─────────────────────────────────────────────────
-    // Scan for the shallowest (closest to center) occupied cell.
-    // Empty lanes stop at this distance so pieces always land on the planet
-    // surface, not shoot into the void. Drills / heavy bypass this.
-    var _isDrill = (_inst.type == "drill");
-    var _surfaceDist = _cx; // default: allow all the way to center
-    if (!_isDrill && !_isHeavy) {
-        for (var _sy2 = global.HIDDEN_ROWS; _sy2 < global.TOTAL_ROWS - global.HIDDEN_ROWS; _sy2++) {
-            for (var _sx2 = global.HIDDEN_SIDES; _sx2 < global.TOTAL_COLS - global.HIDDEN_SIDES; _sx2++) {
-                if (global.grid[_sy2][_sx2] != undefined) {
-                    var _d2 = max(abs(_sx2 - _cx), abs(_sy2 - _cy));
-                    if (_d2 < _surfaceDist) _surfaceDist = _d2;
-                }
-            }
-        }
-        _surfaceDist = max(_surfaceDist, 1); // always at least 1 step from center
-    }
+    // Use cached surface distance for performance
+    var _surfaceDist = global.planetSurfaceDist;
 
     for (var i = 0; i < global.TOTAL_ROWS + global.TOTAL_COLS; i++) {
 
@@ -644,5 +656,112 @@ function calculate_planet_preview_path(_inst) {
         array_push(_path, {gx: _tx, gy: _ty});
     }
 
-    return { path: _path, target: {gx: _tx, gy: _ty}, depth: _depth };
+    // ── PRE-CALCULATE MATCH HIGHLIGHT (Performance Optimization) ──
+    var _hlList = [];
+    var _isMatchRdy = false;
+    if (_tx >= 0 && _tx < global.TOTAL_COLS && _ty >= 0 && _ty < global.TOTAL_ROWS) {
+        var _hlVis = [];
+        for (var _vy = 0; _vy < global.TOTAL_ROWS; _vy++) _hlVis[_vy] = array_create(global.TOTAL_COLS, false);
+        _hlVis[_ty][_tx] = true;
+        var _nbDirs = [[-1,0],[1,0],[0,-1],[0,1]];
+        var _hlQueue = [];
+        for (var _nd = 0; _nd < 4; _nd++) {
+            var _nnx = _tx + _nbDirs[_nd][0], _nny = _ty + _nbDirs[_nd][1];
+            if (_nnx >= 0 && _nnx < global.TOTAL_COLS && _nny >= 0 && _nny < global.TOTAL_ROWS) {
+                var _nc = global.grid[_nny][_nnx];
+                if (_nc != undefined && _nc.id == _inst.color_id) {
+                    _hlVis[_nny][_nnx] = true;
+                    array_push(_hlList, {x: _nnx, y: _nny});
+                    array_push(_hlQueue, {x: _nnx, y: _nny});
+                }
+            }
+        }
+        while (array_length(_hlQueue) > 0) {
+            var _curr = _hlQueue[0]; array_delete(_hlQueue, 0, 1);
+            for (var _nd = 0; _nd < 4; _nd++) {
+                var _nnx = _curr.x + _nbDirs[_nd][0], _nny = _curr.y + _nbDirs[_nd][1];
+                if (_nnx >= 0 && _nnx < global.TOTAL_COLS && _nny >= 0 && _nny < global.TOTAL_ROWS) {
+                    var _nc = global.grid[_nny][_nnx];
+                    if (_nc != undefined && _nc.id == _inst.color_id && !_hlVis[_nny][_nnx]) {
+                        _hlVis[_nny][_nnx] = true;
+                        array_push(_hlList, {x: _nnx, y: _nny});
+                        array_push(_hlQueue, {x: _nnx, y: _nny});
+                    }
+                }
+            }
+        }
+        _isMatchRdy = (array_length(_hlList) >= 3);
+    }
+
+    return { path: _path, target: {gx: _tx, gy: _ty}, depth: _depth, hlList: _hlList, isMatchRdy: _isMatchRdy };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// handle_planet_input — Processes all orbital movement and firing
+// ─────────────────────────────────────────────────────────────────────────────
+function handle_planet_input(_controls) {
+    var _ap = global.activePiece;
+    if (_ap == undefined || global.locking) return;
+
+    var _prevSide = global.orbitalSide;
+    var _lane    = get_orbital_lane_bounds(global.orbitalX);
+    var _laneMin = _lane.min;
+    var _laneMax = _lane.max;
+    global.orbitalX = clamp(global.orbitalX, _laneMin, _laneMax);
+    
+    // Side rotation
+    if (_controls.rotL) { global.orbitalSide--; global.targetRotation = global.orbitalSide * 90; sfx_piece_move(); }
+    if (_controls.rotR) { global.orbitalSide++; global.targetRotation = global.orbitalSide * 90; sfx_piece_move(); }
+
+    // Orbital movement
+    if (_controls.moveDir != 0) {
+        global.orbitalX += _controls.moveDir;
+        if (global.orbitalX < _laneMin) { global.orbitalSide--; global.orbitalX = _laneMax; }
+        if (global.orbitalX > _laneMax) { global.orbitalSide++; global.orbitalX = _laneMin; }
+        global.targetRotation = global.orbitalSide * 90;
+        sfx_piece_move();
+    }
+
+    // Re-clamp after side changes (Q/E or wrap) so bounds stay adaptive per side.
+    _lane = get_orbital_lane_bounds(global.orbitalX);
+    _laneMin = _lane.min;
+    _laneMax = _lane.max;
+    global.orbitalX = clamp(global.orbitalX, _laneMin, _laneMax);
+
+    // Update position and path
+    var _pos = get_orbital_pos(global.orbitalSide, global.orbitalX);
+    var _posChanged = (_ap.grid_x != _pos.x || _ap.grid_y != _pos.y);
+    _ap.grid_x = _pos.x; _ap.grid_y = _pos.y;
+    _ap.x = (_pos.x - global.HIDDEN_SIDES) * 16;
+    _ap.y = (_pos.y - global.HIDDEN_ROWS) * 16;
+
+    if (_posChanged || global.previewData == undefined) {
+        global.previewData = calculate_planet_preview_path(_ap);
+        global.previewDepth = (global.previewData != undefined) ? global.previewData.depth : 1;
+    }
+
+    // Depth nudging
+    var _maxD = (global.previewData != undefined) ? global.previewData.depth : 1;
+    if (_controls.up && global.previewDepth > 1) {
+        // Only allow nudging up if we have a neighbor to stick to
+        var _idx = global.previewDepth - 2;
+        var _cell = global.previewData.path[_idx];
+        var _hasNb = false;
+        var _nbD = [[-1,0],[1,0],[0,-1],[0,1]];
+        for (var _ni=0; _ni<4; _ni++) {
+            var _nx = _cell.gx + _nbD[_ni][0], _ny = _cell.gy + _nbD[_ni][1];
+            if (_nx>=0 && _nx<global.TOTAL_COLS && _ny>=0 && _ny<global.TOTAL_ROWS && global.grid[_ny][_nx] != undefined) { _hasNb = true; break; }
+        }
+        if (_hasNb) { global.previewDepth--; sfx_piece_move(); } else sfx_piece_blocked();
+    }
+    if (_controls.down && global.previewDepth < _maxD) { global.previewDepth++; sfx_piece_move(); }
+
+    _ap.rotation = 0;
+    if (_prevSide != global.orbitalSide) sfx_piece_move();
+
+    // Charging and firing
+    if (_controls.fireHeld) global.launchCharge = min(global.launchCharge + 1, global.MAX_CHARGE);
+    if (_controls.fireRel || global.launchCharge >= global.MAX_CHARGE) {
+        hard_drop_radial();
+    }
 }

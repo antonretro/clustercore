@@ -192,49 +192,14 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
         draw_set_alpha(1.0);
     }
 
-    // ── Match-potential highlight ──────────────────────────────────────────────
-    // When landing cell is adjacent to same-color blocks, highlight that cluster.
-    // Extra bright border when it would complete a match-4 or better.
-    if (_gx4 >= 0 && _gx4 < global.TOTAL_COLS && _gy4 >= 0 && _gy4 < global.TOTAL_ROWS) {
-        // BFS: collect connected same-color cells from landing position's neighbors
-        var _hlList = [];
-        var _hlQueue = [];
-        var _hlVis   = [];
-        for (var _vy = 0; _vy < global.TOTAL_ROWS; _vy++) {
-            _hlVis[_vy] = array_create(global.TOTAL_COLS, false);
-        }
-        _hlVis[_gy4][_gx4] = true;
-        var _nbDirs2 = [[-1,0],[1,0],[0,-1],[0,1]];
-        for (var _nd = 0; _nd < 4; _nd++) {
-            var _nnx = _gx4 + _nbDirs2[_nd][0];
-            var _nny = _gy4 + _nbDirs2[_nd][1];
-            if (_nnx < 0 || _nnx >= global.TOTAL_COLS || _nny < 0 || _nny >= global.TOTAL_ROWS) continue;
-            var _nc = global.grid[_nny][_nnx];
-            if (_nc != undefined && _nc.id == _ap.color_id && !_hlVis[_nny][_nnx]) {
-                _hlVis[_nny][_nnx] = true;
-                array_push(_hlList,  {x: _nnx, y: _nny});
-                array_push(_hlQueue, {x: _nnx, y: _nny});
-            }
-        }
-        while (array_length(_hlQueue) > 0) {
-            var _curr2 = _hlQueue[0]; array_delete(_hlQueue, 0, 1);
-            for (var _nd = 0; _nd < 4; _nd++) {
-                var _nnx = _curr2.x + _nbDirs2[_nd][0];
-                var _nny = _curr2.y + _nbDirs2[_nd][1];
-                if (_nnx < 0 || _nnx >= global.TOTAL_COLS || _nny < 0 || _nny >= global.TOTAL_ROWS) continue;
-                var _nc = global.grid[_nny][_nnx];
-                if (_nc != undefined && _nc.id == _ap.color_id && !_hlVis[_nny][_nnx]) {
-                    _hlVis[_nny][_nnx] = true;
-                    array_push(_hlList,  {x: _nnx, y: _nny});
-                    array_push(_hlQueue, {x: _nnx, y: _nny});
-                }
-            }
-        }
-        // Draw highlights: 2+ neighbors = near match, 3+ = match ready (1 more = 4)
-        var _hlCount = array_length(_hlList);
+    // ── Match-potential highlight (Optimized: uses pre-calculated data) ─────────
+    if (global.previewData != undefined) {
+        var _hlList     = global.previewData.hlList;
+        var _isMatchRdy = global.previewData.isMatchRdy;
+        var _hlCount    = array_length(_hlList);
+        
         if (_hlCount >= 1) {
-            var _hlPulse    = 0.45 + abs(sin(current_time * 0.012)) * 0.45;
-            var _isMatchRdy = (_hlCount >= 3); // landing piece would make 4+
+            var _hlPulse = 0.45 + abs(sin(current_time * 0.012)) * 0.45;
             gpu_set_blendmode(bm_add);
             for (var _hi = 0; _hi < _hlCount; _hi++) {
                 var _hcell = _hlList[_hi];

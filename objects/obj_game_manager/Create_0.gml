@@ -33,7 +33,7 @@ global.level = 1;
 global.levelScore = 0;
 global.scoreToNext = 1500;
 global.orbitalSide = 0;
-global.orbitalX = floor(global.TOTAL_COLS / 2);
+global.orbitalX = floor((global.COLS - 1) / 2);
 global.previewDepth = 1; // Targeting depth for the preview
 global.pieceTimer = 300;
 global.MAX_PIECE_TIME = 300;
@@ -101,7 +101,8 @@ for (var i = 0; i < global.TOTAL_ROWS; i++) {
 }
 
 global.activePiece = undefined;
-global.activePieceID = -1;
+global.planetSurfaceDist = 1; // Performance cache: closest block distance to center
+global.planetOuterRadius = 1; // Adaptive lane cache: farthest occupied distance from center
 global.locking = false;
 global.hitstop = 0;
 global.jackpotFlash = 0;
@@ -299,6 +300,7 @@ start_game = function() {
 
     update_staging_ring_cache();
     spawn_piece();
+    recalculate_planet_surface(); // Cache the initial surface depth
     global.previewData    = undefined; // force recalc on first frame
     global.tutorialTimer  = 600;       // show controls hint for 10 seconds
     global.inputDelayTimer = 10;

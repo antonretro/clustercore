@@ -57,6 +57,11 @@ if (keyboard_check_pressed(vk_escape) || (_gp && gamepad_button_check_pressed(0,
     else if (global.gameState == "PAUSED") global.gameState = "PLAYING";
 }
 
+// Fullscreen toggle
+if (keyboard_check_pressed(vk_f11)) {
+    window_set_fullscreen(!window_get_fullscreen());
+}
+
 // Settings hotkeys
 if (keyboard_check_pressed(ord("G"))) global.settings.ghostEnabled = !global.settings.ghostEnabled;
 if (keyboard_check_pressed(ord("S"))) global.settings.shakeEnabled = !global.settings.shakeEnabled;
@@ -128,71 +133,15 @@ if (!global.locking) {
         }
     } else { global.dasTimer = 0; global.dasRepeatTimer = 0; }
 
-    // ── PLANET input ──────────────────────────────────────────────────────────
+    // ── Input Handling ───────────────────────────────────────────────────────
+    var _ctrls = {
+        rotL: _rotL, rotR: _rotR, moveDir: _moveDir,
+        up: _up, down: _down,
+        fireHeld: _fireHeld, fireRel: _fireRel
+    };
+
     if (_isPlanet) {
-        var _prevSide = global.orbitalSide;
-
-        // Side jump (Q/E or shoulder buttons)
-        if (_rotL) { global.orbitalSide--; global.targetRotation = global.orbitalSide * 90; sfx_piece_move(); }
-        if (_rotR) { global.orbitalSide++; global.targetRotation = global.orbitalSide * 90; sfx_piece_move(); }
-
-        // Orbital movement with wrap
-        if (_moveDir != 0) {
-            global.orbitalX += _moveDir;
-            if (global.orbitalX < 0)           { global.orbitalSide--; global.orbitalX = global.COLS - 1; }
-            if (global.orbitalX >= global.COLS) { global.orbitalSide++; global.orbitalX = 0; }
-            global.targetRotation = global.orbitalSide * 90;
-            sfx_piece_move();
-        }
-
-        // Update active piece grid position and recalculate ghost path
-        if (global.activePiece != undefined) {
-            var _pos        = get_orbital_pos(global.orbitalSide, global.orbitalX);
-            var _posChanged = (global.activePiece.grid_x != _pos.x || global.activePiece.grid_y != _pos.y);
-            global.activePiece.grid_x = _pos.x;
-            global.activePiece.grid_y = _pos.y;
-            global.activePiece.x = (_pos.x - global.HIDDEN_SIDES) * 16;
-            global.activePiece.y = (_pos.y - global.HIDDEN_ROWS)  * 16;
-
-            if (_posChanged || global.previewData == undefined) {
-                global.previewData  = calculate_planet_preview_path(global.activePiece);
-                global.previewDepth = (global.previewData != undefined) ? global.previewData.depth : 1;
-            }
-            var _maxDepth = (global.previewData != undefined) ? global.previewData.depth : 1;
-            global.previewDepth = clamp(global.previewDepth, 1, _maxDepth);
-
-            // Nudge depth shallower (up) — step back along cached L-path
-            if (_up && global.previewDepth > 1) {
-                var _pathLen   = (global.previewData != undefined) ? array_length(global.previewData.path) : 0;
-                var _targetIdx = global.previewDepth - 2;
-                if (_pathLen > 0 && _targetIdx >= 0) {
-                    var _prevCell    = global.previewData.path[_targetIdx];
-                    var _nbDirs      = [[-1,0],[1,0],[0,-1],[0,1]];
-                    var _hasNeighbor = false;
-                    for (var _ni = 0; _ni < 4; _ni++) {
-                        var _nx2 = _prevCell.gx + _nbDirs[_ni][0];
-                        var _ny2 = _prevCell.gy + _nbDirs[_ni][1];
-                        if (_nx2 >= 0 && _nx2 < global.TOTAL_COLS && _ny2 >= 0 && _ny2 < global.TOTAL_ROWS
-                        && global.grid[_ny2][_nx2] != undefined) { _hasNeighbor = true; break; }
-                    }
-                    if (_hasNeighbor) { global.previewDepth--; sfx_piece_move(); }
-                    else sfx_piece_blocked();
-                }
-            }
-            // Nudge depth deeper (down)
-            if (_down && global.previewDepth < _maxDepth) { global.previewDepth++; sfx_piece_move(); }
-
-            global.activePiece.rotation = 0;
-            if (_prevSide != global.orbitalSide) sfx_piece_move();
-        }
-
-        // Charge + fire
-        if (_fireHeld) global.launchCharge = min(global.launchCharge + 1, global.MAX_CHARGE);
-        if (_fireRel || global.launchCharge >= global.MAX_CHARGE) {
-            hard_drop_radial();
-        }
-
-    // ── CLASSIC input ─────────────────────────────────────────────────────────
+        handle_planet_input(_ctrls);
     } else {
         if (_leftPress)  { move_piece(-1, 0); sfx_piece_move(); }
         if (_rightPress) { move_piece( 1, 0); sfx_piece_move(); }

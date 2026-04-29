@@ -7,7 +7,7 @@
 //     Right col:  x=10, y=1..9   (side 1)
 //     Bottom row: y=10, x=9..1   (side 2, reversed so left=ccw)
 //     Left col:   x=0,  y=9..1   (side 3, reversed)
-//   orbitalX ranges 0..(COLS-1) i.e. 0..8
+//   orbitalX ranges 0..(COLS-1), with adaptive lane bounds per surface state.
 //
 // Block world pixel position (stored on the instance):
 //   inst.x = (grid_x - global.HIDDEN_SIDES) * 16
@@ -34,6 +34,61 @@ function get_orbital_pos(_side, _orbX) {
     if (_s == 3) { _x = 0;                      _y = global.ROWS - _orbX; }
 
     return { x: _x, y: _y };
+}
+
+// -----------------------------------------------------------------------------
+// get_orbital_lane_bounds  — adaptive lane window for Planet/Story movement
+// Returns { min, max, size } in orbitalX space (0..COLS-1).
+// Bounds are derived from the current occupied planet silhouette PER SIDE:
+// we sample the first occupied cell seen from that side for each lane index.
+// This makes width shrink/grow correctly and supports asymmetry naturally.
+// -----------------------------------------------------------------------------
+function get_orbital_lane_bounds(_anchorX = -1) {
+    var _cols = max(1, global.COLS);
+    var _maxX = _cols - 1;
+    var _s = ((global.orbitalSide % 4) + 4) % 4;
+    var _minIdx = _maxX;
+    var _maxIdx = 0;
+    var _found = false;
+
+    for (var _i = 0; _i < _cols; _i++) {
+        var _hit = false;
+
+        if (_s == 0) {
+            var _gx = global.HIDDEN_SIDES + _i;
+            for (var _gy = global.HIDDEN_ROWS; _gy < global.TOTAL_ROWS - global.HIDDEN_ROWS; _gy++) {
+                if (global.grid[_gy][_gx] != undefined) { _hit = true; break; }
+            }
+        } else if (_s == 2) {
+            var _gx2 = global.COLS - _i;
+            for (var _gy2 = global.TOTAL_ROWS - global.HIDDEN_ROWS - 1; _gy2 >= global.HIDDEN_ROWS; _gy2--) {
+                if (global.grid[_gy2][_gx2] != undefined) { _hit = true; break; }
+            }
+        } else if (_s == 1) {
+            var _gy3 = global.HIDDEN_ROWS + _i;
+            for (var _gx3 = global.TOTAL_COLS - global.HIDDEN_SIDES - 1; _gx3 >= global.HIDDEN_SIDES; _gx3--) {
+                if (global.grid[_gy3][_gx3] != undefined) { _hit = true; break; }
+            }
+        } else {
+            var _gy4 = global.ROWS - _i;
+            for (var _gx4 = global.HIDDEN_SIDES; _gx4 < global.TOTAL_COLS - global.HIDDEN_SIDES; _gx4++) {
+                if (global.grid[_gy4][_gx4] != undefined) { _hit = true; break; }
+            }
+        }
+
+        if (_hit) {
+            if (_i < _minIdx) _minIdx = _i;
+            if (_i > _maxIdx) _maxIdx = _i;
+            _found = true;
+        }
+    }
+
+    if (!_found) {
+        var _c = floor((_cols - 1) * 0.5);
+        return { min: _c, max: _c, size: 1 };
+    }
+
+    return { min: _minIdx, max: _maxIdx, size: (_maxIdx - _minIdx + 1) };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -103,6 +158,8 @@ function spawn_piece() {
 
     // ── PLANET / STORY ───────────────────────────────────────────────────────
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
+        var _lane = get_orbital_lane_bounds(global.orbitalX);
+        global.orbitalX = clamp(global.orbitalX, _lane.min, _lane.max);
         var _pos = get_orbital_pos(global.orbitalSide, global.orbitalX);
         _gx = _pos.x;
         _gy = _pos.y;
@@ -167,6 +224,8 @@ function hold_piece() {
 
         // ── PLANET / STORY ───────────────────────────────────────────────────
         if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
+            var _lane = get_orbital_lane_bounds(global.orbitalX);
+            global.orbitalX = clamp(global.orbitalX, _lane.min, _lane.max);
             var _pos = get_orbital_pos(global.orbitalSide, global.orbitalX);
             _gx = _pos.x;
             _gy = _pos.y;
