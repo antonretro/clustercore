@@ -160,8 +160,10 @@ if (!global.locking) {
             if (_posChanged) global.previewDepth = _maxDepth;
             else             global.previewDepth = clamp(global.previewDepth, 1, _maxDepth);
 
-            // Always land at max depth — no floating
-            global.previewDepth = _maxDepth;
+            // Default to max depth; up/down lets player choose shallower — never floats
+            global.previewDepth = clamp(global.previewDepth, 1, _maxDepth);
+            if (_down && global.previewDepth < _maxDepth) { global.previewDepth++; sfx_piece_move(); }
+            if (_up   && global.previewDepth > 1)         { global.previewDepth--; sfx_piece_move(); }
 
             // Drills always face inward
             if (global.activePiece.type == "drill") {

@@ -500,6 +500,16 @@ function settle_matches() {
             if (_cell.type == "core" && !_coreMigrated) {
                 migrate_core(_m.x, _m.y);
                 _coreMigrated = true;
+                // Protect the new core from being cleared — remove its position from matches
+                for (var _ci = array_length(_matches) - 1; _ci >= 0; _ci--) {
+                    var _nc = global.grid[_matches[_ci].y][_matches[_ci].x];
+                    if (_nc != undefined && _nc.type == "core") {
+                        array_delete(_matches, _ci, 1);
+                        break;
+                    }
+                }
+                // Mark old core as normal so it falls through to regular clearing below
+                _cell.type = "normal";
             }
             if (_cell.type == "asteroid" && _cell.inst.shield_hp > 1) {
                 _cell.inst.shield_hp--;
