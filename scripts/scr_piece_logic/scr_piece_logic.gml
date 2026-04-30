@@ -1,24 +1,228 @@
 // =============================================================================
-// scr_piece_logic — Piece spawning, holding, and orbital positioning
+// scr_piece_logic — spawning, holding, orbital positioning, story layout
+// =============================================================================
 //
 // PLANET/STORY coordinate contract:
-//   Staging ring occupies the outer ring of the 11x11 grid:
-//     Top row:    y=0,  x=1..9   (side 0)
-//     Right col:  x=10, y=1..9   (side 1)
-//     Bottom row: y=10, x=9..1   (side 2, reversed so left=ccw)
-//     Left col:   x=0,  y=9..1   (side 3, reversed)
-//   orbitalX ranges 0..(COLS-1), with adaptive lane bounds per surface state.
+// - TOTAL grid is 11x11.
+// - Playable area is x=1..9, y=1..9.
+// - Staging ring is the outside edge:
+//     side 0: top    y=0,  x=1..9
+//     side 1: right  x=10, y=1..9
+//     side 2: bottom y=10, x=9..1
+//     side 3: left   x=0,  y=9..1
 //
-// Block world pixel position (stored on the instance):
+// Block instance world pixels:
 //   inst.x = (grid_x - global.HIDDEN_SIDES) * 16
 //   inst.y = (grid_y - global.HIDDEN_ROWS)  * 16
 //
-// The Draw event scales by PIXEL_SCALE and offsets by _bx/_by.
+// Draw event handles PIXEL_SCALE and board offset.
 // =============================================================================
 
-// -----------------------------------------------------------------------------
-// Piece RNG stream (deterministic queue support)
-// -----------------------------------------------------------------------------
+
+// =============================================================================
+// BASIC GRID HELPERS
+// =============================================================================
+
+function piece_is_planet_mode() {
+    return (global.gameMode == "PLANET" || global.gameMode == "STORY");
+}
+
+
+function normalize_side(_side) {
+    var _s = _side mod 4;
+    if (_s < 0) _s += 4;
+    return _s;
+}
+
+
+function playable_min_x() {
+    return global.HIDDEN_SIDES;
+}
+
+
+function playable_max_x() {
+    return global.TOTAL_COLS - global.HIDDEN_SIDES - 1;
+}
+
+
+function playable_min_y() {
+    return global.HIDDEN_ROWS;
+}
+
+
+function playable_max_y() {
+    return global.TOTAL_ROWS - global.HIDDEN_ROWS - 1;
+}
+
+
+function grid_in_bounds(_gx, _gy) {
+    return (_gx >= 0 && _gx < global.TOTAL_COLS && _gy >= 0 && _gy < global.TOTAL_ROWS);
+}
+
+
+function grid_is_playable(_gx, _gy) {
+    if (_gx < playable_min_x()) return false;
+    if (_gx > playable_max_x()) return false;
+    if (_gy < playable_min_y()) return false;
+    if (_gy > playable_max_y()) return false;
+    return true;
+}
+
+
+function grid_cell_empty(_gx, _gy) {
+    if (!grid_in_bounds(_gx, _gy)) return false;
+    return global.grid[_gy][_gx] == undefined;
+}
+
+
+// =============================================================================
+// ORBITAL POSITIONING
+// =============================================================================
+
+function get_orbital_pos(_side, _orbX) {
+    var _s = normalize_side(_side);
+    var _i = clamp(_orbX, 0, global.COLS - 1);
+
+    var _left   = playable_min_x();
+    var _right  = playable_max_x();
+    var _top    = playable_min_y();
+    var _bottom = playable_max_y();
+
+    // Staging ring is one cell outside playable area.
+    if (_s == 0) {
+        return {
+            x: _left + _i,
+            y: _top - 1
+        };
+    }
+
+    if (_s == 1) {
+        return {
+            x: _right + 1,
+            y: _top + _i
+        };
+    }
+
+    if (_s == 2) {
+        return {
+            x: _right - _i,
+            y: _bottom + 1
+        };
+    }
+
+    return {
+        x: _left - 1,
+        y: _bottom - _i
+    };
+}
+
+
+// Returns the playable edge cell for this side/lane.
+// This is not the staging cell. It is the first playable cell seen from that side.
+function get_orbital_lane_edge_pos(_side, _orbX) {
+    var _s = normalize_side(_side);
+    var _i = clamp(_orbX, 0, global.COLS - 1);
+
+    var _left   = playable_min_x();
+    var _right  = playable_max_x();
+    var _top    = playable_min_y();
+    var _bottom = playable_max_y();
+
+    if (_s == 0) {
+        return {
+            x: _left + _i,
+            y: _top
+        };
+    }
+
+    if (_s == 1) {
+        return {
+            x: _right,
+            y: _top + _i
+        };
+    }
+
+    if (_s == 2) {
+        return {
+            x: _right - _i,
+            y: _bottom
+        };
+    }
+
+    return {
+        x: _left,
+        y: _bottom - _i
+    };
+}
+
+
+// Returns direction from staging ring into the board.
+function get_orbital_inward_dir(_side) {
+    var _s = normalize_side(_side);
+
+    if (_s == 0) return { x: 0,  y: 1  };
+    if (_s == 1) return { x: -1, y: 0  };
+    if (_s == 2) return { x: 0,  y: -1 };
+
+    return { x: 1, y: 0 };
+}
+
+
+// Adaptive lane window based on occupied silhouette from current orbital side.
+function get_orbital_lane_bounds(_anchorX = -1) {
+    var _cols = max(1, global.COLS);
+    var _minIdx = _cols - 1;
+    var _maxIdx = 0;
+    var _found = false;
+
+    var _side = normalize_side(global.orbitalSide);
+    var _dir = get_orbital_inward_dir(_side);
+
+    for (var _i = 0; _i < _cols; _i++) {
+        var _edge = get_orbital_lane_edge_pos(_side, _i);
+        var _gx = _edge.x;
+        var _gy = _edge.y;
+        var _hit = false;
+
+        while (grid_is_playable(_gx, _gy)) {
+            if (global.grid[_gy][_gx] != undefined) {
+                _hit = true;
+                break;
+            }
+
+            _gx += _dir.x;
+            _gy += _dir.y;
+        }
+
+        if (_hit) {
+            if (_i < _minIdx) _minIdx = _i;
+            if (_i > _maxIdx) _maxIdx = _i;
+            _found = true;
+        }
+    }
+
+    // Empty planet: spawn from center lane.
+    if (!_found) {
+        var _centerLane = floor((_cols - 1) * 0.5);
+        return {
+            min: _centerLane,
+            max: _centerLane,
+            size: 1
+        };
+    }
+
+    return {
+        min: _minIdx,
+        max: _maxIdx,
+        size: _maxIdx - _minIdx + 1
+    };
+}
+
+
+// =============================================================================
+// PIECE RNG (Deterministic seeding for Story Mode)
+// =============================================================================
+
 function piece_rng_seed(_seed) {
     global.piece_rng_state = max(1, floor(_seed));
 }
@@ -41,106 +245,11 @@ function piece_rng_irandom(_max) {
     return floor(piece_rng_random(_max + 1));
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// get_orbital_pos  — Planet/Story only
-// Returns the staging-ring grid cell {x, y} for the current orbit position.
-// ─────────────────────────────────────────────────────────────────────────────
-function get_orbital_pos(_side, _orbX) {
-    var _s = ((_side % 4) + 4) % 4;  // normalise to 0-3
-    var _x = 0, _y = 0;
 
-    // Side 0 = TOP row (y=0), left-to-right as orbX increases
-    if (_s == 0) { _x = 1 + _orbX;              _y = 0;  }
-    // Side 1 = RIGHT col (x=10), top-to-bottom
-    if (_s == 1) { _x = global.TOTAL_COLS - 1;  _y = 1 + _orbX; }
-    // Side 2 = BOTTOM row (y=10), right-to-left (mirrors side 0)
-    if (_s == 2) { _x = global.COLS - _orbX;    _y = global.TOTAL_ROWS - 1; }
-    // Side 3 = LEFT col (x=0), bottom-to-top (mirrors side 1)
-    if (_s == 3) { _x = 0;                      _y = global.ROWS - _orbX; }
+// =============================================================================
+// PIECE DATA
+// =============================================================================
 
-    return { x: _x, y: _y };
-}
-
-// -----------------------------------------------------------------------------
-// get_orbital_lane_bounds  — adaptive lane window for Planet/Story movement
-// Returns { min, max, size } in orbitalX space (0..COLS-1).
-// Bounds are derived from the current occupied planet silhouette PER SIDE:
-// we sample the first occupied cell seen from that side for each lane index.
-// This makes width shrink/grow correctly and supports asymmetry naturally.
-// -----------------------------------------------------------------------------
-function get_orbital_lane_bounds(_anchorX = -1) {
-    var _cols = max(1, global.COLS);
-    var _maxX = _cols - 1;
-    var _s = ((global.orbitalSide % 4) + 4) % 4;
-    var _minIdx = _maxX;
-    var _maxIdx = 0;
-    var _found = false;
-
-    for (var _i = 0; _i < _cols; _i++) {
-        var _hit = false;
-
-        if (_s == 0) {
-            var _gx = global.HIDDEN_SIDES + _i;
-            for (var _gy = global.HIDDEN_ROWS; _gy < global.TOTAL_ROWS - global.HIDDEN_ROWS; _gy++) {
-                if (global.grid[_gy][_gx] != undefined) { _hit = true; break; }
-            }
-        } else if (_s == 2) {
-            var _gx2 = global.COLS - _i;
-            for (var _gy2 = global.TOTAL_ROWS - global.HIDDEN_ROWS - 1; _gy2 >= global.HIDDEN_ROWS; _gy2--) {
-                if (global.grid[_gy2][_gx2] != undefined) { _hit = true; break; }
-            }
-        } else if (_s == 1) {
-            var _gy3 = global.HIDDEN_ROWS + _i;
-            for (var _gx3 = global.TOTAL_COLS - global.HIDDEN_SIDES - 1; _gx3 >= global.HIDDEN_SIDES; _gx3--) {
-                if (global.grid[_gy3][_gx3] != undefined) { _hit = true; break; }
-            }
-        } else {
-            var _gy4 = global.ROWS - _i;
-            for (var _gx4 = global.HIDDEN_SIDES; _gx4 < global.TOTAL_COLS - global.HIDDEN_SIDES; _gx4++) {
-                if (global.grid[_gy4][_gx4] != undefined) { _hit = true; break; }
-            }
-        }
-
-        if (_hit) {
-            if (_i < _minIdx) _minIdx = _i;
-            if (_i > _maxIdx) _maxIdx = _i;
-            _found = true;
-        }
-    }
-
-    if (!_found) {
-        var _c = floor((_cols - 1) * 0.5);
-        return { min: _c, max: _c, size: 1 };
-    }
-
-    return { min: _minIdx, max: _maxIdx, size: (_maxIdx - _minIdx + 1) };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// generate_piece  — creates a piece data struct from the weighted pool
-// ─────────────────────────────────────────────────────────────────────────────
-function generate_piece() {
-    if (global.level >= 5 && piece_rng_random(1) < 0.10)
-        return { type: "dead",     color: c_dkgray, dir: 0, id: 999 };
-    if (piece_rng_random(1) < 0.01 + (global.level * 0.0015))
-        return { type: "bomb",     color: c_black,  dir: 0, id: 888 };
-    if (global.level >= 1 && piece_rng_random(1) < 0.008 + (global.level * 0.001))
-        return { type: "drill",    color: c_silver, dir: 0, id: 777 };
-    if (piece_rng_random(1) < 0.15) {
-        var _cid = global.activeColors[piece_rng_irandom(array_length(global.activeColors) - 1)];
-        return { type: "metal", color: get_color_from_id(_cid), dir: (piece_rng_random(1) > 0.5 ? 1 : 0), id: _cid };
-    }
-    if (global.level >= 3 && piece_rng_random(1) < 0.05) {
-        var _cid = global.activeColors[piece_rng_irandom(array_length(global.activeColors) - 1)];
-        return { type: "asteroid", color: get_color_from_id(_cid), dir: 0, id: _cid, shield_hp: 2 };
-    }
-    var _cid = global.activeColors[piece_rng_irandom(array_length(global.activeColors) - 1)];
-    return { type: "normal", color: get_color_from_id(_cid), dir: 0, id: _cid };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// get_color_from_id  — maps color ID integer to an RGB colour
-// ─────────────────────────────────────────────────────────────────────────────
 function get_color_from_id(_id) {
     switch (_id) {
         case 1: return make_color_rgb(255, 107, 107); // Pink
@@ -149,142 +258,306 @@ function get_color_from_id(_id) {
         case 4: return make_color_rgb(220,  50,  50); // Red
         case 5: return make_color_rgb(102, 217, 232); // Cyan
         case 6: return make_color_rgb( 80, 200,  80); // Green
-        default: return c_white;
     }
+
+    return c_white;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// _place_block_instance  — internal helper
-// Creates and configures an obj_block instance at the given grid cell.
-// World pixel position: x=(gx-HIDDEN_SIDES)*16, y=(gy-HIDDEN_ROWS)*16
-// ─────────────────────────────────────────────────────────────────────────────
+
+function get_random_active_color_id() {
+    if (array_length(global.activeColors) <= 0) return 1;
+    return global.activeColors[irandom(array_length(global.activeColors) - 1)];
+}
+
+
+function make_piece_data(_type, _id, _dir = 0) {
+    var _color = get_color_from_id(_id);
+    var _data = {
+        type: _type,
+        color: _color,
+        dir: _dir,
+        id: _id
+    };
+
+    if (_type == "asteroid") {
+        _data.shield_hp = 2;
+    }
+
+    return _data;
+}
+
+
+function generate_piece() {
+    // Dead blocks
+    if (global.level >= 5 && piece_rng_random(1) < 0.10) {
+        return {
+            type: "dead",
+            color: c_dkgray,
+            dir: 0,
+            id: 999
+        };
+    }
+
+    // Bombs
+    if (piece_rng_random(1) < 0.01 + (global.level * 0.0015)) {
+        return {
+            type: "bomb",
+            color: c_black,
+            dir: 0,
+            id: 888
+        };
+    }
+
+    // Drills
+    if (global.level >= 1 && piece_rng_random(1) < 0.008 + (global.level * 0.001)) {
+        return {
+            type: "drill",
+            color: c_silver,
+            dir: 0,
+            id: 777
+        };
+    }
+
+    // Metal
+    if (piece_rng_random(1) < 0.15) {
+        var _midx = piece_rng_irandom(array_length(global.activeColors) - 1);
+        var _metalId = global.activeColors[_midx];
+
+        return {
+            type: "metal",
+            color: get_color_from_id(_metalId),
+            dir: (piece_rng_random(1) > 0.5 ? 1 : 0),
+            id: _metalId
+        };
+    }
+
+    // Asteroid
+    if (global.level >= 3 && piece_rng_random(1) < 0.05) {
+        var _aidx = piece_rng_irandom(array_length(global.activeColors) - 1);
+        var _astId = global.activeColors[_aidx];
+
+        return {
+            type: "asteroid",
+            color: get_color_from_id(_astId),
+            dir: 0,
+            id: _astId,
+            shield_hp: 2
+        };
+    }
+
+    // Normal
+    var _nidx = piece_rng_irandom(array_length(global.activeColors) - 1);
+    var _id = global.activeColors[_nidx];
+
+    return {
+        type: "normal",
+        color: get_color_from_id(_id),
+        dir: 0,
+        id: _id
+    };
+}
+
+
+function piece_data_from_instance(_inst) {
+    var _data = {
+        type: _inst.type,
+        color: _inst.color,
+        dir: _inst.dir,
+        id: _inst.color_id
+    };
+
+    if (_inst.type == "asteroid") {
+        if (variable_instance_exists(_inst, "shield_hp")) {
+            _data.shield_hp = _inst.shield_hp;
+        } else {
+            _data.shield_hp = 2;
+        }
+    }
+
+    return _data;
+}
+
+
+// =============================================================================
+// INSTANCE PLACEMENT
+// =============================================================================
+
 function _place_block_instance(_gx, _gy, _pieceData) {
     var _wx = (_gx - global.HIDDEN_SIDES) * 16;
     var _wy = (_gy - global.HIDDEN_ROWS)  * 16;
+
     var _inst = instance_create_layer(_wx, _wy, "Instances", obj_block);
+
     _inst.type     = _pieceData.type;
     _inst.color    = _pieceData.color;
     _inst.dir      = _pieceData.dir;
     _inst.color_id = _pieceData.id;
     _inst.grid_x   = _gx;
     _inst.grid_y   = _gy;
-    _inst.core_arrow = false;
-    if (variable_struct_exists(_pieceData, "core_arrow")) {
-        _inst.core_arrow = _pieceData.core_arrow;
+
+    if (_pieceData.type == "asteroid") {
+        if (variable_struct_exists(_pieceData, "shield_hp")) {
+            _inst.shield_hp = _pieceData.shield_hp;
+        } else {
+            _inst.shield_hp = 2;
+        }
     }
+
+    _inst.visualRotation = 0;
+    _inst.rotation = 0;
+
     with (_inst) update_sprite();
+
     return _inst;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// spawn_piece  — pull from queue, create instance, check immediate game over
-// ─────────────────────────────────────────────────────────────────────────────
+
+function place_grid_cell(_gx, _gy, _pieceData) {
+    if (!grid_in_bounds(_gx, _gy)) return undefined;
+    if (global.grid[_gy][_gx] != undefined) return undefined;
+
+    var _inst = _place_block_instance(_gx, _gy, _pieceData);
+
+    global.grid[_gy][_gx] = {
+        type: _pieceData.type,
+        color: _pieceData.color,
+        dir: _pieceData.dir,
+        id: _pieceData.id,
+        inst: _inst
+    };
+
+    if (_pieceData.type == "asteroid") {
+        var _hp = 2;
+
+        if (variable_struct_exists(_pieceData, "shield_hp")) {
+            _hp = _pieceData.shield_hp;
+        }
+
+        _inst.shield_hp = _hp;
+    }
+
+    return _inst;
+}
+
+
+// =============================================================================
+// SPAWNING / HOLDING
+// =============================================================================
+
+function get_spawn_grid_pos() {
+    if (piece_is_planet_mode()) {
+        var _lane = get_orbital_lane_bounds(global.orbitalX);
+
+        global.orbitalX = clamp(global.orbitalX, _lane.min, _lane.max);
+
+        return get_orbital_pos(global.orbitalSide, global.orbitalX);
+    }
+
+    return {
+        x: floor(global.COLS / 2),
+        y: 0
+    };
+}
+
+
+function setup_active_piece_after_spawn(_inst, _gx, _gy) {
+    global.activePiece = _inst;
+    global.canHold = true;
+    global.launchCharge = 0;
+
+    if (piece_is_planet_mode()) {
+        global.pieceTimer = global.MAX_PIECE_TIME;
+        global.previewData = calculate_planet_preview_path(global.activePiece);
+
+        if (global.previewData != undefined) {
+            global.previewDepth = max(1, global.previewData.depth);
+        } else {
+            global.previewDepth = max(1, calculate_landing_depth(_gx, _gy));
+        }
+    } else {
+        global.previewData = undefined;
+        global.previewDepth = max(1, calculate_landing_depth(_gx, _gy));
+    }
+}
+
+
 function spawn_piece() {
-    var _p = array_shift(global.nextQueue);
+    if (array_length(global.nextQueue) <= 0) {
+        array_push(global.nextQueue, generate_piece());
+        array_push(global.nextQueue, generate_piece());
+        array_push(global.nextQueue, generate_piece());
+    }
+
+    var _pieceData = array_shift(global.nextQueue);
     array_push(global.nextQueue, generate_piece());
 
-    var _gx, _gy;
+    var _pos = get_spawn_grid_pos();
+    var _gx = _pos.x;
+    var _gy = _pos.y;
 
-    // ── PLANET / STORY ───────────────────────────────────────────────────────
-    if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-        var _lane = get_orbital_lane_bounds(global.orbitalX);
-        global.orbitalX = clamp(global.orbitalX, _lane.min, _lane.max);
-        var _pos = get_orbital_pos(global.orbitalSide, global.orbitalX);
-        _gx = _pos.x;
-        _gy = _pos.y;
+    var _inst = _place_block_instance(_gx, _gy, _pieceData);
 
-        var _inst = _place_block_instance(_gx, _gy, _p);
-        _inst.visualRotation = 0; // Exactly like blocks
-        _inst.rotation = 0;
+    setup_active_piece_after_spawn(_inst, _gx, _gy);
 
-        global.activePiece  = _inst;
-        global.canHold      = true;
-        global.pieceTimer   = global.MAX_PIECE_TIME;
-        global.launchCharge = 0;
-        global.previewData  = calculate_planet_preview_path(global.activePiece);
-        if (global.previewData != undefined) global.previewDepth = max(1, global.previewData.depth);
-        else global.previewDepth = max(1, calculate_landing_depth(_gx, _gy));
+    // Classic game over: spawn cell already occupied.
+    // Planet/Story game over is handled by lock_piece when the piece cannot enter the board.
+    if (!piece_is_planet_mode()) {
+        var _cell = global.grid[_gy][_gx];
 
-        // Game over is handled by lock_piece (dist >= 5) when the piece can't enter the board.
+        if (_cell != undefined) {
+            var _blocked = true;
 
-    // ── CLASSIC ──────────────────────────────────────────────────────────────
-    } else {
-        _gx = floor(global.COLS / 2);
-        _gy = 0; // hidden top row
+            if (_cell.inst != undefined && instance_exists(_cell.inst)) {
+                if (variable_instance_exists(_cell.inst, "clearing") && _cell.inst.clearing) {
+                    _blocked = false;
+                }
+            }
 
-        var _inst = _place_block_instance(_gx, _gy, _p);
-        global.activePiece  = _inst;
-        global.canHold      = true;
-        global.launchCharge = 0;
+            if (_blocked) {
+                global.gameState = "GAMEOVER";
+                sfx_game_over();
 
-        // Game over: spawn cell already occupied
-        if (global.grid[_gy][_gx] != undefined && !global.grid[_gy][_gx].inst.clearing) {
-            global.gameState = "GAMEOVER";
-            sfx_game_over();
-            if (global.score > global.highScore) {
-                global.highScore = global.score;
-                save_high_score();
+                if (global.score > global.highScore) {
+                    global.highScore = global.score;
+                    save_high_score();
+                }
             }
         }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// hold_piece  — swap active piece into the hold slot
-// ─────────────────────────────────────────────────────────────────────────────
+
 function hold_piece() {
+    if (global.activePiece == undefined) return;
     if (!global.canHold || global.locking) return;
 
-    var _outgoing = {
-        type:  global.activePiece.type,
-        color: global.activePiece.color,
-        dir:   global.activePiece.dir,
-        id:    global.activePiece.color_id,
-        core_arrow: global.activePiece.core_arrow
-    };
+    var _outgoing = piece_data_from_instance(global.activePiece);
+
     instance_destroy(global.activePiece);
     global.activePiece = undefined;
 
     if (global.holdPiece == undefined) {
-        // First hold — just stash and spawn normally
         global.holdPiece = _outgoing;
         spawn_piece();
-    } else {
-        // Swap: restore held piece at current orbital position
-        var _p  = global.holdPiece;
-        var _gx, _gy;
-
-        // ── PLANET / STORY ───────────────────────────────────────────────────
-        if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-            var _lane = get_orbital_lane_bounds(global.orbitalX);
-            global.orbitalX = clamp(global.orbitalX, _lane.min, _lane.max);
-            var _pos = get_orbital_pos(global.orbitalSide, global.orbitalX);
-            _gx = _pos.x;
-            _gy = _pos.y;
-        // ── CLASSIC ──────────────────────────────────────────────────────────
-        } else {
-            _gx = floor(global.COLS / 2);
-            _gy = 0;
-        }
-
-        var _inst = _place_block_instance(_gx, _gy, _p);
-        global.activePiece  = _inst;
-        global.holdPiece    = _outgoing;
-        if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-            global.previewData = calculate_planet_preview_path(global.activePiece);
-            if (global.previewData != undefined) global.previewDepth = max(1, global.previewData.depth);
-            else global.previewDepth = max(1, calculate_landing_depth(_gx, _gy));
-        } else {
-            global.previewData = undefined;
-            global.previewDepth = max(1, calculate_landing_depth(_gx, _gy));
-        }
+        global.canHold = false;
+        return;
     }
+
+    var _incoming = global.holdPiece;
+    var _pos = get_spawn_grid_pos();
+
+    var _inst = _place_block_instance(_pos.x, _pos.y, _incoming);
+
+    global.holdPiece = _outgoing;
+
+    setup_active_piece_after_spawn(_inst, _pos.x, _pos.y);
 
     global.canHold = false;
 }
 
+
 // =============================================================================
-// Story level seed/layout helpers
+// STORY LEVEL DATA
 // =============================================================================
 
 function story_level_catalog() {
@@ -316,112 +589,184 @@ function story_level_catalog() {
     ];
 }
 
+
 function story_get_level_def(_worldId, _levelId) {
     var _cat = story_level_catalog();
+
     for (var i = 0; i < array_length(_cat); i++) {
-        var _d = _cat[i];
-        if (_d.world_id == _worldId && _d.level_id == _levelId) return _d;
+        var _def = _cat[i];
+
+        if (_def.world_id == _worldId && _def.level_id == _levelId) {
+            return _def;
+        }
     }
+
     return undefined;
 }
 
+
 function story_get_level_seed(_worldId, _levelId) {
-    var _d = story_get_level_def(_worldId, _levelId);
-    if (_d != undefined && variable_struct_exists(_d, "seed")) return _d.seed;
-    // Deterministic fallback so every level always has a stable seed.
+    var _def = story_get_level_def(_worldId, _levelId);
+
+    if (_def != undefined && variable_struct_exists(_def, "seed")) {
+        return _def.seed;
+    }
+
     return 100000 + (_worldId * 1000) + (_levelId * 37);
 }
 
-function story_place_cell(_gx, _gy, _type, _cid, _dir) {
-    if (_gx < 0 || _gx >= global.TOTAL_COLS || _gy < 0 || _gy >= global.TOTAL_ROWS) return;
-    if (global.grid[_gy][_gx] != undefined) return;
-    var _data = { type: _type, color: get_color_from_id(_cid), dir: _dir, id: _cid, core_arrow: false };
-    var _inst = _place_block_instance(_gx, _gy, _data);
-    global.grid[_gy][_gx] = { type: _type, color: _data.color, dir: _dir, id: _cid, inst: _inst, core_arrow: false };
-}
+
+// =============================================================================
+// STORY PALETTE / LAYOUT
+// =============================================================================
 
 function story_apply_level_palette(_def, _seed) {
     var _oldSeed = random_get_seed();
-    random_set_seed(_seed + 7919); // decorrelate from layout RNG stream
+    random_set_seed(_seed + 7919);
 
     var _pool = [1, 2, 3, 4, 5, 6];
-    for (var _i = array_length(_pool) - 1; _i > 0; _i--) {
-        var _j = irandom(_i);
-        var _t = _pool[_i];
-        _pool[_i] = _pool[_j];
-        _pool[_j] = _t;
+
+    for (var i = array_length(_pool) - 1; i > 0; i--) {
+        var j = irandom(i);
+        var t = _pool[i];
+        _pool[i] = _pool[j];
+        _pool[j] = t;
     }
 
     var _count = 3;
-    if (_def != undefined && variable_struct_exists(_def, "palette_count")) _count = _def.palette_count;
-    if (_def != undefined && variable_struct_exists(_def, "full_palette") && _def.full_palette) _count = array_length(_pool);
+
+    if (_def != undefined && variable_struct_exists(_def, "palette_count")) {
+        _count = _def.palette_count;
+    }
+
+    if (_def != undefined
+    && variable_struct_exists(_def, "full_palette")
+    && _def.full_palette) {
+        _count = array_length(_pool);
+    }
+
     _count = clamp(_count, 3, array_length(_pool));
 
     global.activeColors = [];
     global.reserveColors = [];
-    for (var _a = 0; _a < array_length(_pool); _a++) {
-        if (_a < _count) array_push(global.activeColors, _pool[_a]);
-        else array_push(global.reserveColors, _pool[_a]);
+
+    for (var c = 0; c < array_length(_pool); c++) {
+        if (c < _count) {
+            array_push(global.activeColors, _pool[c]);
+        } else {
+            array_push(global.reserveColors, _pool[c]);
+        }
     }
 
     random_set_seed(_oldSeed);
 }
+
+
+function story_place_cell(_gx, _gy, _type, _cid, _dir = 0) {
+    if (!grid_in_bounds(_gx, _gy)) return undefined;
+    if (!grid_is_playable(_gx, _gy)) return undefined;
+    if (global.grid[_gy][_gx] != undefined) return undefined;
+
+    var _data = make_piece_data(_type, _cid, _dir);
+
+    return place_grid_cell(_gx, _gy, _data);
+}
+
+
+function story_get_layout_settings(_def) {
+    var _rank = (_def.world_id * 10) + _def.level_id;
+
+    return {
+        rank: _rank,
+        target_count: clamp(6 + _rank, 6, 26),
+        radius: clamp(2 + floor(_rank / 6), 2, 4),
+        metal_rate: clamp(0.03 + (_rank * 0.003), 0.03, 0.12),
+        asteroid_rate: clamp(0.02 + (_rank * 0.004), 0.02, 0.16)
+    };
+}
+
+
+function story_pick_cell_type(_settings) {
+    var _roll = random(1);
+
+    if (_roll < _settings.metal_rate) {
+        return "metal";
+    }
+
+    if (_roll < _settings.metal_rate + _settings.asteroid_rate) {
+        return "asteroid";
+    }
+
+    return "normal";
+}
+
 
 function story_apply_level_layout(_def) {
     if (_def == undefined) return false;
 
     var _oldSeed = random_get_seed();
     var _seed = story_get_level_seed(_def.world_id, _def.level_id);
+
     random_set_seed(_seed);
     story_apply_level_palette(_def, _seed);
 
     var _cx = floor(global.TOTAL_COLS / 2);
     var _cy = floor(global.TOTAL_ROWS / 2);
 
-    // Always place one deterministic core first.
-    var _coreCid = global.activeColors[irandom(array_length(global.activeColors) - 1)];
+    // Place deterministic core first.
+    var _coreCid = get_random_active_color_id();
     story_place_cell(_cx, _cy, "core", _coreCid, 0);
 
-    // Deterministic CONNECTED cluster generation (never scattered),
-    // with difficulty scaling by world + level.
-    var _rank = (_def.world_id * 10) + _def.level_id; // monotonic run index
-    var _targetCount = clamp(6 + _rank, 6, 26); // denser over progression
-    var _radius = clamp(2 + floor(_rank / 6), 2, 4); // opens up space gradually
-    var _metalRate = clamp(0.03 + (_rank * 0.003), 0.03, 0.12);
-    var _asteroidRate = clamp(0.02 + (_rank * 0.004), 0.02, 0.16);
+    var _settings = story_get_layout_settings(_def);
     var _placed = [];
-    array_push(_placed, {x: _cx, y: _cy});
-
     var _dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+
+    array_push(_placed, { x: _cx, y: _cy });
+
     var _guard = 0;
-    while (array_length(_placed) - 1 < _targetCount && _guard < 900) {
+
+    while (array_length(_placed) - 1 < _settings.target_count && _guard < 900) {
         _guard++;
+
         var _base = _placed[irandom(array_length(_placed) - 1)];
-        var _d = _dirs[irandom(3)];
-        var _rx = _base.x + _d[0];
-        var _ry = _base.y + _d[1];
+        var _dir = _dirs[irandom(3)];
 
-        if (_rx < global.HIDDEN_SIDES || _rx >= global.TOTAL_COLS - global.HIDDEN_SIDES) continue;
-        if (_ry < global.HIDDEN_ROWS  || _ry >= global.TOTAL_ROWS - global.HIDDEN_ROWS) continue;
+        var _rx = _base.x + _dir[0];
+        var _ry = _base.y + _dir[1];
+
+        if (!grid_is_playable(_rx, _ry)) continue;
         if (global.grid[_ry][_rx] != undefined) continue;
-        if (max(abs(_rx - _cx), abs(_ry - _cy)) > _radius) continue;
 
-        var _cid = global.activeColors[irandom(array_length(global.activeColors) - 1)];
-        var _roll = random(1);
-        if (_roll < _metalRate) story_place_cell(_rx, _ry, "metal", _cid, (random(1) > 0.5 ? 1 : 0));
-        else if (_roll < (_metalRate + _asteroidRate)) story_place_cell(_rx, _ry, "asteroid", _cid, 0);
-        else story_place_cell(_rx, _ry, "normal", _cid, 0);
+        if (max(abs(_rx - _cx), abs(_ry - _cy)) > _settings.radius) {
+            continue;
+        }
 
-        array_push(_placed, {x: _rx, y: _ry});
+        var _cid = get_random_active_color_id();
+        var _type = story_pick_cell_type(_settings);
+        var _blockDir = 0;
+
+        if (_type == "metal") {
+            _blockDir = (random(1) > 0.5 ? 1 : 0);
+        }
+
+        story_place_cell(_rx, _ry, _type, _cid, _blockDir);
+
+        array_push(_placed, { x: _rx, y: _ry });
     }
 
     random_set_seed(_oldSeed);
 
     global.storyLevelSeed = _seed;
     global.storyLevelDef = _def;
-    global.storyObjectiveType = _def.objective.type;
-    global.storyObjectiveValue = _def.objective.value;
-    if (_def.objective.type == "clear_cores") global.storyTarget = _def.objective.value;
+
+    if (_def != undefined && variable_struct_exists(_def, "objective")) {
+        global.storyObjectiveType = _def.objective.type;
+        global.storyObjectiveValue = _def.objective.value;
+
+        if (_def.objective.type == "clear_cores") {
+            global.storyTarget = _def.objective.value;
+        }
+    }
 
     return true;
 }
