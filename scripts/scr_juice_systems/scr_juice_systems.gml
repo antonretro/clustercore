@@ -1,17 +1,17 @@
 // --- SFX Stubs ---
 // Uncomment sfx_play() lines once sound assets are added to the project.
-function sfx_play(_snd) { if (audio_exists(_snd)) audio_play_sound(_snd, 0, false); }
-function sfx_piece_move()           { /* sfx_play(snd_move);      */ }
-function sfx_piece_rotate()         { /* sfx_play(snd_rotate);    */ }
-function sfx_piece_lock()           { /* sfx_play(snd_lock);      */ }
-function sfx_hard_drop()            { /* sfx_play(snd_hard_drop); */ }
-function sfx_bomb()                 { /* sfx_play(snd_bomb);      */ }
-function sfx_drill()                { /* sfx_play(snd_drill);     */ }
-function sfx_fever()                { /* sfx_play(snd_fever);     */ }
-function sfx_level_up()             { /* sfx_play(snd_level_up);  */ }
-function sfx_game_over()            { /* sfx_play(snd_game_over); */ }
-function sfx_piece_blocked()        { /* sfx_play(snd_blocked);   */ }
-function sfx_clear(_count, _chain) {
+function juice_sfx_play_legacy(_snd) { if (audio_exists(_snd)) audio_play_sound(_snd, 0, false); }
+function juice_sfx_piece_move_legacy()           { /* juice_sfx_play_legacy(snd_move);      */ }
+function juice_sfx_piece_rotate_legacy()         { /* juice_sfx_play_legacy(snd_rotate);    */ }
+function juice_sfx_piece_lock_legacy()           { /* juice_sfx_play_legacy(snd_lock);      */ }
+function juice_sfx_hard_drop_legacy()            { /* juice_sfx_play_legacy(snd_hard_drop); */ }
+function juice_sfx_bomb_legacy()                 { /* juice_sfx_play_legacy(snd_bomb);      */ }
+function juice_sfx_drill_legacy()                { /* juice_sfx_play_legacy(snd_drill);     */ }
+function juice_sfx_fever_legacy()                { /* juice_sfx_play_legacy(snd_fever);     */ }
+function juice_sfx_level_up_legacy()             { /* juice_sfx_play_legacy(snd_level_up);  */ }
+function juice_sfx_game_over_legacy()            { /* juice_sfx_play_legacy(snd_game_over); */ }
+function juice_sfx_piece_blocked_legacy()        { /* juice_sfx_play_legacy(snd_blocked);   */ }
+function juice_sfx_clear_legacy(_count, _chain) {
     // var _snd = snd_clear_1;
     // if (_chain >= 2) _snd = snd_clear_2;
     // if (_chain >= 4) _snd = snd_clear_3;
@@ -118,6 +118,7 @@ function charge_jackpot(_amount) {
 
         create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.4, "FEVER MODE!", c_yellow, 2);
         sfx_fever();
+        steam_ach_unlock("ACH_FEVER");
     }
 }
 
@@ -135,4 +136,78 @@ function update_level_progress() {
             array_push(global.activeColors, array_shift(global.reserveColors));
         }
     }
+}
+
+// =============================================================================
+// Steam Achievements Helper
+// =============================================================================
+
+function steam_ach_catalog() {
+    // Keep API names exactly matched to Steamworks "API Name" fields.
+    return [
+        { id: "ACH_FIRST_DROP",      name: "First Drop",        desc: "Place your first block." },
+        { id: "ACH_CORE_BREAKER",    name: "Core Breaker",      desc: "Clear your first core." },
+        { id: "ACH_CHAIN_3",         name: "Chain Reaction",    desc: "Reach a 3x combo chain." },
+        { id: "ACH_FEVER",           name: "Overclocked",       desc: "Enter FEVER mode." },
+        { id: "ACH_STORY_WORLD_1",   name: "Tin Moon Cleared",  desc: "Complete the first world." },
+        { id: "ACH_SCORE_100K",      name: "Six Figures",       desc: "Reach 100,000 score in one run." }
+    ];
+}
+
+function steam_ach_is_ready() {
+    if (!variable_global_exists("useSteam") || !global.useSteam) return false;
+    if (!steam_initialised()) return false;
+    return steam_stats_ready();
+}
+
+function steam_ach_init() {
+    global.steam_ach_queue = [];
+    global.steam_ach_cache = {};
+    global.steam_ach_warned_unavailable = false;
+
+    var _cat = steam_ach_catalog();
+    for (var i = 0; i < array_length(_cat); i++) {
+        var _id = _cat[i].id;
+        global.steam_ach_cache[$ _id] = false;
+        if (steam_ach_is_ready()) {
+            global.steam_ach_cache[$ _id] = steam_get_achievement(_id);
+        }
+    }
+
+    if (steam_ach_is_ready() || (variable_global_exists("useSteam") && global.useSteam)) {
+        steam_request_stats();
+    }
+}
+
+function steam_ach_unlock(_id) {
+    // Safe no-op if Steam API is unavailable in this build.
+    if (!variable_global_exists("useSteam") || !global.useSteam) return;
+    if (!variable_global_exists("steam_ach_queue")) global.steam_ach_queue = [];
+    array_push(global.steam_ach_queue, _id);
+}
+
+function steam_ach_update() {
+    if (!variable_global_exists("steam_ach_queue")) global.steam_ach_queue = [];
+    if (!variable_global_exists("steam_ach_cache")) global.steam_ach_cache = {};
+    if (!steam_ach_is_ready()) {
+        if (!global.steam_ach_warned_unavailable) {
+            show_debug_message("[STEAM] Achievements unavailable (Steam not ready yet).");
+            global.steam_ach_warned_unavailable = true;
+        }
+        return;
+    }
+    while (array_length(global.steam_ach_queue) > 0) {
+        var _id = global.steam_ach_queue[0];
+        array_delete(global.steam_ach_queue, 0, 1);
+
+        var _already = false;
+        if (variable_struct_exists(global.steam_ach_cache, _id)) _already = global.steam_ach_cache[$ _id];
+        else _already = steam_get_achievement(_id);
+
+        if (_already) continue;
+        steam_set_achievement(_id);
+        global.steam_ach_cache[$ _id] = true;
+    }
+
+    steam_store_stats();
 }

@@ -4,7 +4,7 @@
 // calculate_planet_preview_path — Traces the path from spawn to landing
 // Returns: { path: [{gx, gy}], target: {gx, gy}, depth: int }
 // ─────────────────────────────────────────────────────────────────────────────
-function calculate_planet_preview_path(_inst) {
+function drawlogic_calculate_planet_preview_path_legacy(_inst) {
     if (_inst == undefined) return undefined;
     
     var _tx = _inst.grid_x;
