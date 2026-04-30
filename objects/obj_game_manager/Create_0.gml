@@ -45,6 +45,7 @@ global.runShards = 0;
 
 // --- Story Mode Run State ---
 if (!variable_global_exists("storyPlanet")) global.storyPlanet = 0;
+if (!variable_global_exists("storyLevel")) global.storyLevel = 0;
 global.storyPlanets = [
     { name: "TIN MOON",      target: 16, level: 1, colors: 3 },
     { name: "RUST GARDEN",   target: 24, level: 2, colors: 3 },
@@ -56,6 +57,10 @@ global.storyName = "";
 global.storyTarget = 0;
 global.storyCleared = 0;
 global.storyComplete = false;
+global.storyLevelDef = undefined;
+global.storyLevelSeed = 0;
+global.storyObjectiveType = "clear_cores";
+global.storyObjectiveValue = 0;
 
 // Fever/Jackpot
 global.jackpotMeter = 0;
@@ -108,10 +113,17 @@ global.hitstop = 0;
 global.jackpotFlash = 0;
 global.dasTimer = 0;
 global.dasRepeatTimer = 0;
+global.softDropDasTimer = 0;
+global.softDropRepeatTimer = 0;
 global.gp_prev_stick_x = 0;
 global.gp_prev_stick_y = 0;
 global.stagingRingCells = [];
 global.previewData = undefined;
+global.coreStabilityMax = 100;
+global.coreStability = global.coreStabilityMax;
+global.coreStabilityDrainBase = 0.15;
+global.coreStabilityRecoverRate = 0.25;
+global.coreUnstable = false;
 
 // Load persisted high score
 global.highScore = 0;
@@ -160,8 +172,20 @@ global.payoutFlash = 0;
 
 global.settings = {
     ghostEnabled: true,
-    shakeEnabled: true
+    shakeEnabled: true,
+    hintPulseEnabled: true
 };
+
+global.hint_cells = [];
+global.hint_tick = 0;
+global.hint_pulse_timer = 0;
+global.hint_pulse_interval = room_speed * 3;
+
+// Steam API is opt-in per build target. Keep false for local/non-Steam runs.
+if (!variable_global_exists("useSteam")) global.useSteam = false;
+
+steam_ach_init();
+dialogue_init();
 
 setup_story_planet = function() {
     var _last = array_length(global.storyPlanets) - 1;
@@ -171,7 +195,9 @@ setup_story_planet = function() {
     global.storyName = _planet.name;
     global.storyTarget = _planet.target;
     global.storyCleared = 0;
-    global.level = _planet.level;
+    var _lvIdx = clamp(global.storyLevel, 0, 9);
+    global.level = _planet.level + floor(_lvIdx * 0.35);
+    global.storyTarget += _lvIdx * 4;
     global.scoreToNext = 1200 + (global.storyPlanet * 450);
     
     while (array_length(global.activeColors) > _planet.colors && array_length(global.activeColors) > 3) {
@@ -209,7 +235,7 @@ draw_block_instance = function(_inst, _bx, _by, _scale, _alpha = -1, _altX = -1,
         draw_sprite_ext(_inst.sprite_index, _inst.image_index, _cx, _cy,
             _scale * _inst.scale_x, _scale * _inst.scale_y, _renderRot, c_white, _instAlpha);
     }
-    if (_inst.type == "metal") {
+    if (_inst.type == "metal" || (_inst.type == "core" && variable_instance_exists(_inst, "core_arrow") && _inst.core_arrow)) {
         var _arSpr = (_inst.dir == 0) ? spr_lr_arrows : spr_ud_arrows;
         // Arrows rotate WITH board (relative 0)
         draw_sprite_ext(_arSpr, 0, _cx, _cy, _scale * _inst.scale_x, _scale * _inst.scale_y, 0, c_white, _instAlpha);
@@ -260,19 +286,31 @@ start_game = function() {
     }
     
     global.nextQueue = [];
+
+    var _storyLayoutApplied = false;
+    var _queueSeed = 1357911 + (global.level * 101);
+    if (global.gameMode == "STORY") {
+        var _lvDef = story_get_level_def(global.storyPlanet, global.storyLevel);
+        _storyLayoutApplied = story_apply_level_layout(_lvDef);
+        if (_storyLayoutApplied) _queueSeed = global.storyLevelSeed + 424242;
+    }
+
+    piece_rng_seed(_queueSeed);
+
+    // Build queue after story seed/palette apply so first pieces match level palette.
     for (var i = 0; i < 3; i++) {
         array_push(global.nextQueue, generate_piece());
     }
 
     // --- PLANET CORE: pre-place at center so the board has an anchor from turn 1 ---
-    if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
+    if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && !_storyLayoutApplied) {
         var _cx = floor(global.TOTAL_COLS / 2);
         var _cy = floor(global.TOTAL_ROWS / 2);
         var _coreId = global.activeColors[irandom(array_length(global.activeColors) - 1)];
         var _coreCol = get_color_from_id(_coreId);
-        var _coreData = { type: "core", color: _coreCol, dir: 0, id: _coreId };
+        var _coreData = { type: "core", color: _coreCol, dir: 0, id: _coreId, core_arrow: false };
         var _coreInst = _place_block_instance(_cx, _cy, _coreData);
-        global.grid[_cy][_cx] = { type: "core", color: _coreCol, dir: 0, id: _coreId, inst: _coreInst };
+        global.grid[_cy][_cx] = { type: "core", color: _coreCol, dir: 0, id: _coreId, inst: _coreInst, core_arrow: false };
 
         // Seed 4 blocks around core (N/S = color1, E/W = color2) so the first match
         // opportunity appears within 2-3 turns — removes the dull empty-board opening.
@@ -291,10 +329,10 @@ start_game = function() {
                 var _sx = _cx + _seeds[_si].dx;
                 var _sy = _cy + _seeds[_si].dy;
                 if (global.grid[_sy][_sx] == undefined) {
-                    var _sd = { type: "normal", color: _seeds[_si].col, dir: 0, id: _seeds[_si].cid };
+                    var _sd = { type: "normal", color: _seeds[_si].col, dir: 0, id: _seeds[_si].cid, core_arrow: false };
                     var _si2 = _place_block_instance(_sx, _sy, _sd);
                     global.grid[_sy][_sx] = { type: "normal", color: _seeds[_si].col,
-                                              dir: 0, id: _seeds[_si].cid, inst: _si2 };
+                                              dir: 0, id: _seeds[_si].cid, inst: _si2, core_arrow: false };
                 }
             }
         }
@@ -306,6 +344,15 @@ start_game = function() {
     global.previewData    = undefined; // force recalc on first frame
     global.tutorialTimer  = 600;       // show controls hint for 10 seconds
     global.inputDelayTimer = 10;
+    global.hint_cells = [];
+    global.hint_tick = 0;
+    global.hint_pulse_timer = 0;
+    global.softDropDasTimer = 0;
+    global.softDropRepeatTimer = 0;
+    global.coreStability = global.coreStabilityMax;
+    global.coreUnstable = false;
+
+    story_try_start_level_dialogue();
 };
 
 start_game();

@@ -175,6 +175,23 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
         draw_set_alpha(1.0);
     }
 
+    // Core status indicator for Planet/Story readability
+    if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
+        var _hasCoreNow = false;
+        for (var _cy2 = 0; _cy2 < global.TOTAL_ROWS; _cy2++) {
+            for (var _cx2 = 0; _cx2 < global.TOTAL_COLS; _cx2++) {
+                var _c2 = global.grid[_cy2][_cx2];
+                if (_c2 != undefined && _c2.type == "core") { _hasCoreNow = true; break; }
+            }
+            if (_hasCoreNow) break;
+        }
+        draw_set_halign(fa_center);
+        draw_set_alpha(0.95);
+        draw_set_color(_hasCoreNow ? make_color_rgb(180, 255, 210) : global.COLOR_DANGER);
+        draw_text_transformed(_bx2 + _bw2 / 2, _by2 + _bh2 + 56, _hasCoreNow ? "CORE: ACTIVE" : "CORE: REBUILDING", 1.1, 1.1, 0);
+        draw_set_alpha(1.0);
+    }
+
     // Overlays
     if (global.gameState == "PAUSED") {
         draw_set_color(c_black); draw_set_alpha(0.82);
@@ -252,3 +269,5 @@ for (var i = 0; i < _vigSteps; i++) {
     draw_roundrect_ext(_pad, _pad, _guiW - _pad, _guiH - _pad, 80 + _pad * 0.5, 80 + _pad * 0.5, false);
 }
 draw_set_alpha(1.0);
+
+dialogue_draw();

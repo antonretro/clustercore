@@ -3,6 +3,7 @@ type = "normal";
 color = c_white;
 dir = 0;
 color_id = 0;
+core_arrow = false;
 grid_x = 0;
 grid_y = 0;
 

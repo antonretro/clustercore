@@ -4,6 +4,7 @@
 // =============================================================================
 
 // --- Always-running juice systems ---
+steam_ach_update();
 var _isFever = (global.feverTimer > 0);
 for (var i = 0; i < array_length(global.bg_stars); i++) {
     var _s = global.bg_stars[i];
@@ -31,6 +32,14 @@ for (var i = array_length(global.floatingTexts) - 1; i >= 0; i--) {
     var _t = global.floatingTexts[i];
     _t.y += _t.vy; _t.life--;
     if (_t.life <= 0) array_delete(global.floatingTexts, i, 1);
+}
+
+if (global.settings.hintPulseEnabled) {
+    hint_update();
+}
+
+if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
+    update_core_stability();
 }
 
 // --- Board rotation smooth lerp (Planet visual only) ---
@@ -65,6 +74,7 @@ if (keyboard_check_pressed(vk_f11)) {
 // Settings hotkeys
 if (keyboard_check_pressed(ord("G"))) global.settings.ghostEnabled = !global.settings.ghostEnabled;
 if (keyboard_check_pressed(ord("S"))) global.settings.shakeEnabled = !global.settings.shakeEnabled;
+if (keyboard_check_pressed(ord("H"))) global.settings.hintPulseEnabled = !global.settings.hintPulseEnabled;
 
 // Game Over input
 if (global.gameState == "GAMEOVER") {
@@ -73,6 +83,7 @@ if (global.gameState == "GAMEOVER") {
     exit;
 }
 if (global.gameState == "PAUSED") exit;
+if (dialogue_is_active()) { dialogue_update(); exit; }
 
 // --- Gameplay ---
 if (!global.locking) {
@@ -109,6 +120,7 @@ if (!global.locking) {
     var _rightHold  = keyboard_check(vk_right) || _gp_r;
     var _up         = keyboard_check_pressed(vk_up)   || (_gp && (gamepad_button_check_pressed(0, gp_padu) || (_stickY < -0.5 && global.gp_prev_stick_y >= -0.5)));
     var _down       = keyboard_check_pressed(vk_down) || (_gp && (gamepad_button_check_pressed(0, gp_padd) || (_stickY >  0.5 && global.gp_prev_stick_y <=  0.5)));
+    var _downHold   = keyboard_check(vk_down) || (_gp && (_stickY > 0.5 || gamepad_button_check(0, gp_padd)));
     global.gp_prev_stick_y = _stickY;
 
     if (global.inputDelayTimer > 0) global.inputDelayTimer--;
@@ -145,7 +157,25 @@ if (!global.locking) {
     } else {
         if (_leftPress)  { move_piece(-1, 0); sfx_piece_move(); }
         if (_rightPress) { move_piece( 1, 0); sfx_piece_move(); }
-        if (_down)  move_piece(0, 1);
+        // Classic soft-drop DAS/ARR: hold down repeats after a short delay.
+        if (_down) {
+            move_piece(0, 1);
+            global.softDropDasTimer = 0;
+            global.softDropRepeatTimer = 0;
+        }
+        if (_downHold) {
+            global.softDropDasTimer++;
+            if (global.softDropDasTimer >= 30) { // ~0.5s at 60 FPS
+                global.softDropRepeatTimer++;
+                if (global.softDropRepeatTimer >= 2) {
+                    move_piece(0, 1);
+                    global.softDropRepeatTimer = 0;
+                }
+            }
+        } else {
+            global.softDropDasTimer = 0;
+            global.softDropRepeatTimer = 0;
+        }
         if (_fire)  hard_drop();
     }
 

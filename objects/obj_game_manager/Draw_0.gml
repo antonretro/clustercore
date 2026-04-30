@@ -269,6 +269,10 @@ with (obj_block) {
     }
 }
 
+if (global.settings.hintPulseEnabled) {
+    hint_draw_overlay(_bx, _by, _cw, _scale);
+}
+
 // --- Effects & Particles ---
 for (var i = 0; i < array_length(global.beams); i++) {
     var _b = global.beams[i]; var _ba = _b.life / _b.maxLife;
@@ -321,6 +325,26 @@ if (global.gameState == "GAMEOVER") {
     draw_set_color(make_color_rgb(255,214,102));
     draw_text_transformed(global.GAME_W/2, global.GAME_H*0.72, "R  Retry     Esc  Menu", 1.0, 1.0, 0);
 }
+
+if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.gameState != "GAMEOVER") {
+    var _hasCoreNow = false;
+    for (var _cy2 = 0; _cy2 < global.TOTAL_ROWS; _cy2++) {
+        for (var _cx2 = 0; _cx2 < global.TOTAL_COLS; _cx2++) {
+            var _c2 = global.grid[_cy2][_cx2];
+            if (_c2 != undefined && _c2.type == "core") { _hasCoreNow = true; break; }
+        }
+        if (_hasCoreNow) break;
+    }
+    draw_set_font(main_font);
+    draw_set_halign(fa_center);
+    draw_set_valign(fa_middle);
+    draw_set_color(_hasCoreNow ? make_color_rgb(180, 255, 210) : global.COLOR_DANGER);
+    draw_text_transformed(global.GAME_W * 0.5, global.GAME_H - 48, _hasCoreNow ? "CORE: ACTIVE" : "CORE: REBUILDING", 0.9, 0.9, 0);
+    draw_set_halign(fa_left);
+    draw_set_valign(fa_top);
+}
+
+dialogue_draw();
 
 surface_reset_target();
 draw_surface_ext(global.game_surface, 0, 0, 1, 1, 0, c_white, 1);

@@ -78,8 +78,13 @@ function hard_drop_radial() {
 // story_advance_planet  — Story Mode: move to next planet or end game
 // ─────────────────────────────────────────────────────────────────────────────
 function story_advance_planet() {
+    var _prevPlanet = global.storyPlanet;
     global.locking = false;
     global.storyPlanet++;
+    story_start_between_level_dialogue(_prevPlanet);
+    if (_prevPlanet == 0 && global.storyPlanet >= 1) {
+        steam_ach_unlock("ACH_STORY_WORLD_1");
+    }
     if (global.storyPlanet >= array_length(global.storyPlanets)) {
         global.storyComplete = true;
         global.gameState = "GAMEOVER";
@@ -107,6 +112,7 @@ function _grid_screen_pos(_gx, _gy) {
 // ─────────────────────────────────────────────────────────────────────────────
 function lock_piece() {
     global.locking = true;
+    steam_ach_unlock("ACH_FIRST_DROP");
     var _p  = global.activePiece;
     var _px = _p.grid_x;
     var _py = _p.grid_y;
@@ -151,14 +157,42 @@ function lock_piece() {
 
     // ── PLANET: first piece to land on center becomes the core ───────────────
     if ((global.gameMode == "PLANET" || global.gameMode == "STORY")
-    && _px == floor(global.TOTAL_COLS / 2) && _py == floor(global.TOTAL_ROWS / 2)) {
+    && _px == floor(global.TOTAL_COLS / 2)
+    && _py == floor(global.TOTAL_ROWS / 2)) {
+
         var _hasCore = false;
-        with (obj_block) if (type == "core") { _hasCore = true; break; }
-        // Bombs and Drills cannot be the core
+
+        with (obj_block) {
+            if (type == "core") {
+                _hasCore = true;
+                break;
+            }
+        }
+
+        // Bombs and drills cannot become the core.
         if (!_hasCore && _p.type != "bomb" && _p.type != "drill") {
+            var _wasMetalCore = (_p.type == "metal");
+            var _coreId = _p.color_id;
+
+            if (_coreId <= 0 || _coreId == undefined) {
+                if (array_length(global.activeColors) > 0) _coreId = global.activeColors[0];
+                else _coreId = 1;
+            }
+
+            var _coreColor = get_color_from_id(_coreId);
+
             _p.type = "core";
+            _p.core_arrow = _wasMetalCore;
+            _p.color_id = _coreId;
+            _p.color = _coreColor;
+
             global.grid[_py][_px].type = "core";
+            global.grid[_py][_px].core_arrow = _wasMetalCore;
+            global.grid[_py][_px].id = _coreId;
+            global.grid[_py][_px].color = _coreColor;
+
             with (_p) update_sprite();
+
             var _sp = _grid_screen_pos(_px, _py);
             create_floating_text_ext(_sp.x, _sp.y, "CORE ESTABLISHED!", c_white, 1.4);
         }
@@ -182,29 +216,19 @@ function lock_piece() {
         var _drillCol = make_color_rgb(200, 220, 255); // icy-silver drill colour
 
         if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-            // Direction comes from the drill's facing (set at spawn, kept current in Step_0).
-            // Using visualRotation is correct even at equidistant-corner positions where the
-            // old position-geometry approach would pick the wrong axis.
-            var _vx = 0; var _vy = 0;
-            var _rot = ((_p.visualRotation % 360) + 360) % 360;
-            if      (_rot ==   0) _vy =  1;   // top staging    → drill downward
-            else if (_rot ==  90) _vx =  1;   // left staging   → drill rightward
-            else if (_rot == 180) _vy = -1;   // bottom staging → drill upward
-            else if (_rot == 270) _vx = -1;   // right staging  → drill leftward
-            else {
-                // Fallback for any unexpected rotation value
-                _vx = (_px <= floor(global.TOTAL_COLS / 2)) ? 1 : -1;
-                _vy = (_py <= floor(global.TOTAL_ROWS / 2)) ? 1 : -1;
-                if (abs(_px - floor(global.TOTAL_COLS / 2)) >= abs(_py - floor(global.TOTAL_ROWS / 2))) _vy = 0; else _vx = 0;
-                if (_vx == 0 && _vy == 0) _vy = 1;
+            // Drill should always travel DOWN on screen.
+            // Convert screen-down into board-space cardinal direction
+            // using the snapped visual rotation.
+            var _rot90 = round(global.targetRotation / 90) mod 4;
+            if (_rot90 < 0) _rot90 += 4;
+            var _vx = 0;
+            var _vy = 1;
+            switch (_rot90) {
+                case 0: _vx = 0;  _vy = 1;  break; // board normal -> grid down
+                case 1: _vx = -1; _vy = 0;  break; // board turned right -> grid left
+                case 2: _vx = 0;  _vy = -1; break; // upside down -> grid up
+                case 3: _vx = 1;  _vy = 0;  break; // board turned left -> grid right
             }
-
-            // Drill travels screen-down, mapped into current board-facing grid axis.
-            var _sDown = ((global.orbitalSide % 4) + 4) % 4;
-            if (_sDown == 0) { _vx =  0; _vy =  1; } // board unrotated
-            if (_sDown == 1) { _vx =  1; _vy =  0; } // board rotated 90°
-            if (_sDown == 2) { _vx =  0; _vy = -1; } // board rotated 180°
-            if (_sDown == 3) { _vx = -1; _vy =  0; } // board rotated 270°
             var _gx = _px; var _gy = _py;
             while (true) {
                 var _cell = global.grid[_gy][_gx];
@@ -218,13 +242,12 @@ function lock_piece() {
                     _drilled++;
                 }
                 create_beam((_gx - global.HIDDEN_SIDES) * 16, (_gy - global.HIDDEN_ROWS) * 16, 16, 16, _drillCol);
-                if (_gx == floor(global.TOTAL_COLS / 2) && _gy == floor(global.TOTAL_ROWS / 2)) break;
                 _gx += _vx; _gy += _vy;
                 if (_gx < 0 || _gx >= global.TOTAL_COLS || _gy < 0 || _gy >= global.TOTAL_ROWS) break;
             }
         } else {
-            // Classic: clear full column
-            for (var i = 0; i < global.TOTAL_ROWS; i++) {
+            // Classic: drill downward from impact point.
+            for (var i = _py; i < global.TOTAL_ROWS; i++) {
                 var _cell = global.grid[i][_px];
                 if (_cell != undefined && _cell.type != "core") {
                     create_particles((_px - global.HIDDEN_SIDES) * 16, (i - global.HIDDEN_ROWS) * 16, _drillCol);
@@ -233,7 +256,8 @@ function lock_piece() {
                     _drilled++;
                 }
             }
-            create_beam((_px - global.HIDDEN_SIDES) * 16, 0, 16, (global.TOTAL_ROWS - global.HIDDEN_ROWS) * 16, _drillCol);
+            create_beam((_px - global.HIDDEN_SIDES) * 16, (_py - global.HIDDEN_ROWS) * 16, 16,
+                        (global.TOTAL_ROWS - _py) * 16, _drillCol);
         }
 
         if (_drilled > 0) {
@@ -241,6 +265,7 @@ function lock_piece() {
             create_floating_text_ext(_ftx, _fty, "DRILLED " + string(_drilled) + "!", _drillCol, 1.6);
             var _pts = _drilled * 150 * ((global.feverTimer > 0) ? 2 : 1);
             global.score += _pts; global.levelScore += _pts;
+            if (global.score >= 100000) steam_ach_unlock("ACH_SCORE_100K");
             if (global.gameMode == "STORY") global.storyCleared += _drilled;
             global.ui_scales.score = 1.3;
             award_shards(_pts, _drilled);
@@ -251,7 +276,7 @@ function lock_piece() {
         }
         instance_destroy(_p);
         global.activePiece = undefined;
-        apply_grid_gravity();
+        if (_drilled > 0) apply_grid_gravity();
         alarm[0] = 10;
         return;
     }
@@ -283,6 +308,7 @@ function lock_piece() {
         if (_blasted > 0) {
             var _pts = _blasted * 100 * ((global.feverTimer > 0) ? 2 : 1);
             global.score += _pts; global.levelScore += _pts;
+            if (global.score >= 100000) steam_ach_unlock("ACH_SCORE_100K");
             if (global.gameMode == "STORY") global.storyCleared += _blasted;
             global.ui_scales.score = 1.3;
             award_shards(_pts, _blasted);
@@ -291,7 +317,7 @@ function lock_piece() {
         }
         instance_destroy(_p);
         global.activePiece = undefined;
-        apply_grid_gravity();
+        if (_blasted > 0) apply_grid_gravity();
         alarm[0] = 10;
         return;
     }
@@ -323,7 +349,6 @@ function lock_piece() {
     // ── End of lock: gravity + match check ───────────────────────────────────
     global.activePiece = undefined;
     if (global.settings.shakeEnabled) global.shakeAmount = 2;
-    apply_grid_gravity();
     settle_matches();
 }
 
@@ -343,7 +368,6 @@ function apply_grid_gravity() {
                 for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
                     var _cell = global.grid[_y][_x];
                     if (_cell == undefined || _cell.type == "core") continue;
-                    if (_cell.inst != undefined && variable_instance_exists(_cell.inst, "just_landed") && _cell.inst.just_landed) continue;
                     var _dx = sign(floor(global.TOTAL_COLS / 2) - _x);
                     var _dy = sign(floor(global.TOTAL_ROWS / 2) - _y);
                     if (_dx == 0 && _dy == 0) continue;
@@ -371,6 +395,8 @@ function apply_grid_gravity() {
         }
         // Keep adaptive orbital lane width in sync with current planet shape.
         recalculate_planet_surface();
+        ensure_planet_core_presence(-1, -1, false);
+        enforce_single_core_in_grid();
     } else {
         // Classic: fall straight down
         for (var _x = 0; _x < global.COLS; _x++) {
@@ -415,6 +441,10 @@ function calculate_landing_depth(_gx, _gy) {
 // rotate_grid_90  � CLASSIC ONLY, called on level-up rotation
 // -----------------------------------------------------------------------------
 function rotate_grid_90() {
+    // Classic currently uses a non-square playfield; 90-degree transpose on this
+    // layout can produce invalid remaps. Keep behavior safe/no-op for now.
+    if (global.gameMode == "CLASSIC") return;
+
     var _newGrid = array_create(global.TOTAL_ROWS);
     for (var i = 0; i < global.TOTAL_ROWS; i++) _newGrid[i] = array_create(global.COLS, undefined);
     var _coreCell = undefined;
@@ -442,17 +472,61 @@ function rotate_grid_90() {
     global.grid = _newGrid;
 }
 
+function enforce_single_core_in_grid() {
+    if (!(global.gameMode == "PLANET" || global.gameMode == "STORY")) return 0;
+
+    var _cores = [];
+    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
+            var _c = global.grid[_y][_x];
+            if (_c != undefined && _c.type == "core") array_push(_cores, {x: _x, y: _y});
+        }
+    }
+
+    if (array_length(_cores) <= 1) return array_length(_cores);
+
+    var _cx = floor(global.TOTAL_COLS / 2);
+    var _cy = floor(global.TOTAL_ROWS / 2);
+    var _keep = 0;
+    var _best = 99999;
+    for (var _i = 0; _i < array_length(_cores); _i++) {
+        var _p = _cores[_i];
+        var _d = abs(_p.x - _cx) + abs(_p.y - _cy);
+        if (_d < _best) { _best = _d; _keep = _i; }
+    }
+
+    for (var _j = 0; _j < array_length(_cores); _j++) {
+        if (_j == _keep) continue;
+        var _drop = _cores[_j];
+        var _cell = global.grid[_drop.y][_drop.x];
+        if (_cell == undefined) continue;
+        var _toMetal = (variable_struct_exists(_cell, "core_arrow") && _cell.core_arrow);
+        _cell.type = _toMetal ? "metal" : "normal";
+        _cell.core_arrow = false;
+        if (_cell.inst != undefined) {
+            _cell.inst.type = _toMetal ? "metal" : "normal";
+            _cell.inst.core_arrow = false;
+            with (_cell.inst) update_sprite();
+        }
+    }
+
+    return 1;
+}
+
 // =============================================================================
 // MATCH ENGINE INTEGRATION
 // =============================================================================
 
 function settle_matches() {
-    // Stabilize core matching: ensure every core has a valid color id.
-    // This repairs legacy/in-flight runs where core id could be 0 despite colored visuals.
+    enforce_single_core_in_grid();
+
+    // Stabilize matching IDs: repair in-flight cells whose id drifted from visuals.
+    // If ids are invalid, visually same blocks may fail to clear.
     for (var _sy = 0; _sy < global.TOTAL_ROWS; _sy++) {
         for (var _sx = 0; _sx < global.TOTAL_COLS; _sx++) {
             var _cellFix = global.grid[_sy][_sx];
-            if (_cellFix == undefined || _cellFix.type != "core") continue;
+            if (_cellFix == undefined) continue;
+            if (_cellFix.type == "bomb" || _cellFix.type == "dead") continue;
             if (_cellFix.id > 0) continue;
 
             var _fixedId = 0;
@@ -489,9 +563,72 @@ function settle_matches() {
 
     var _matches = find_matches_in_grid(global.grid, { cols: global.TOTAL_COLS }, global.TOTAL_ROWS);
     if (array_length(_matches) > 0) {
+        // Final clear guarantee: expand from all matched seeds to the full
+        // orthogonally connected same-id component. This prevents L-shape
+        // corner leftovers when overlapping patterns resolve in one tick.
+        var _clearMask = array_create(global.TOTAL_ROWS);
+        var _visit = array_create(global.TOTAL_ROWS);
+        for (var _ey = 0; _ey < global.TOTAL_ROWS; _ey++) {
+            _clearMask[_ey] = array_create(global.TOTAL_COLS, false);
+            _visit[_ey] = array_create(global.TOTAL_COLS, false);
+        }
+        var _q = [];
+        for (var _si = 0; _si < array_length(_matches); _si++) {
+            var _sm = _matches[_si];
+            if (_sm.x < 0 || _sm.x >= global.TOTAL_COLS || _sm.y < 0 || _sm.y >= global.TOTAL_ROWS) continue;
+            var _sc = global.grid[_sm.y][_sm.x];
+            if (_sc == undefined) continue;
+            _clearMask[_sm.y][_sm.x] = true;
+            if (!_visit[_sm.y][_sm.x]) {
+                _visit[_sm.y][_sm.x] = true;
+                array_push(_q, {x:_sm.x, y:_sm.y, id:_sc.id});
+            }
+        }
+        var _seedMask = array_create(global.TOTAL_ROWS);
+        for (var _syE = 0; _syE < global.TOTAL_ROWS; _syE++) _seedMask[_syE] = array_create(global.TOTAL_COLS, false);
+        for (var _ss = 0; _ss < array_length(_matches); _ss++) {
+            var _sm2 = _matches[_ss];
+            if (_sm2.x >= 0 && _sm2.x < global.TOTAL_COLS && _sm2.y >= 0 && _sm2.y < global.TOTAL_ROWS) {
+                _seedMask[_sm2.y][_sm2.x] = true;
+            }
+        }
+        var _head = 0;
+        var _dirsE = [[1,0],[-1,0],[0,1],[0,-1]];
+        while (_head < array_length(_q)) {
+            var _n = _q[_head++];
+            var _fromCell = global.grid[_n.y][_n.x];
+            if (_fromCell == undefined) continue;
+            for (var _diE = 0; _diE < 4; _diE++) {
+                var _nxE = _n.x + _dirsE[_diE][0];
+                var _nyE = _n.y + _dirsE[_diE][1];
+                if (_nxE < 0 || _nxE >= global.TOTAL_COLS || _nyE < 0 || _nyE >= global.TOTAL_ROWS) continue;
+                if (_visit[_nyE][_nxE]) continue;
+                var _ncE = global.grid[_nyE][_nxE];
+                if (_ncE == undefined) continue;
+                if (_ncE.type == "bomb" || _ncE.type == "dead") continue;
+                var _axisE = (_dirsE[_diE][0] != 0) ? "h" : "v";
+                if (!match_cells_can_link(_fromCell, _ncE, _axisE, true)) continue;
+                // Metal/arrow blocks only clear if they were part of the
+                // original legal match. Normal same-color leftovers still
+                // spill-clean, but arrows never get swept up "for free".
+                if (_ncE.type == "metal" && !_seedMask[_nyE][_nxE]) continue;
+                _visit[_nyE][_nxE] = true;
+                _clearMask[_nyE][_nxE] = true;
+                array_push(_q, {x:_nxE, y:_nyE, id:_n.id});
+            }
+        }
+        _matches = [];
+        for (var _ryE = 0; _ryE < global.TOTAL_ROWS; _ryE++) {
+            for (var _rxE = 0; _rxE < global.TOTAL_COLS; _rxE++) {
+                if (_clearMask[_ryE][_rxE]) array_push(_matches, {x:_rxE, y:_ryE});
+            }
+        }
+
         global.comboChain++;
+        if (global.comboChain >= 3) steam_ach_unlock("ACH_CHAIN_3");
         var _pts = array_length(_matches) * 100 * global.comboChain * ((global.feverTimer > 0) ? 2 : 1);
         global.score += _pts; global.levelScore += _pts;
+        if (global.score >= 100000) steam_ach_unlock("ACH_SCORE_100K");
         if (global.gameMode == "STORY") global.storyCleared += array_length(_matches);
         global.ui_scales.score = 1.25; global.ui_scales.combo = 1.4;
         update_level_progress();
@@ -506,33 +643,83 @@ function settle_matches() {
         }
         award_shards(_pts, array_length(_matches));
         charge_jackpot(array_length(_matches));
-        var _coreMigrated = false;
-        // Backward loop to safely handle array_delete when a core migrates
+        // Active recovery: good clears restore stability.
+        if (variable_global_exists("coreStability")) {
+            var _stbGain = 3 + floor(array_length(_matches) * 0.5);
+            global.coreStability = min(global.coreStabilityMax, global.coreStability + _stbGain);
+        }
+        var _newCoreX = -1;
+        var _newCoreY = -1;
+        var _matchMask = array_create(global.TOTAL_ROWS);
+        for (var _my0 = 0; _my0 < global.TOTAL_ROWS; _my0++) _matchMask[_my0] = array_create(global.TOTAL_COLS, false);
+        for (var _mk = 0; _mk < array_length(_matches); _mk++) {
+            var _mp = _matches[_mk];
+            if (_mp.x >= 0 && _mp.x < global.TOTAL_COLS && _mp.y >= 0 && _mp.y < global.TOTAL_ROWS) {
+                _matchMask[_mp.y][_mp.x] = true;
+            }
+        }
+
+        // Resolve core migration once, before clearing matched cells.
+        var _oldCoreX = -1;
+        var _oldCoreY = -1;
+        for (var _mi = 0; _mi < array_length(_matches); _mi++) {
+            var _mm = _matches[_mi];
+            var _mc = global.grid[_mm.y][_mm.x];
+            if (_mc != undefined && _mc.type == "core") {
+                _oldCoreX = _mm.x;
+                _oldCoreY = _mm.y;
+                break;
+            }
+        }
+        if (_oldCoreX >= 0) {
+            migrate_core(_oldCoreX, _oldCoreY, _matchMask);
+            // Hard guarantee: old core coordinate must be cleared in this resolve.
+            var _hasOldCoreInClear = false;
+            for (var _chk = 0; _chk < array_length(_matches); _chk++) {
+                if (_matches[_chk].x == _oldCoreX && _matches[_chk].y == _oldCoreY) {
+                    _hasOldCoreInClear = true;
+                    break;
+                }
+            }
+            if (!_hasOldCoreInClear) {
+                array_push(_matches, {x: _oldCoreX, y: _oldCoreY});
+            }
+            // Find the new core to protect it from the current clear cycle.
+            for (var _fy = 0; _fy < global.TOTAL_ROWS; _fy++) {
+                for (var _fx = 0; _fx < global.TOTAL_COLS; _fx++) {
+                    if (_fx == _oldCoreX && _fy == _oldCoreY) continue;
+                    var _nc = global.grid[_fy][_fx];
+                    if (_nc != undefined && _nc.type == "core") {
+                        _newCoreX = _fx;
+                        _newCoreY = _fy;
+                        break;
+                    }
+                }
+                if (_newCoreX >= 0) break;
+            }
+        }
+
         for (var i = array_length(_matches) - 1; i >= 0; i--) {
             var _m = _matches[i];
             var _cell = global.grid[_m.y][_m.x];
             if (_cell == undefined) continue;
-            if (_cell.type == "core" && !_coreMigrated) {
-                migrate_core(_m.x, _m.y);
-                _coreMigrated = true;
-                // Find and protect the NEW core from this clearing cycle
-                for (var _ci = array_length(_matches) - 1; _ci >= 0; _ci--) {
-                    var _nc = global.grid[_matches[_ci].y][_matches[_ci].x];
-                    if (_nc != undefined && _nc.type == "core") {
-                        array_delete(_matches, _ci, 1);
-                        break;
-                    }
+            if (_m.x == _newCoreX && _m.y == _newCoreY
+            && !(_m.x == _oldCoreX && _m.y == _oldCoreY)) continue;
+            if (_cell.type == "core") {
+                var _toMetal2 = (variable_struct_exists(_cell, "core_arrow") && _cell.core_arrow);
+                _cell.type = _toMetal2 ? "metal" : "normal";
+                _cell.core_arrow = false;
+                if (_cell.inst != undefined) {
+                    _cell.inst.type = _toMetal2 ? "metal" : "normal";
+                    _cell.inst.core_arrow = false;
                 }
-                // Mark old core as normal so it clears
-                _cell.type = "normal";
-                // Recalculate cell reference just in case array_delete shifted things
-                _cell = global.grid[_m.y][_m.x];
-                if (_cell == undefined) continue;
             }
-            if (_cell.type == "asteroid" && _cell.inst.shield_hp > 1) {
+            if (_cell.type == "asteroid" && _cell.inst != undefined && _cell.inst.shield_hp > 1) {
                 _cell.inst.shield_hp--;
                 _cell.inst.scale_x = 1.3; _cell.inst.scale_y = 1.3;
                 with (_cell.inst) update_sprite();
+                var _asp = _grid_screen_pos(_m.x, _m.y);
+                create_floating_text_ext(_asp.x, _asp.y, "SHIELD", make_color_rgb(220, 220, 120), 0.7);
                 create_particles((_m.x - global.HIDDEN_SIDES) * 16 * global.PIXEL_SCALE,
                                  (_m.y - global.HIDDEN_ROWS)  * 16 * global.PIXEL_SCALE, make_color_rgb(100,100,100));
                 continue;
@@ -542,12 +729,29 @@ function settle_matches() {
             create_floating_text_ext(_sp.x, _sp.y, "+" + string(_pts_each), _cell.color, 0.8);
             create_particles((_m.x - global.HIDDEN_SIDES) * 16 * global.PIXEL_SCALE,
                              (_m.y - global.HIDDEN_ROWS)  * 16 * global.PIXEL_SCALE, _cell.color);
-            _cell.inst.clearing = true;
+            if (_cell.inst != undefined) _cell.inst.clearing = true;
             global.grid[_m.y][_m.x] = undefined;
         }
+        cleanup_grid_ghost_cells();
         apply_grid_gravity();
+        cleanup_grid_ghost_cells();
+        // Always guarantee a valid core after a clear cycle.
+        if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
+            ensure_planet_core_presence(_oldCoreX, _oldCoreY, false);
+            enforce_single_core_in_grid();
+        }
         alarm[0] = 15;
     } else {
+        // No clear happened: remove one-tick landing protection now.
+        for (var _cy = 0; _cy < global.TOTAL_ROWS; _cy++) {
+            for (var _cx = 0; _cx < global.TOTAL_COLS; _cx++) {
+                var _cc = global.grid[_cy][_cx];
+                if (_cc != undefined && _cc.inst != undefined && variable_instance_exists(_cc.inst, "just_landed") && _cc.inst.just_landed) {
+                    _cc.inst.just_landed = false;
+                }
+            }
+        }
+
         global.bestCombo = max(global.bestCombo, global.comboChain);
         global.locking = false;
         global.comboChain = 0;
@@ -580,19 +784,103 @@ function check_game_over() {
     return false;
 }
 
-function migrate_core(_oldX, _oldY) {
+function cleanup_grid_ghost_cells() {
+    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
+            var _c = global.grid[_y][_x];
+            if (_c == undefined) continue;
+            if (_c.inst == undefined) {
+                global.grid[_y][_x] = undefined;
+                continue;
+            }
+            if (!instance_exists(_c.inst)) {
+                global.grid[_y][_x] = undefined;
+                continue;
+            }
+        }
+    }
+}
+
+// =============================================================================
+// CORE STABILITY SYSTEM
+// =============================================================================
+// If the core drifts away from center, stability drains.
+// Low stability increases time pressure until the core is recentred.
+function update_core_stability() {
+    if (!(global.gameMode == "PLANET" || global.gameMode == "STORY")) return;
+    if (global.gameState != "PLAYING") return;
+
+    var _coreX = -1;
+    var _coreY = -1;
+    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
+            var _c = global.grid[_y][_x];
+            if (_c != undefined && _c.type == "core") {
+                _coreX = _x;
+                _coreY = _y;
+                break;
+            }
+        }
+        if (_coreX >= 0) break;
+    }
+
+    if (_coreX < 0) return;
+
+    var _cx = floor(global.TOTAL_COLS / 2);
+    var _cy = floor(global.TOTAL_ROWS / 2);
+    var _dist = abs(_coreX - _cx) + abs(_coreY - _cy);
+
+    if (_dist <= 0) {
+        global.coreStability = min(global.coreStabilityMax, global.coreStability + global.coreStabilityRecoverRate);
+    } else {
+        global.coreStability = max(0, global.coreStability - (global.coreStabilityDrainBase + _dist));
+    }
+
+    if (_dist > 0 && global.coreStability < 60) {
+        // Pressure: timer burns faster while core is unstable.
+        global.pieceTimer = max(1, global.pieceTimer - 1);
+    }
+    global.coreUnstable = (_dist > 0);
+}
+
+function grid_cell_is_playable(_x, _y) {
+    if (_x < global.HIDDEN_SIDES || _x >= global.TOTAL_COLS - global.HIDDEN_SIDES) return false;
+    if (_y < global.HIDDEN_ROWS  || _y >= global.TOTAL_ROWS - global.HIDDEN_ROWS) return false;
+    return true;
+}
+
+function migrate_core(_oldX, _oldY, _avoidMask = undefined) {
     global.coresCleared++;
+    steam_ach_unlock("ACH_CORE_BREAKER");
+    // Demote old core immediately to avoid dual-core protection ambiguity.
+    if (_oldX >= 0 && _oldX < global.TOTAL_COLS && _oldY >= 0 && _oldY < global.TOTAL_ROWS) {
+        var _oldCell = global.grid[_oldY][_oldX];
+        if (_oldCell != undefined && _oldCell.type == "core") {
+            var _toMetal3 = (variable_struct_exists(_oldCell, "core_arrow") && _oldCell.core_arrow);
+            _oldCell.type = _toMetal3 ? "metal" : "normal";
+            _oldCell.core_arrow = false;
+            if (_oldCell.inst != undefined) _oldCell.inst.type = _toMetal3 ? "metal" : "normal";
+            if (_oldCell.inst != undefined) _oldCell.inst.core_arrow = false;
+        }
+    }
     var _candidates = [];
     var _dirs = [[-1,0],[1,0],[0,-1],[0,1]];
     for (var i = 0; i < 4; i++) {
         var _nx = _oldX + _dirs[i][0]; var _ny = _oldY + _dirs[i][1];
         if (_nx < 0 || _nx >= global.TOTAL_COLS || _ny < 0 || _ny >= global.TOTAL_ROWS) continue;
+        if (!grid_cell_is_playable(_nx, _ny)) continue;
         var _cell = global.grid[_ny][_nx];
         if (_cell != undefined && _cell.type != "core" && _cell.type != "bomb"
-        && _cell.type != "drill" && _cell.type != "dead" && !_cell.inst.clearing) {
-            array_push(_candidates, {x: _nx, y: _ny});
+        && _cell.type != "drill" && _cell.type != "dead"
+        && (_cell.inst == undefined || !variable_instance_exists(_cell.inst, "clearing") || !_cell.inst.clearing)) {
+            var _avoid = false;
+            if (_avoidMask != undefined && _ny >= 0 && _ny < array_length(_avoidMask)) {
+                if (_nx >= 0 && _nx < array_length(_avoidMask[_ny])) _avoid = _avoidMask[_ny][_nx];
+            }
+            if (!_avoid) array_push(_candidates, {x: _nx, y: _ny});
         }
     }
+
     if (array_length(_candidates) > 0) {
         // Smart migration: score each candidate by number of same-color neighbors.
         // Core migrates toward where play is densest, rewarding strategic thinking.
@@ -619,21 +907,129 @@ function migrate_core(_oldX, _oldY) {
             if (_score > _bestScore) { _bestScore = _score; _bestPick = _cand; }
         }
         var _newCore = global.grid[_bestPick.y][_bestPick.x];
+        var _promotedFromMetal = (_newCore.type == "metal");
         _newCore.type = "core";
-        _newCore.inst.type = "core";
-        with (_newCore.inst) update_sprite();
+        _newCore.core_arrow = _promotedFromMetal;
+        if (_newCore.inst != undefined) {
+            _newCore.inst.type = "core";
+            _newCore.inst.core_arrow = _promotedFromMetal;
+            with (_newCore.inst) update_sprite();
+        }
         var _sp = _grid_screen_pos(_bestPick.x, _bestPick.y);
         create_floating_text_ext(_sp.x, _sp.y, "CORE MIGRATED!", c_white, 1.2);
-    } else {
-        var _sp = _grid_screen_pos(_oldX, _oldY);
-        create_floating_text_ext(_sp.x, _sp.y, "CORE CLEARED!", c_yellow, 1.5);
     }
+    cleanup_grid_ghost_cells();
+}
+
+function ensure_planet_core_presence(_preferX = -1, _preferY = -1, _showText = false) {
+    if (!(global.gameMode == "PLANET" || global.gameMode == "STORY")) return false;
+
+    // Remove invalid cores that ended up outside playable board.
+    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
+            var _cell = global.grid[_y][_x];
+            if (_cell != undefined && _cell.type == "core" && !grid_cell_is_playable(_x, _y)) {
+                var _toMetal4 = (variable_struct_exists(_cell, "core_arrow") && _cell.core_arrow);
+                _cell.type = _toMetal4 ? "metal" : "normal";
+                _cell.core_arrow = false;
+                if (_cell.inst != undefined && instance_exists(_cell.inst)) {
+                    _cell.inst.type = _toMetal4 ? "metal" : "normal";
+                    _cell.inst.core_arrow = false;
+                    with (_cell.inst) update_sprite();
+                }
+            }
+        }
+    }
+
+    // Fast path: already has a valid playable core.
+    for (var _y2 = 0; _y2 < global.TOTAL_ROWS; _y2++) {
+        for (var _x2 = 0; _x2 < global.TOTAL_COLS; _x2++) {
+            var _cell2 = global.grid[_y2][_x2];
+            if (_cell2 != undefined && _cell2.type == "core" && grid_cell_is_playable(_x2, _y2)) return true;
+        }
+    }
+
+    var _chooseX = -1;
+    var _chooseY = -1;
+    var _cx = floor(global.TOTAL_COLS / 2);
+    var _cy = floor(global.TOTAL_ROWS / 2);
+
+    // 1) Preferred coordinate (old core position).
+    if (_preferX >= 0 && _preferX < global.TOTAL_COLS && _preferY >= 0 && _preferY < global.TOTAL_ROWS
+    && grid_cell_is_playable(_preferX, _preferY)) {
+        var _pc = global.grid[_preferY][_preferX];
+        if (_pc != undefined && _pc.inst != undefined && _pc.type != "bomb" && _pc.type != "drill" && _pc.type != "dead") {
+            _chooseX = _preferX; _chooseY = _preferY;
+        }
+    }
+
+    // 2) Center cell if occupied by a valid block.
+    if (_chooseX < 0) {
+        var _cc = global.grid[_cy][_cx];
+        if (grid_cell_is_playable(_cx, _cy)
+        && _cc != undefined && _cc.inst != undefined && _cc.type != "bomb" && _cc.type != "drill" && _cc.type != "dead") {
+            _chooseX = _cx; _chooseY = _cy;
+        }
+    }
+
+    // 3) Nearest valid occupied cell to center.
+    if (_chooseX < 0) {
+        var _bestDist = 9999;
+        for (var _yy = 0; _yy < global.TOTAL_ROWS; _yy++) {
+            for (var _xx = 0; _xx < global.TOTAL_COLS; _xx++) {
+                if (!grid_cell_is_playable(_xx, _yy)) continue;
+                var _c = global.grid[_yy][_xx];
+                if (_c == undefined || _c.inst == undefined) continue;
+                if (_c.type == "bomb" || _c.type == "drill" || _c.type == "dead") continue;
+                var _d = abs(_xx - _cx) + abs(_yy - _cy);
+                if (_d < _bestDist) {
+                    _bestDist = _d;
+                    _chooseX = _xx;
+                    _chooseY = _yy;
+                }
+            }
+        }
+    }
+
+    // 4) No valid block exists: create a fresh core at center.
+    if (_chooseX < 0) {
+        var _coreId = 1;
+        if (array_length(global.activeColors) > 0) _coreId = global.activeColors[irandom(array_length(global.activeColors) - 1)];
+        var _coreCol = get_color_from_id(_coreId);
+        var _coreData = { type: "core", color: _coreCol, dir: 0, id: _coreId };
+        var _inst = _place_block_instance(_cx, _cy, _coreData);
+        global.grid[_cy][_cx] = { type: "core", color: _coreCol, dir: 0, id: _coreId, inst: _inst, core_arrow: false };
+        var _spNew = _grid_screen_pos(_cx, _cy);
+        create_floating_text_ext(_spNew.x, _spNew.y, "CORE RE-ESTABLISHED!", c_white, 1.25);
+        return true;
+    }
+
+    // Promote chosen cell into the new core.
+    var _newCore = global.grid[_chooseY][_chooseX];
+    var _promotedFromMetal2 = (_newCore.type == "metal");
+    _newCore.type = "core";
+    _newCore.core_arrow = _promotedFromMetal2;
+    if (_newCore.inst != undefined) _newCore.inst.type = "core";
+    if (_newCore.inst != undefined) _newCore.inst.core_arrow = _promotedFromMetal2;
+    if (_newCore.id <= 0) {
+        _newCore.id = (array_length(global.activeColors) > 0) ? global.activeColors[0] : 1;
+        _newCore.color = get_color_from_id(_newCore.id);
+        _newCore.inst.color_id = _newCore.id;
+        _newCore.inst.color = _newCore.color;
+    }
+    if (_newCore.inst != undefined) with (_newCore.inst) update_sprite();
+    if (_showText) {
+        var _sp = _grid_screen_pos(_chooseX, _chooseY);
+        create_floating_text_ext(_sp.x, _sp.y, "CORE RE-ESTABLISHED!", c_white, 1.25);
+    }
+    return true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // recalculate_planet_surface — Caches the shallowest block distance for performance
 // ─────────────────────────────────────────────────────────────────────────────
 function recalculate_planet_surface() {
+    cleanup_grid_ghost_cells();
     var _cx = floor(global.TOTAL_COLS / 2);
     var _cy = floor(global.TOTAL_ROWS / 2);
     var _minDist = _cx;
@@ -657,11 +1053,17 @@ function recalculate_planet_surface() {
 // ─────────────────────────────────────────────────────────────────────────────
 function calculate_planet_preview_path(_inst) {
     if (_inst == undefined) return undefined;
+    cleanup_grid_ghost_cells();
 
     var _tx  = _inst.grid_x;
     var _ty  = _inst.grid_y;
     var _cx  = floor(global.TOTAL_COLS / 2);
     var _cy  = floor(global.TOTAL_ROWS / 2);
+    var _centerCell = global.grid[_cy][_cx];
+    var _centerOccupied = (_centerCell != undefined
+        && _centerCell.inst != undefined
+        && instance_exists(_centerCell.inst)
+        && (!variable_instance_exists(_centerCell.inst, "clearing") || !_centerCell.inst.clearing));
     var _s   = ((global.orbitalSide % 4) + 4) % 4;
     var _isHeavy     = (global.launchCharge >= global.MAX_CHARGE);
     var _isDrill     = (_inst.type == "drill");
@@ -685,9 +1087,11 @@ function calculate_planet_preview_path(_inst) {
         var _ny = _ty + _ddy;
         if (_nx < 0 || _nx >= global.TOTAL_COLS || _ny < 0 || _ny >= global.TOTAL_ROWS) break;
 
-        // Surface cap: don't enter cells closer to center than current surface
+        // Surface cap: don't tunnel through a truly occupied center.
+        // If center is empty, allow path to reach it (no invisible center wall).
         if (!_isDrill && !_isHeavy) {
-            if (max(abs(_nx - _cx), abs(_ny - _cy)) < _surfaceDist) break;
+            var _distToCenter = max(abs(_nx - _cx), abs(_ny - _cy));
+            if (_centerOccupied && _distToCenter < _surfaceDist) break;
         }
 
         if (global.grid[_ny][_nx] != undefined) {
@@ -794,21 +1198,8 @@ function handle_planet_input(_controls) {
         global.previewDepth = (global.previewData != undefined) ? global.previewData.depth : 1;
     }
 
-    // Depth nudging
-    var _maxD = (global.previewData != undefined) ? global.previewData.depth : 1;
-    if (_controls.up && global.previewDepth > 1) {
-        // Only allow nudging up if we have a neighbor to stick to
-        var _idx = global.previewDepth - 2;
-        var _cell = global.previewData.path[_idx];
-        var _hasNb = false;
-        var _nbD = [[-1,0],[1,0],[0,-1],[0,1]];
-        for (var _ni=0; _ni<4; _ni++) {
-            var _nx = _cell.gx + _nbD[_ni][0], _ny = _cell.gy + _nbD[_ni][1];
-            if (_nx>=0 && _nx<global.TOTAL_COLS && _ny>=0 && _ny<global.TOTAL_ROWS && global.grid[_ny][_nx] != undefined) { _hasNb = true; break; }
-        }
-        if (_hasNb) { global.previewDepth--; sfx_piece_move(); } else sfx_piece_blocked();
-    }
-    if (_controls.down && global.previewDepth < _maxD) { global.previewDepth++; sfx_piece_move(); }
+    // Preview depth is now fully automatic from path solver.
+    // Manual up/down placement nudging removed.
 
     _ap.rotation = 0;
     if (_prevSide != global.orbitalSide) sfx_piece_move();

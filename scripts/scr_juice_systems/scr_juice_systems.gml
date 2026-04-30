@@ -19,6 +19,21 @@ function juice_sfx_clear_legacy(_count, _chain) {
     // sfx_play(_snd);
 }
 
+// Compatibility wrappers: gameplay calls these names directly.
+// Keep them here so runtime never hard-crashes if another SFX script is absent.
+function sfx_play(_snd)                { juice_sfx_play_legacy(_snd); }
+function sfx_piece_move()              { juice_sfx_piece_move_legacy(); }
+function sfx_piece_rotate()            { juice_sfx_piece_rotate_legacy(); }
+function sfx_piece_lock()              { juice_sfx_piece_lock_legacy(); }
+function sfx_hard_drop()               { juice_sfx_hard_drop_legacy(); }
+function sfx_bomb()                    { juice_sfx_bomb_legacy(); }
+function sfx_drill()                   { juice_sfx_drill_legacy(); }
+function sfx_fever()                   { juice_sfx_fever_legacy(); }
+function sfx_level_up()                { juice_sfx_level_up_legacy(); }
+function sfx_game_over()               { juice_sfx_game_over_legacy(); }
+function sfx_piece_blocked()           { juice_sfx_piece_blocked_legacy(); }
+function sfx_clear(_count, _chain)     { juice_sfx_clear_legacy(_count, _chain); }
+
 function save_high_score() {
     ini_open("cluster_core.ini");
     ini_write_real("save", "high_score", global.highScore);
