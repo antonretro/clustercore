@@ -291,8 +291,8 @@ function lock_piece() {
         sfx_bomb();
 
         var _blasted = 0;
-        var _bdirs = [[-1,0],[1,0],[0,-1],[0,1]];
-        for (var _bi = 0; _bi < 4; _bi++) {
+        var _bdirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1],[0,-2],[0,2],[-2,0],[2,0]];
+        for (var _bi = 0; _bi < array_length(_bdirs); _bi++) {
             var _bx2 = _px + _bdirs[_bi][0]; var _by2 = _py + _bdirs[_bi][1];
             if (_bx2 < 0 || _bx2 >= global.TOTAL_COLS || _by2 < 0 || _by2 >= global.TOTAL_ROWS) continue;
             var _cell = global.grid[_by2][_bx2];
@@ -352,38 +352,73 @@ function lock_piece() {
     settle_matches();
 }
 
-
-
-// =============================================================================
 // GRAVITY
 // =============================================================================
 
 function apply_grid_gravity() {
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-        // Radial: pull all non-core blocks one step toward (GRID_CX, GRID_CY)
+        // Find the core's current position to use as the gravity anchor.
+        var _coreX = floor(global.TOTAL_COLS / 2);
+        var _coreY = floor(global.TOTAL_ROWS / 2);
+        var _foundCore = false;
+        
+        for (var _cy = 0; _cy < global.TOTAL_ROWS; _cy++) {
+            for (var _cx = 0; _cx < global.TOTAL_COLS; _cx++) {
+                var _c = global.grid[_cy][_cx];
+                if (_c != undefined && _c.type == "core") {
+                    _coreX = _cx;
+                    _coreY = _cy;
+                    _foundCore = true;
+                    break;
+                }
+            }
+            if (_foundCore) break;
+        }
+
+        // Radial: pull all non-core blocks inward toward the core.
         var _changed = true;
-        while (_changed) {
+        var _safety = 0;
+        while (_changed && _safety < 20) {
             _changed = false;
+            _safety++;
+            
+            var _blockList = [];
             for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
                 for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
                     var _cell = global.grid[_y][_x];
-                    if (_cell == undefined || _cell.type == "core") continue;
-                    var _dx = sign(floor(global.TOTAL_COLS / 2) - _x);
-                    var _dy = sign(floor(global.TOTAL_ROWS / 2) - _y);
-                    if (_dx == 0 && _dy == 0) continue;
-                    // Dominant axis first
-                    if (abs(floor(global.TOTAL_COLS / 2) - _x) >= abs(floor(global.TOTAL_ROWS / 2) - _y)) _dy = 0; else _dx = 0;
-                    var _nx = _x + _dx; var _ny = _y + _dy;
-                    if (_nx >= 0 && _nx < global.TOTAL_COLS && _ny >= 0 && _ny < global.TOTAL_ROWS
-                    && global.grid[_ny][_nx] == undefined) {
-                        global.grid[_ny][_nx] = _cell;
-                        global.grid[_y][_x]   = undefined;
-                        _cell.inst.grid_x = _nx; _cell.inst.grid_y = _ny;
-                        _changed = true;
+                    if (_cell != undefined && _cell.type != "core") {
+                        var _dist = abs(_x - _coreX) + abs(_y - _coreY);
+                        array_push(_blockList, { x: _x, y: _y, dist: _dist, cell: _cell });
                     }
                 }
             }
+            
+            // Sort: nearest to core first.
+            array_sort(_blockList, function(_a, _b) { return _a.dist - _b.dist; });
+
+            for (var _i = 0; _i < array_length(_blockList); _i++) {
+                var _b = _blockList[_i];
+                var _x = _b.x; var _y = _b.y; var _cell = _b.cell;
+                
+                var _dx = sign(_coreX - _x);
+                var _dy = sign(_coreY - _y);
+                if (_dx == 0 && _dy == 0) continue;
+                
+                if (abs(_coreX - _x) >= abs(_coreY - _y)) _dy = 0; else _dx = 0;
+                
+                var _nx = _x + _dx; var _ny = _y + _dy;
+                if (_nx >= 0 && _nx < global.TOTAL_COLS && _ny >= 0 && _ny < global.TOTAL_ROWS
+                && global.grid[_ny][_nx] == undefined) {
+                    global.grid[_ny][_nx] = _cell;
+                    global.grid[_y][_x]   = undefined;
+                    _cell.inst.grid_x = _nx; 
+                    _cell.inst.grid_y = _ny;
+                    _changed = true;
+                    _b.x = _nx; _b.y = _ny;
+                }
+            }
         }
+
         // Clear one-tick landing protection after gravity resolution.
         for (var _cy = 0; _cy < global.TOTAL_ROWS; _cy++) {
             for (var _cx = 0; _cx < global.TOTAL_COLS; _cx++) {
@@ -393,7 +428,7 @@ function apply_grid_gravity() {
                 }
             }
         }
-        // Keep adaptive orbital lane width in sync with current planet shape.
+        
         recalculate_planet_surface();
         ensure_planet_core_presence(-1, -1, false);
         enforce_single_core_in_grid();
@@ -438,7 +473,7 @@ function calculate_landing_depth(_gx, _gy) {
 }
 
 // -----------------------------------------------------------------------------
-// rotate_grid_90  � CLASSIC ONLY, called on level-up rotation
+// rotate_grid_90   CLASSIC ONLY, called on level-up rotation
 // -----------------------------------------------------------------------------
 function rotate_grid_90() {
     // Classic currently uses a non-square playfield; 90-degree transpose on this
