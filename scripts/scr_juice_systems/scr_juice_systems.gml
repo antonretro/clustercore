@@ -37,7 +37,131 @@ function sfx_clear(_count, _chain)     { juice_sfx_clear_legacy(_count, _chain);
 function save_high_score() {
     ini_open("cluster_core.ini");
     ini_write_real("save", "high_score", global.highScore);
+    if (variable_global_exists("walletShards")) ini_write_real("save", "wallet_shards", global.walletShards);
+    if (variable_global_exists("walletGems")) ini_write_real("save", "wallet_gems", global.walletGems);
     ini_close();
+}
+
+function wallet_load() {
+    if (variable_global_exists("wallet_loaded") && global.wallet_loaded) return;
+    ini_open("cluster_core.ini");
+    global.walletShards = ini_read_real("save", "wallet_shards", 0);
+    global.walletGems = ini_read_real("save", "wallet_gems", 0);
+    global.shopTimerBonus = ini_read_real("shop", "timer_bonus", 0);
+    global.shopShardBonus = ini_read_real("shop", "shard_bonus", 0);
+    global.shopRevives = ini_read_real("shop", "revives", 0);
+    global.shopTrailSkin = ini_read_real("shop", "trail_skin", 0);
+    global.shopBlockSkin = ini_read_real("shop", "block_skin", 0);
+    global.storyUnlockedPlanet = ini_read_real("story", "unlocked_planet", 0);
+    global.storyCompletedCount = ini_read_real("story", "completed_count", 0);
+    // Endless mode unlocks
+    global.endlessPlanetUnlocked  = ini_read_real("unlocks", "planet_endless", 0) > 0;
+    global.endlessClassicUnlocked = ini_read_real("unlocks", "classic_endless", 0) > 0;
+    // First time player flag (true = has never launched the game before)
+    global.isFirstTimeLaunch = ini_read_real("meta", "launched", 0) <= 0;
+    ini_write_real("meta", "launched", 1); // mark as launched immediately
+    ini_close();
+    global.wallet_loaded = true;
+}
+
+function wallet_save() {
+    ini_open("cluster_core.ini");
+    ini_write_real("save", "wallet_shards", global.walletShards);
+    ini_write_real("save", "wallet_gems", global.walletGems);
+    ini_write_real("shop", "timer_bonus", global.shopTimerBonus);
+    ini_write_real("shop", "shard_bonus", global.shopShardBonus);
+    ini_write_real("shop", "revives", global.shopRevives);
+    ini_write_real("shop", "trail_skin", global.shopTrailSkin);
+    ini_write_real("shop", "block_skin", global.shopBlockSkin);
+    ini_write_real("story", "unlocked_planet", global.storyUnlockedPlanet);
+    ini_write_real("story", "completed_count", global.storyCompletedCount);
+    // Endless unlocks: grant based on story progress
+    if (variable_global_exists("storyUnlockedPlanet")) {
+        if (global.storyUnlockedPlanet >= 1) {
+            ini_write_real("unlocks", "planet_endless", 1);
+            global.endlessPlanetUnlocked = true;
+        }
+        if (global.storyUnlockedPlanet >= 2) {
+            ini_write_real("unlocks", "classic_endless", 1);
+            global.endlessClassicUnlocked = true;
+        }
+    }
+    if (variable_global_exists("highScore")) ini_write_real("save", "high_score", global.highScore);
+    ini_close();
+}
+
+function story_progress_key(_world, _level) {
+    return "w" + string(_world) + "_l" + string(_level);
+}
+
+function story_progress_is_complete(_world, _level) {
+    ini_open("cluster_core.ini");
+    var _done = ini_read_real("story", story_progress_key(_world, _level), 0);
+    ini_close();
+    return _done > 0;
+}
+
+function story_progress_is_unlocked(_world, _level) {
+    if (_world <= 0 && _level <= 0) return true;
+    if (_world <= global.storyUnlockedPlanet) {
+        if (_level == 0) return true;
+        return story_progress_is_complete(_world, _level - 1);
+    }
+    return false;
+}
+
+function story_progress_mark_complete(_world, _level) {
+    if (!story_progress_is_complete(_world, _level)) {
+        global.storyCompletedCount++;
+    }
+    ini_open("cluster_core.ini");
+    ini_write_real("story", story_progress_key(_world, _level), 1);
+    ini_close();
+    if (_level >= 5) global.storyUnlockedPlanet = max(global.storyUnlockedPlanet, _world + 1);
+    wallet_save();
+}
+
+function bonus_progress_is_unlocked(_idx) {
+    return (_idx <= global.storyUnlockedPlanet);
+}
+
+function bonus_progress_mark_complete(_idx) {
+    ini_open("cluster_core.ini");
+    ini_write_real("bonus", "dwarf_" + string(_idx), 1);
+    ini_close();
+}
+
+function bonus_progress_is_complete(_idx) {
+    ini_open("cluster_core.ini");
+    var _done = ini_read_real("bonus", "dwarf_" + string(_idx), 0);
+    ini_close();
+    return _done > 0;
+}
+
+function shop_buy(_item) {
+    var _cost = 0;
+    if (_item == 0) _cost = 35 + global.shopTimerBonus * 20;
+    if (_item == 1) _cost = 45 + global.shopShardBonus * 25;
+    if (_item == 2) _cost = 60;
+    if (_item == 3) _cost = 3;
+    if (_item == 4) _cost = 2;
+
+    var _usesGems = (_item >= 3);
+    if (_usesGems) {
+        if (global.walletGems < _cost) return false;
+        global.walletGems -= _cost;
+    } else {
+        if (global.walletShards < _cost) return false;
+        global.walletShards -= _cost;
+    }
+
+    if (_item == 0) global.shopTimerBonus = min(global.shopTimerBonus + 1, 5);
+    if (_item == 1) global.shopShardBonus = min(global.shopShardBonus + 1, 5);
+    if (_item == 2) global.shopRevives = min(global.shopRevives + 1, 3);
+    if (_item == 3) global.shopTrailSkin = 1;
+    if (_item == 4) global.shopBlockSkin = 1;
+    wallet_save();
+    return true;
 }
 
 function create_trail_particles(_x, _y, _color) {
@@ -111,7 +235,41 @@ function create_impact(_x, _y, _w, _color) {
 function award_shards(_points, _count) {
     var _shardGain = floor(_count * 0.5) + (global.feverTimer > 0 ? 2 : 0);
     global.runShards += _shardGain;
+    global.walletShards += _shardGain;
     global.ui_scales.shards = 1.3;
+    wallet_save();
+}
+
+function collect_block_shards(_gx, _gy, _amount) {
+    if (_amount <= 0) return;
+    var _sp = _grid_screen_pos(_gx, _gy);
+
+    if (!variable_global_exists("flyingShards")) global.flyingShards = [];
+    if (!variable_global_exists("shardCounterX")) global.shardCounterX = global.GAME_W - 235;
+    if (!variable_global_exists("shardCounterY")) global.shardCounterY = 520;
+
+    for (var i = 0; i < _amount; i++) {
+        array_push(global.flyingShards, {
+            x: _sp.x + random_range(-14, 14),
+            y: _sp.y + random_range(-14, 14),
+            sx: _sp.x,
+            sy: _sp.y,
+            tx: global.shardCounterX,
+            ty: global.shardCounterY,
+            life: 0,
+            maxLife: 28 + i * 5,
+            value: 1,
+            arc: random_range(28, 58)
+        });
+    }
+}
+
+function refabricate_gem_from_shards() {
+    if (global.walletShards < 25) return false;
+    global.walletShards -= 25;
+    global.walletGems++;
+    wallet_save();
+    return true;
 }
 
 function charge_jackpot(_amount) {

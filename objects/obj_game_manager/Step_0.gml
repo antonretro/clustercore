@@ -33,6 +33,21 @@ for (var i = array_length(global.floatingTexts) - 1; i >= 0; i--) {
     _t.y += _t.vy; _t.life--;
     if (_t.life <= 0) array_delete(global.floatingTexts, i, 1);
 }
+for (var i = array_length(global.flyingShards) - 1; i >= 0; i--) {
+    var _fs = global.flyingShards[i];
+    _fs.life++;
+    var _t2 = clamp(_fs.life / max(1, _fs.maxLife), 0, 1);
+    var _ease = 1 - power(1 - _t2, 3);
+    _fs.x = lerp(_fs.sx, _fs.tx, _ease);
+    _fs.y = lerp(_fs.sy, _fs.ty, _ease) - sin(_t2 * pi) * _fs.arc;
+    if (_fs.life >= _fs.maxLife) {
+        global.runShards += _fs.value;
+        global.walletShards += _fs.value;
+        global.storyShardsCollected += (global.gameMode == "STORY") ? _fs.value : 0;
+        wallet_save();
+        array_delete(global.flyingShards, i, 1);
+    }
+}
 
 if (global.settings.hintPulseEnabled) {
     hint_update();
@@ -40,6 +55,20 @@ if (global.settings.hintPulseEnabled) {
 
 if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
     update_core_stability();
+}
+
+if (global.gameState == "PLAYING" && global.gameMode == "STORY") {
+    var _debtDrain = 0;
+    for (var _dyDebt = 0; _dyDebt < global.TOTAL_ROWS; _dyDebt++) {
+        for (var _dxDebt = 0; _dxDebt < global.TOTAL_COLS; _dxDebt++) {
+            var _debtCell = global.grid[_dyDebt][_dxDebt];
+            if (_debtCell != undefined && _debtCell.type == "debt") _debtDrain++;
+        }
+    }
+    if (_debtDrain > 0) {
+        if (variable_global_exists("pieceTimer")) global.pieceTimer = max(0, global.pieceTimer - 0.04 * _debtDrain);
+        if (variable_global_exists("coreStability")) global.coreStability = max(0, global.coreStability - 0.01 * _debtDrain);
+    }
 }
 
 // --- Board rotation smooth lerp (Planet visual only) ---
@@ -76,18 +105,86 @@ if (keyboard_check_pressed(ord("G"))) global.settings.ghostEnabled = !global.set
 if (keyboard_check_pressed(ord("S"))) global.settings.shakeEnabled = !global.settings.shakeEnabled;
 if (keyboard_check_pressed(ord("H"))) global.settings.hintPulseEnabled = !global.settings.hintPulseEnabled;
 
-// Game Over input
-if (global.gameState == "GAMEOVER") {
-    if (keyboard_check_pressed(ord("R")) || (_gp && gamepad_button_check_pressed(0, gp_face1))) room_goto(room_game);
-    if (keyboard_check_pressed(vk_escape)  || (_gp && gamepad_button_check_pressed(0, gp_start))) room_goto(room_menu);
+// Game Over / Level Complete input
+if (global.gameState == "PLAYING" && global.gameMode == "STORY" && global.turnLimit > 0) {
+    if (global.turnCount >= global.turnLimit) {
+        // Give one final check if clearing just happened
+        if (!story_objective_is_met()) {
+            global.gameState = "GAMEOVER";
+        }
+    }
+}
+
+if (global.gameState == "GAMEOVER" || global.gameState == "LEVEL_COMPLETE" || global.gameState == "FINISHING_LEVEL") {
+    var _proceed = (keyboard_check_pressed(vk_space) || keyboard_check_pressed(vk_enter) || (_gp && gamepad_button_check_pressed(0, gp_face1)));
+    
+    if (global.gameState == "LEVEL_COMPLETE") {
+        if (_proceed) start_game();
+    } else if (global.gameState == "FINISHING_LEVEL") {
+        global.finishTimer--;
+        
+        // FADE IN PLANET TILES
+        if (global.finishTimer < 70) {
+            global.restoredTilesAlpha = min(1.0, global.restoredTilesAlpha + 0.025);
+        }
+        
+        // ACCELERATING VICTORY SPIN + SHAKE
+        var _spinSpeed = (100 - global.finishTimer) * 0.22;
+        global.boardRotation += _spinSpeed;
+        global.shakeAmount = (100 - global.finishTimer) * 0.45;
+        
+        // SUSTAINED EXPLOSIONS
+        if (global.finishTimer % 6 == 0) {
+            var _rx = random_range(global.GAME_W * 0.2, global.GAME_W * 0.8);
+            var _ry = random_range(global.GAME_H * 0.2, global.GAME_H * 0.8);
+            create_particles(_rx, _ry, c_white);
+        }
+        
+        if (global.finishTimer <= 0) {
+            story_advance_planet();
+        }
+    } else {
+        if (keyboard_check_pressed(ord("R")) || (_gp && gamepad_button_check_pressed(0, gp_face1))) room_goto(room_game);
+        if (keyboard_check_pressed(vk_escape)  || (_gp && gamepad_button_check_pressed(0, gp_start))) room_goto(room_menu);
+    }
     exit;
 }
 if (global.gameState == "PAUSED") exit;
 if (dialogue_is_active()) { dialogue_update(); exit; }
 
+// --- Juice & Feedback Decay ---
+if (global.flashAlpha > 0) global.flashAlpha *= 0.92;
+if (global.flashAlpha < 0.01) global.flashAlpha = 0;
+if (global.shipRecoil > 0) global.shipRecoil *= 0.85;
+
 // --- Gameplay ---
 if (!global.locking) {
     var _isPlanet = (global.gameMode == "PLANET" || global.gameMode == "STORY");
+
+    if (global.gameMode == "BONUS") {
+        global.bonusTimer--;
+        if (global.bonusTimer <= 0) {
+            global.bonusTimer = 0;
+            global.gameState = "GAMEOVER";
+            global.bonusComplete = (global.score >= global.bonusScoreGoal);
+            if (global.bonusComplete) {
+                global.walletShards += global.bonusRewardShards;
+                global.runShards += global.bonusRewardShards;
+                wallet_save();
+                create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.32,
+                    "DWARF PLANET CLEARED +" + string(global.bonusRewardShards) + " SHARDS",
+                    make_color_rgb(120, 230, 255), 1.55);
+            } else {
+                create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.32,
+                    "DWARF PLANET FAILED", global.COLOR_DANGER, 1.55);
+            }
+            if (global.score > global.highScore) {
+                global.highScore = global.score;
+                save_high_score();
+            }
+            exit;
+        }
+    }
 
     // ── PLANET / STORY ────────────────────────────────────────────────────────
     if (_isPlanet) {

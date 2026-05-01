@@ -1,4 +1,9 @@
 // --- Project Settings ---
+if (instance_number(obj_game_manager) > 1) {
+    instance_destroy();
+    exit;
+}
+
 // --- Game State ---
 if (!variable_global_exists("gameMode")) global.gameMode = "PLANET"; 
 global.gameState = "PLAYING"; // Set to PLAYING when the manager is created in the game room
@@ -42,6 +47,11 @@ global.MAX_CHARGE = 40; // ~0.6 seconds to full charge
 global.comboChain = 0;
 global.bestCombo = 0;
 global.runShards = 0;
+// Combo celebration state
+combo_pop_t     = 0;   // 0→1 burst scale when label first appears
+combo_pop_label = "";  // last shown label — change triggers pop
+
+wallet_load();
 
 // --- Story Mode Run State ---
 if (!variable_global_exists("storyPlanet")) global.storyPlanet = 0;
@@ -61,6 +71,31 @@ global.storyLevelDef = undefined;
 global.storyLevelSeed = 0;
 global.storyObjectiveType = "clear_cores";
 global.storyObjectiveValue = 0;
+global.storyWavesSurvived = 0;
+global.storyShardsCollected = 0;
+global.storyFeverTriggered = false;
+global.storyMegaClears = 0;
+global.resultWin = false;
+global.resultTitle = "";
+global.resultSubtitle = "";
+global.resultRewardShards = 0;
+global.resultRewardGems = 0;
+global.resultCanNext = false;
+if (!variable_global_exists("sunGateKeys")) global.sunGateKeys = 0;
+
+// --- Bonus Dwarf Planet State ---
+if (!variable_global_exists("bonusPlanet")) global.bonusPlanet = 0;
+global.bonusPlanets = [
+    { name: "GLASS DWARF",   goal: 9000,  time: room_speed * 90,  shard_rate: 0.20, reward_shards: 18 },
+    { name: "EMBER DWARF",   goal: 14000, time: room_speed * 100, shard_rate: 0.24, reward_shards: 26 },
+    { name: "COBALT DWARF",  goal: 19000, time: room_speed * 110, shard_rate: 0.28, reward_shards: 34 },
+    { name: "VIOLET DWARF",  goal: 26000, time: room_speed * 120, shard_rate: 0.32, reward_shards: 48 }
+];
+global.bonusName = "";
+global.bonusScoreGoal = 0;
+global.bonusTimer = 0;
+global.bonusRewardShards = 0;
+global.bonusComplete = false;
 
 // Fever/Jackpot
 global.jackpotMeter = 0;
@@ -111,6 +146,7 @@ global.planetOuterRadius = 1; // Adaptive lane cache: farthest occupied distance
 global.locking = false;
 global.hitstop = 0;
 global.jackpotFlash = 0;
+global.shipRecoil = 0;
 global.dasTimer = 0;
 global.dasRepeatTimer = 0;
 global.softDropDasTimer = 0;
@@ -122,8 +158,18 @@ global.previewData = undefined;
 global.coreStabilityMax = 100;
 global.coreStability = global.coreStabilityMax;
 global.coreStabilityDrainBase = 0.15;
+global.flashAlpha = 0;
+global.restoredMap = []; // 11x11 grid of biome tile data
+global.restoredTilesAlpha = 0;
+
+// Initialize empty map
+for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+    global.restoredMap[_y] = array_create(global.TOTAL_COLS, 0);
+}
 global.coreStabilityRecoverRate = 0.25;
 global.coreUnstable = false;
+global.coreRebuildTimer = 0;
+global.coreRebuildColorIdx = 0;
 
 // Load persisted high score
 global.highScore = 0;
@@ -131,17 +177,23 @@ ini_open("cluster_core.ini");
 global.highScore = ini_read_real("save", "high_score", 0);
 ini_close();
 
+global.turnCount = 0;
+global.turnLimit = 0;
+global.storyBonus = 0;
+global.storyRank = "D";
+
 // --- Visual FX Pools ---
 global.particles = [];
 global.floatingTexts = [];
+global.flyingShards = [];
 global.beams = [];
 global.bg_stars = [];
 global.shakeAmount = 0;
 global.boardRotation = 0;
 global.targetRotation = 0;
 
-// Pre-fill Next Queue
-for (var i = 0; i < 3; i++) {
+// Pre-fill Next Queue (Reduced to 1 for smarter AI response)
+for (var i = 0; i < 1; i++) {
     array_push(global.nextQueue, generate_piece());
 }
 
@@ -169,6 +221,7 @@ global.dropTimer = 0;
 global.DROP_INTERVAL_START = 60;
 global.LEVEL_SPEED_SCALE = 2;
 global.payoutFlash = 0;
+global.finishTimer = 0;
 
 global.settings = {
     ghostEnabled: true,
@@ -195,7 +248,7 @@ setup_story_planet = function() {
     global.storyName = _planet.name;
     global.storyTarget = _planet.target;
     global.storyCleared = 0;
-    var _lvIdx = clamp(global.storyLevel, 0, 9);
+    var _lvIdx = clamp(global.storyLevel, 0, 5);
     global.level = _planet.level + floor(_lvIdx * 0.35);
     global.storyTarget += _lvIdx * 4;
     global.scoreToNext = 1200 + (global.storyPlanet * 450);
@@ -229,21 +282,60 @@ draw_block_instance = function(_inst, _bx, _by, _scale, _alpha = -1, _altX = -1,
     var _drawY = (_altY == -1) ? (_by + _inst.y * _scale) : (_altY - 8 * _scale);
     var _cx = _drawX + 8 * _scale;
     var _cy = _drawY + 8 * _scale;
-    var _renderRot = -global.boardRotation + _inst.visualRotation + _inst.rotation;
-    
+
+    // Block square: counter-rotate by boardRotation so it always appears UPRIGHT
+    var _blockRot = _inst.visualRotation + _inst.rotation - global.boardRotation;
+    // Arrow overlay: no counter-rotation — matrix naturally rotates it with the board
+    var _arrowRot = _inst.visualRotation + _inst.rotation;
+
     if (_inst.sprite_index != -1) {
         draw_sprite_ext(_inst.sprite_index, _inst.image_index, _cx, _cy,
-            _scale * _inst.scale_x, _scale * _inst.scale_y, _renderRot, c_white, _instAlpha);
+            _scale * _inst.scale_x, _scale * _inst.scale_y, _blockRot, c_white, _instAlpha);
     }
     if (_inst.type == "metal" || (_inst.type == "core" && variable_instance_exists(_inst, "core_arrow") && _inst.core_arrow)) {
         var _arSpr = (_inst.dir == 0) ? spr_lr_arrows : spr_ud_arrows;
-        // Arrows rotate WITH board (relative 0)
-        draw_sprite_ext(_arSpr, 0, _cx, _cy, _scale * _inst.scale_x, _scale * _inst.scale_y, 0, c_white, _instAlpha);
+        draw_sprite_ext(_arSpr, 0, _cx, _cy, _scale * _inst.scale_x, _scale * _inst.scale_y, _arrowRot, c_white, _instAlpha);
+    }
+    if (_inst.type == "locked") {
+        draw_set_alpha(_instAlpha);
+        draw_set_color(make_color_rgb(230, 210, 90));
+        var _pad = (variable_instance_exists(_inst, "locked_hp") && _inst.locked_hp <= 1) ? 5 : 3;
+        draw_rectangle(_cx - (8 - _pad) * _scale, _cy - (8 - _pad) * _scale, _cx + (8 - _pad) * _scale, _cy + (8 - _pad) * _scale, true);
+        draw_line_width(_cx - 5 * _scale, _cy, _cx + 5 * _scale, _cy, max(1, 2 * _scale));
+        draw_line_width(_cx, _cy - 5 * _scale, _cx, _cy + 5 * _scale, max(1, 2 * _scale));
+        draw_set_alpha(1);
+    }
+    if (_inst.type == "wild" || _inst.type == "spore" || _inst.type == "multiplier" || _inst.type == "debt" || _inst.type == "gravity" || _inst.type == "void" || _inst.type == "prism" || _inst.type == "core_key") {
+        draw_set_halign(fa_center);
+        draw_set_valign(fa_middle);
+        draw_set_alpha(_instAlpha);
+        draw_set_font(main_font);
+        var _mark = "";
+        var _markCol = c_white;
+        if (_inst.type == "wild") { _mark = ""; _markCol = c_white; }
+        if (_inst.type == "spore") { _mark = "..."; _markCol = make_color_rgb(180, 255, 150); }
+        if (_inst.type == "multiplier") { _mark = "x2"; _markCol = c_yellow; }
+        if (_inst.type == "debt") { _mark = "$"; _markCol = make_color_rgb(255, 110, 190); }
+        if (_inst.type == "gravity") { _mark = "G"; _markCol = make_color_rgb(170, 220, 255); }
+        if (_inst.type == "void") { _mark = "O"; _markCol = make_color_rgb(40, 15, 80); }
+        if (_inst.type == "prism") { _mark = "<>"; _markCol = c_aqua; }
+        if (_inst.type == "core_key") { _mark = "K"; _markCol = c_aqua; }
+        draw_set_color(_markCol);
+        draw_text_transformed(_cx, _cy + 1 * _scale, _mark, 0.45 * _scale, 0.45 * _scale, 0);
+        draw_set_alpha(1);
+        draw_set_halign(fa_left);
+        draw_set_valign(fa_top);
+    }
+    if (variable_instance_exists(_inst, "shard_value") && _inst.shard_value > 0) {
+        var _shSeed = (_inst.grid_x * 13) + (_inst.grid_y * 17);
+        var _shPulse = 0.86 + abs(sin(current_time * 0.008 + _shSeed)) * 0.18;
+        draw_sprite_ext(spr_shard_on_block, 0, _cx, _cy - 2 * _scale,
+            _scale * _inst.scale_x * _shPulse, _scale * _inst.scale_y * _shPulse, _blockRot, c_white, _instAlpha);
     }
     if (_inst.type == "core") {
         gpu_set_blendmode(bm_add);
         var _cp2 = 0.3 + abs(sin(current_time * 0.005)) * 0.4;
-        draw_sprite_ext(_inst.sprite_index, _inst.image_index, _cx, _cy, _scale*_inst.scale_x*1.4, _scale*_inst.scale_y*1.4, _renderRot, c_white, _cp2 * 0.5 * _instAlpha);
+        draw_sprite_ext(_inst.sprite_index, _inst.image_index, _cx, _cy, _scale*_inst.scale_x*1.4, _scale*_inst.scale_y*1.4, _blockRot, c_white, _cp2 * 0.5 * _instAlpha);
         gpu_set_blendmode(bm_normal);
         draw_set_color(c_white); draw_set_alpha((_cp2 + 0.2) * _instAlpha);
         draw_rectangle(_cx - 9*_scale, _cy - 9*_scale, _cx + 9*_scale, _cy + 9*_scale, true);
@@ -262,18 +354,42 @@ start_game = function() {
     global.runShards = 0;
     global.jackpotMeter = 0;
     global.feverTimer = 0;
+    global.turnCount = 0;
     global.hitstop = 0;
     global.previewDepth = 1;
     global.coresCleared = 0;
+    global.storyWavesSurvived = 0;
+    global.storyShardsCollected = 0;
+    global.storyFeverTriggered = false;
+    global.storyMegaClears = 0;
     global.storyComplete = false;
+    global.bonusComplete = false;
+    
+    // Normalize board rotation to stop unspinning from the previous level
+    global.boardRotation = 0;
+    global.targetRotation = 0;
 
     if (global.gameMode == "STORY") {
         setup_story_planet();
+    }
+    if (global.gameMode == "BONUS") {
+        var _bidx = clamp(global.bonusPlanet, 0, array_length(global.bonusPlanets) - 1);
+        var _bonus = global.bonusPlanets[_bidx];
+        global.bonusName = _bonus.name;
+        global.bonusScoreGoal = _bonus.goal;
+        global.bonusTimer = _bonus.time;
+        global.bonusRewardShards = _bonus.reward_shards;
+        global.level = 2 + _bidx;
+        global.scoreToNext = 999999;
+        global.activeColors = [1, 2, 3, 4];
+        if (_bidx >= 2) array_push(global.activeColors, 5);
+        global.reserveColors = [6];
     }
 
     // Clear all visual FX from the previous run
     global.particles     = [];
     global.floatingTexts = [];
+    global.flyingShards  = [];
     global.beams         = [];
     global.shakeAmount   = 0;
 
@@ -298,7 +414,7 @@ start_game = function() {
     piece_rng_seed(_queueSeed);
 
     // Build queue after story seed/palette apply so first pieces match level palette.
-    for (var i = 0; i < 3; i++) {
+    for (var i = 0; i < 1; i++) {
         array_push(global.nextQueue, generate_piece());
     }
 
@@ -351,6 +467,16 @@ start_game = function() {
     global.softDropRepeatTimer = 0;
     global.coreStability = global.coreStabilityMax;
     global.coreUnstable = false;
+    global.MAX_PIECE_TIME = 300 + global.shopTimerBonus * 30;
+    global.pieceTimer = global.MAX_PIECE_TIME;
+    
+    // Reset Restoration State
+    global.restoredTilesAlpha = 0;
+    global.boardRotation = 0;
+    global.shakeAmount = 0;
+    for (var _ry3 = 0; _ry3 < global.TOTAL_ROWS; _ry3++) {
+        global.restoredMap[_ry3] = array_create(global.TOTAL_COLS, 0);
+    }
 
     story_try_start_level_dialogue();
 };

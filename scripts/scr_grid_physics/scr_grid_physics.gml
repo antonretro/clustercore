@@ -67,6 +67,9 @@ function hard_drop_radial() {
     if (global.activePiece == undefined || global.locking) return;
     var _pData = calculate_planet_preview_path(global.activePiece);
     if (_pData == undefined) return;
+    
+    global.shipRecoil = 12; // Visual juice for the Refabricator ship
+    
     global.activePiece.grid_x = _pData.target.gx;
     global.activePiece.grid_y = _pData.target.gy;
     global.activePiece.x = (global.activePiece.grid_x - global.HIDDEN_SIDES) * 16;
@@ -79,20 +82,143 @@ function hard_drop_radial() {
 // ─────────────────────────────────────────────────────────────────────────────
 function story_advance_planet() {
     var _prevPlanet = global.storyPlanet;
+    var _prevLevel = global.storyLevel;
     global.locking = false;
+    story_progress_mark_complete(_prevPlanet, _prevLevel);
+    wallet_save();
+
+    global.storyLevel++;
+
+    if (global.storyLevel < 6) {
+        global.gameState = "LEVEL_COMPLETE";
+        return;
+    }
+
+    global.storyLevel = 0;
     global.storyPlanet++;
+
     story_start_between_level_dialogue(_prevPlanet);
+
     if (_prevPlanet == 0 && global.storyPlanet >= 1) {
         steam_ach_unlock("ACH_STORY_WORLD_1");
     }
+
     if (global.storyPlanet >= array_length(global.storyPlanets)) {
         global.storyComplete = true;
         global.gameState = "GAMEOVER";
         create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.34, "STORY CLEAR!", c_yellow, 2.4);
         return;
     }
-    create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.34, "PLANET CLEARED", global.COLOR_GLOW, 2.0);
-    with (obj_game_manager) start_game();
+}
+
+function story_trigger_level_complete() {
+    if (global.gameState == "LEVEL_COMPLETE" || global.gameState == "FINISHING_LEVEL") return;
+    
+    global.gameState = "FINISHING_LEVEL";
+    global.finishTimer = 100; // Delay for animations
+    
+    // Calculate Rank and Bonus
+    global.storyBonus = 0;
+    global.storyRank = "D";
+    
+    if (global.turnLimit > 0) {
+        var _rem = max(0, global.turnLimit - global.turnCount);
+        global.storyBonus = _rem * 500;
+        global.score += global.storyBonus;
+        
+        var _pct = _rem / global.turnLimit;
+        if (_pct >= 0.70) global.storyRank = "S";
+        else if (_pct >= 0.50) global.storyRank = "A";
+        else if (_pct >= 0.30) global.storyRank = "B";
+        else if (_pct >= 0.10) global.storyRank = "C";
+    } else {
+        global.storyRank = "A";
+    }
+
+    // TRIGGER DRAMATIC CLEANUP
+    global.flashAlpha = 1.0;
+    global.restoredTilesAlpha = 0;
+    generate_restored_planet_map();
+    sfx_fever(); // Big victory sound
+    // Destroy all remaining blocks with juice
+    with(obj_block) {
+        if (type == "core") {
+            // Big core explosion
+            create_particles(x, y, c_yellow);
+            create_particles(x, y, c_white);
+            global.shakeAmount = 25;
+        } else {
+            create_particles(x, y, color);
+        }
+        instance_destroy();
+    }
+    
+    create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.34, "PLANET PURIFIED", global.COLOR_GLOW, 2.5);
+}
+
+function story_objective_is_met() {
+    if (global.gameMode != "STORY") return false;
+
+    var _value = max(1, global.storyObjectiveValue);
+
+    if (global.storyObjectiveType == "score") {
+        return global.score >= _value;
+    }
+
+    if (global.storyObjectiveType == "survive_waves") {
+        return global.storyWavesSurvived >= _value;
+    }
+
+    if (global.storyObjectiveType == "collect_shards") {
+        return global.storyShardsCollected >= _value;
+    }
+
+    if (global.storyObjectiveType == "clear_board") {
+        // Precise grid check: ensure no non-core blocks remain in the 11x11 play area
+        var _count = 0;
+        for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+            for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
+                var _c = global.grid[_y][_x];
+                if (_c != undefined && _c.type != "core") {
+                    _count++;
+                }
+            }
+        }
+        return (_count == 0);
+    }
+
+    // Default to comparing storyCleared (blocks or cores depending on resolve_clears) to storyTarget
+    return global.storyCleared >= max(1, global.storyTarget);
+}
+
+
+function generate_restored_planet_map() {
+    random_set_seed(global.storyLevelSeed + 777);
+    
+    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
+            if (!grid_cell_is_playable(_x, _y)) {
+                global.restoredMap[_y][_x] = { type: 0, variant: 0 }; // Space
+                continue;
+            }
+            
+            // Random biome distribution
+            var _r = random(100);
+            var _type = 1; // Default Ocean
+            if (_r > 30)  _type = 2; // Forest
+            if (_r > 65)  _type = 3; // Mountain
+            if (_r > 85)  _type = 4; // Desert
+            if (_r > 95)  _type = 5; // Tundra
+            
+            global.restoredMap[_y][_x] = {
+                type: _type,
+                variant: irandom(3),
+                alpha: 0,
+                scale: 0.5 + random(0.5)
+            };
+        }
+    }
+    randomize(); // Return to live randomness
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -110,6 +236,104 @@ function _grid_screen_pos(_gx, _gy) {
 // ─────────────────────────────────────────────────────────────────────────────
 // lock_piece  — commit the active piece to the grid, run specials, chain
 // ─────────────────────────────────────────────────────────────────────────────
+function sync_special_cell_visual(_gx, _gy) {
+    if (!grid_in_bounds(_gx, _gy)) return;
+    var _cell = global.grid[_gy][_gx];
+    if (_cell == undefined || _cell.inst == undefined) return;
+
+    _cell.inst.type = _cell.type;
+    _cell.inst.color = _cell.color;
+    _cell.inst.color_id = _cell.id;
+    _cell.inst.dir = _cell.dir;
+    _cell.inst.shard_value = variable_struct_exists(_cell, "shard_value") ? _cell.shard_value : 0;
+    _cell.inst.locked_hp = variable_struct_exists(_cell, "locked_hp") ? _cell.locked_hp : 0;
+    _cell.inst.special_value = variable_struct_exists(_cell, "special_value") ? _cell.special_value : 0;
+    with (_cell.inst) update_sprite();
+}
+
+function crack_locked_cell(_gx, _gy) {
+    if (!grid_in_bounds(_gx, _gy)) return false;
+    var _cell = global.grid[_gy][_gx];
+    if (_cell == undefined || _cell.type != "locked") return false;
+
+    var _hp = variable_struct_exists(_cell, "locked_hp") ? _cell.locked_hp : 2;
+    if (_hp <= 1) return false;
+
+    _cell.locked_hp = _hp - 1;
+    if (_cell.inst != undefined) {
+        _cell.inst.locked_hp = _cell.locked_hp;
+        _cell.inst.scale_x = 1.25;
+        _cell.inst.scale_y = 1.25;
+    }
+    var _sp = _grid_screen_pos(_gx, _gy);
+    create_floating_text_ext(_sp.x, _sp.y, "CRACK", make_color_rgb(220, 220, 160), 0.75);
+    create_particles((_gx - global.HIDDEN_SIDES) * 16, (_gy - global.HIDDEN_ROWS) * 16, make_color_rgb(210, 190, 120));
+    sync_special_cell_visual(_gx, _gy);
+    return true;
+}
+
+function rotate_prism_blocks() {
+    if (array_length(global.activeColors) <= 0) return;
+
+    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
+            var _cell = global.grid[_y][_x];
+            if (_cell == undefined || _cell.type != "prism") continue;
+
+            var _idx = 0;
+            for (var _i = 0; _i < array_length(global.activeColors); _i++) {
+                if (global.activeColors[_i] == _cell.id) {
+                    _idx = _i;
+                    break;
+                }
+            }
+            _idx = (_idx + 1) mod array_length(global.activeColors);
+            _cell.id = global.activeColors[_idx];
+            _cell.color = get_color_from_id(_cell.id);
+            sync_special_cell_visual(_x, _y);
+        }
+    }
+}
+
+function pull_cells_toward(_gx, _gy) {
+    var _dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
+
+    for (var _i = 0; _i < array_length(_dirs); _i++) {
+        var _sx = _gx + _dirs[_i][0] * 2;
+        var _sy = _gy + _dirs[_i][1] * 2;
+        var _tx = _sx - sign(_sx - _gx);
+        var _ty = _sy - sign(_sy - _gy);
+        if (!grid_in_bounds(_sx, _sy) || !grid_in_bounds(_tx, _ty)) continue;
+        if (global.grid[_sy][_sx] == undefined || global.grid[_ty][_tx] != undefined) continue;
+
+        var _cell = global.grid[_sy][_sx];
+        if (_cell.type == "core") continue;
+        global.grid[_ty][_tx] = _cell;
+        global.grid[_sy][_sx] = undefined;
+        if (_cell.inst != undefined) {
+            _cell.inst.grid_x = _tx;
+            _cell.inst.grid_y = _ty;
+            _cell.inst.x = (_tx - global.HIDDEN_SIDES) * 16;
+            _cell.inst.y = (_ty - global.HIDDEN_ROWS) * 16;
+        }
+    }
+}
+
+function planet_has_outer_danger_block() {
+    if (!(global.gameMode == "PLANET" || global.gameMode == "STORY")) return false;
+
+    var _cx = floor(global.TOTAL_COLS / 2);
+    var _cy = floor(global.TOTAL_ROWS / 2);
+    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
+            var _cell = global.grid[_y][_x];
+            if (_cell == undefined) continue;
+            if (max(abs(_x - _cx), abs(_y - _cy)) >= 5) return true;
+        }
+    }
+    return false;
+}
+
 function lock_piece() {
     global.locking = true;
     steam_ach_unlock("ACH_FIRST_DROP");
@@ -122,7 +346,7 @@ function lock_piece() {
     // Game over only fires when the piece can't enter the board at all (staging ring, dist=5).
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
         var _dist = max(abs(_px - floor(global.TOTAL_COLS / 2)), abs(_py - floor(global.TOTAL_ROWS / 2)));
-        if (_dist >= 5 && _p.type != "drill") {
+        if (false && _dist >= 5 && _p.type != "drill") {
             global.gameState = "GAMEOVER";
             sfx_game_over();
             if (global.score > global.highScore) { global.highScore = global.score; save_high_score(); }
@@ -151,7 +375,10 @@ function lock_piece() {
         color: _p.color,
         dir:   _p.dir,
         id:    _p.color_id,
-        inst:  _p
+        inst:  _p,
+        shard_value: variable_instance_exists(_p, "shard_value") ? _p.shard_value : 0,
+        locked_hp: variable_instance_exists(_p, "locked_hp") ? _p.locked_hp : 0,
+        special_value: variable_instance_exists(_p, "special_value") ? _p.special_value : 0
     };
     _p.just_landed = true;
 
@@ -296,7 +523,8 @@ function lock_piece() {
             var _bx2 = _px + _bdirs[_bi][0]; var _by2 = _py + _bdirs[_bi][1];
             if (_bx2 < 0 || _bx2 >= global.TOTAL_COLS || _by2 < 0 || _by2 >= global.TOTAL_ROWS) continue;
             var _cell = global.grid[_by2][_bx2];
-            if (_cell != undefined && _cell.type != "core") {
+            if (_cell != undefined) {
+                if (_cell.type == "core") migrate_core(_bx2, _by2);
                 create_particles((_bx2 - global.HIDDEN_SIDES) * 16,
                                  (_by2 - global.HIDDEN_ROWS)  * 16, _cell.color);
                 _cell.inst.clearing = true;
@@ -561,7 +789,8 @@ function settle_matches() {
         for (var _sx = 0; _sx < global.TOTAL_COLS; _sx++) {
             var _cellFix = global.grid[_sy][_sx];
             if (_cellFix == undefined) continue;
-            if (_cellFix.type == "bomb" || _cellFix.type == "dead") continue;
+            if (match_cell_is_excluded(_cellFix)) continue;
+            if (_cellFix.type == "wild") continue; // Wildcards keep id=999 always
             if (_cellFix.id > 0) continue;
 
             var _fixedId = 0;
@@ -659,12 +888,105 @@ function settle_matches() {
             }
         }
 
+        var _specialMultiplier = 1;
+        var _debtBonus = 0;
+        var _voidTax = false;
+        var _gravityClears = [];
+        var _activeClearMask = array_create(global.TOTAL_ROWS);
+        for (var _amy = 0; _amy < global.TOTAL_ROWS; _amy++) _activeClearMask[_amy] = array_create(global.TOTAL_COLS, false);
+
+        var _filteredMatches = [];
+        for (var _fm = 0; _fm < array_length(_matches); _fm++) {
+            var _pm = _matches[_fm];
+            var _pc = global.grid[_pm.y][_pm.x];
+            if (_pc == undefined) continue;
+
+            if (_pc.type == "locked" && crack_locked_cell(_pm.x, _pm.y)) {
+                continue;
+            }
+
+            _activeClearMask[_pm.y][_pm.x] = true;
+            array_push(_filteredMatches, _pm);
+
+            if (_pc.type == "multiplier") {
+                _specialMultiplier *= max(2, variable_struct_exists(_pc, "special_value") ? _pc.special_value : 2);
+            } else if (_pc.type == "debt") {
+                _debtBonus += variable_struct_exists(_pc, "special_value") ? _pc.special_value : 750;
+            } else if (_pc.type == "gravity") {
+                array_push(_gravityClears, {x: _pm.x, y: _pm.y});
+            } else if (_pc.type == "core_key") {
+                if (!variable_global_exists("sunGateKeys")) global.sunGateKeys = 0;
+                global.sunGateKeys++;
+                global.walletGems += 1;
+                wallet_save();
+                var _keySp = _grid_screen_pos(_pm.x, _pm.y);
+                create_floating_text_ext(_keySp.x, _keySp.y, "KEY + GEM", c_aqua, 0.85);
+            }
+        }
+        _matches = _filteredMatches;
+        if (array_length(_matches) <= 0) {
+            global.locking = false;
+            rotate_prism_blocks();
+            if (planet_has_outer_danger_block()) {
+                global.gameState = "GAMEOVER";
+                if (global.score > global.highScore) { global.highScore = global.score; save_high_score(); }
+                sfx_game_over();
+                return;
+            }
+            spawn_piece();
+            return;
+        }
+
+        var _adjDirs = [[-1,0],[1,0],[0,-1],[0,1]];
+        for (var _vm = 0; _vm < array_length(_matches); _vm++) {
+            var _mpv = _matches[_vm];
+            var _sporeCell = global.grid[_mpv.y][_mpv.x];
+            for (var _vd = 0; _vd < 4; _vd++) {
+                var _vx = _mpv.x + _adjDirs[_vd][0];
+                var _vy = _mpv.y + _adjDirs[_vd][1];
+                if (!grid_in_bounds(_vx, _vy)) continue;
+                var _vc = global.grid[_vy][_vx];
+                if (_vc == undefined) continue;
+
+                if (_vc.type == "void") {
+                    _voidTax = true;
+                    create_particles((_vx - global.HIDDEN_SIDES) * 16, (_vy - global.HIDDEN_ROWS) * 16, make_color_rgb(65, 35, 100));
+                    if (_vc.inst != undefined) _vc.inst.clearing = true;
+                    global.grid[_vy][_vx] = undefined;
+                } else if (!_activeClearMask[_vy][_vx]) {
+                    crack_locked_cell(_vx, _vy);
+                }
+
+                if (_sporeCell != undefined && _sporeCell.type == "spore"
+                && _vc != undefined && _vc.type == "normal") {
+                    _vc.id = _sporeCell.id;
+                    _vc.color = _sporeCell.color;
+                    sync_special_cell_visual(_vx, _vy);
+                    break;
+                }
+            }
+        }
+
         global.comboChain++;
         if (global.comboChain >= 3) steam_ach_unlock("ACH_CHAIN_3");
-        var _pts = array_length(_matches) * 100 * global.comboChain * ((global.feverTimer > 0) ? 2 : 1);
+        var _pts = (array_length(_matches) * 100 * global.comboChain * ((global.feverTimer > 0) ? 2 : 1) * _specialMultiplier) + _debtBonus;
         global.score += _pts; global.levelScore += _pts;
         if (global.score >= 100000) steam_ach_unlock("ACH_SCORE_100K");
-        if (global.gameMode == "STORY") global.storyCleared += array_length(_matches);
+        
+        if (global.gameMode == "STORY") {
+            if (global.storyObjectiveType == "clear_cores") {
+                // Only count the clear if a core was actually part of the matched set
+                var _hasCore = false;
+                for(var _ck=0; _ck<array_length(_matches); _ck++) {
+                    var _mc2 = global.grid[_matches[_ck].y][_matches[_ck].x];
+                    if (_mc2 != undefined && _mc2.type == "core") { _hasCore = true; break; }
+                }
+                if (_hasCore) global.storyCleared++;
+            } else {
+                // Clear Board missions count total blocks cleared
+                global.storyCleared += array_length(_matches);
+            }
+        }
         global.ui_scales.score = 1.25; global.ui_scales.combo = 1.4;
         update_level_progress();
         var _bx_c = (global.GAME_W - global.COLS * 16 * global.PIXEL_SCALE) / 2;
@@ -676,7 +998,14 @@ function settle_matches() {
         } else if (global.comboChain > 1) {
             create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.45, "COMBO x" + string(global.comboChain), global.COLOR_GLOW, 1.5);
         }
-        award_shards(_pts, array_length(_matches));
+        if (_specialMultiplier > 1) {
+            create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.36, "x" + string(_specialMultiplier), c_yellow, 1.4);
+        }
+        if (_debtBonus > 0) {
+            create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.40, "DEBT PAID +" + string(_debtBonus), make_color_rgb(255, 120, 190), 1.1);
+        }
+        if (!_voidTax) award_shards(_pts, array_length(_matches));
+        else create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.44, "VOID ATE THE SHARDS", make_color_rgb(130, 80, 180), 0.9);
         charge_jackpot(array_length(_matches));
         // Active recovery: good clears restore stability.
         if (variable_global_exists("coreStability")) {
@@ -755,25 +1084,39 @@ function settle_matches() {
                 with (_cell.inst) update_sprite();
                 var _asp = _grid_screen_pos(_m.x, _m.y);
                 create_floating_text_ext(_asp.x, _asp.y, "SHIELD", make_color_rgb(220, 220, 120), 0.7);
-                create_particles((_m.x - global.HIDDEN_SIDES) * 16 * global.PIXEL_SCALE,
-                                 (_m.y - global.HIDDEN_ROWS)  * 16 * global.PIXEL_SCALE, make_color_rgb(100,100,100));
+                create_particles((_m.x - global.HIDDEN_SIDES) * 16,
+                                 (_m.y - global.HIDDEN_ROWS)  * 16, make_color_rgb(100,100,100));
                 continue;
             }
             var _sp = _grid_screen_pos(_m.x, _m.y);
             var _pts_each = 100 * global.comboChain * ((global.feverTimer > 0) ? 2 : 1);
             create_floating_text_ext(_sp.x, _sp.y, "+" + string(_pts_each), _cell.color, 0.8);
-            create_particles((_m.x - global.HIDDEN_SIDES) * 16 * global.PIXEL_SCALE,
-                             (_m.y - global.HIDDEN_ROWS)  * 16 * global.PIXEL_SCALE, _cell.color);
+            if (!_voidTax && variable_struct_exists(_cell, "shard_value") && _cell.shard_value > 0) {
+                collect_block_shards(_m.x, _m.y, _cell.shard_value);
+            }
+            create_particles((_m.x - global.HIDDEN_SIDES) * 16,
+                             (_m.y - global.HIDDEN_ROWS)  * 16, _cell.color);
             if (_cell.inst != undefined) _cell.inst.clearing = true;
             global.grid[_m.y][_m.x] = undefined;
         }
         cleanup_grid_ghost_cells();
+        for (var _gc = 0; _gc < array_length(_gravityClears); _gc++) {
+            pull_cells_toward(_gravityClears[_gc].x, _gravityClears[_gc].y);
+        }
         apply_grid_gravity();
         cleanup_grid_ghost_cells();
+        rotate_prism_blocks();
         // Always guarantee a valid core after a clear cycle.
         if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
             ensure_planet_core_presence(_oldCoreX, _oldCoreY, false);
             enforce_single_core_in_grid();
+        }
+        if (planet_has_outer_danger_block()) {
+            global.gameState = "GAMEOVER";
+            if (global.score > global.highScore) { global.highScore = global.score; save_high_score(); }
+            sfx_game_over();
+            global.locking = false;
+            return;
         }
         alarm[0] = 15;
     } else {
@@ -790,13 +1133,23 @@ function settle_matches() {
         global.bestCombo = max(global.bestCombo, global.comboChain);
         global.locking = false;
         global.comboChain = 0;
+        if (global.gameMode == "STORY") {
+            global.storyWavesSurvived++;
+        }
+        rotate_prism_blocks();
+        if (planet_has_outer_danger_block()) {
+            global.gameState = "GAMEOVER";
+            if (global.score > global.highScore) { global.highScore = global.score; save_high_score(); }
+            sfx_game_over();
+            return;
+        }
         var _bestCluster = debug_largest_cluster_size();
         if (_bestCluster == 3) {
             create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.55,
                 "1 MORE!", make_color_rgb(200, 200, 200), 0.9);
         }
-        if (global.gameMode == "STORY" && global.coresCleared >= global.storyTarget) {
-            story_advance_planet();
+        if (story_objective_is_met()) {
+            story_trigger_level_complete();
             return;
         }
         if (check_game_over()) {
@@ -1026,16 +1379,18 @@ function ensure_planet_core_presence(_preferX = -1, _preferY = -1, _showText = f
         }
     }
 
-    // 4) No valid block exists: create a fresh core at center.
+    // 4) No valid block exists: Spawn a fresh core at center.
     if (_chooseX < 0) {
-        var _coreId = 1;
-        if (array_length(global.activeColors) > 0) _coreId = global.activeColors[irandom(array_length(global.activeColors) - 1)];
-        var _coreCol = get_color_from_id(_coreId);
-        var _coreData = { type: "core", color: _coreCol, dir: 0, id: _coreId };
-        var _inst = _place_block_instance(_cx, _cy, _coreData);
-        global.grid[_cy][_cx] = { type: "core", color: _coreCol, dir: 0, id: _coreId, inst: _inst, core_arrow: false };
-        var _spNew = _grid_screen_pos(_cx, _cy);
-        create_floating_text_ext(_spNew.x, _spNew.y, "CORE RE-ESTABLISHED!", c_white, 1.25);
+        var _cxR = floor(global.TOTAL_COLS / 2);
+        var _cyR = floor(global.TOTAL_ROWS / 2);
+        var _cIdx = (array_length(global.activeColors) > 0) ? 0 : 0;
+        var _coreIdR = (array_length(global.activeColors) > 0) ? global.activeColors[_cIdx] : 1;
+        var _coreColR = get_color_from_id(_coreIdR);
+        var _coreDataR = { type: "core", color: _coreColR, dir: 0, id: _coreIdR, core_arrow: false };
+        var _instR = _place_block_instance(_cxR, _cyR, _coreDataR);
+        global.grid[_cyR][_cxR] = { type: "core", color: _coreColR, dir: 0, id: _coreIdR, inst: _instR, core_arrow: false };
+        
+        recalculate_planet_surface();
         return true;
     }
 

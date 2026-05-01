@@ -19,102 +19,113 @@
 
 function story_plot_catalog() {
     return {
+
+        // ── FIRST LAUNCH BACKSTORY ──────────────────────────────────────────
+        backstory_intro: [
+            { speaker: "System",   text: "INITIATING FLIGHT SEQUENCE.", speed: 2 },
+            { speaker: "Operator", text: "Alright, engines are live. We've got a lot of planets clogged up with debris, and it's our job to clear them out.", speed: 1 },
+            { speaker: "Operator", text: "You're piloting the Refabricator. You'll fly to different planets and clear the blocks surrounding their cores.", speed: 1 },
+            { speaker: "Operator", text: "The goal of Story Mode is to travel from planet to planet, clearing boards until we reach the Sun Gate.", speed: 1 },
+            { speaker: "Operator", text: "Let's start at Tin Moon. It's a small board, perfect for learning the controls.", speed: 1 }
+        ],
+
         intro_0: [
-            { speaker: "Operator", text: "Tin Moon is quiet. Good. Quiet means the board is still listening.", speed: 1 },
-            { speaker: "Core", text: "Place four. Break one. Wake me slowly.", speed: 2 }
+            { speaker: "Operator", text: "Welcome to Tin Moon. Your goal is simple: CLEAR ALL THE BLOCKS. The level ends when only the red Core remains.", speed: 1 },
+            { speaker: "Operator", text: "Use the Arrow Keys to move, and press SPACE to fire a block from your ship. Match 4 or more of the same color to break them.", speed: 1 },
+            { speaker: "Operator", text: "Lines, clusters, and diagonals all count as matches. But watch out: if the blocks stack up to the outer boundary, you lose.", speed: 1 }
+        ],
+
+        intro_0_1: [
+            { speaker: "Operator", text: "You'll see a timer under the 'NEXT' box. If that runs out, the piece fires automatically. Don't take too long!", speed: 1 },
+            { speaker: "Operator", text: "Also, keep an eye out for Direction Blocks. They have arrows on them and only break if you match them in the direction they point.", speed: 1 }
         ],
 
         intro_1: [
-            { speaker: "Operator", text: "Rust Garden is clogged with dead blocks. Do not build pretty. Build exits.", speed: 1 },
-            { speaker: "Core", text: "Rot spreads where players panic.", speed: 2 }
+            { speaker: "Operator", text: "Welcome to Rust Garden. We've got new hazards here: Locked cages and Spores.", speed: 1 },
+            { speaker: "Operator", text: "Locked blocks take two hits to clear. Spores are the blocks with 3 dots—when you break one, it repaints a neighbor to its color.", speed: 1 }
         ],
 
         intro_2: [
-            { speaker: "Operator", text: "Casino Comet pays well if you stop chasing every shiny setup.", speed: 1 },
-            { speaker: "Core", text: "Greed is useful. Until it starts steering.", speed: 2 }
+            { speaker: "Operator", text: "Casino Comet is next. Watch out for Multiplier blocks and Debt blocks.", speed: 1 },
+            { speaker: "Operator", text: "Multipliers double your score for that match. Debt blocks drain your launch timer while they're on the board, so break them fast!", speed: 1 }
         ],
 
         intro_3: [
-            { speaker: "Operator", text: "Dead Orbit gives you fewer safe lanes. Every bad drop becomes part of the planet.", speed: 1 },
-            { speaker: "Core", text: "Survive first. Score later.", speed: 2 }
+            { speaker: "Operator", text: "This is Dead Orbit. It features Gravity blocks and Void blocks.", speed: 1 },
+            { speaker: "Operator", text: "Gravity blocks pull nearby pieces toward them when cleared. Void blocks can't be matched; you have to break blocks next to them to destroy them.", speed: 1 }
         ],
 
         intro_4: [
-            { speaker: "Operator", text: "Cluster Core is not a planet. It is the lock around the sun gate.", speed: 1 },
-            { speaker: "Core", text: "Break me enough times and I will open.", speed: 2 }
+            { speaker: "Operator", text: "Final stop: Cluster Core. You'll encounter Prism blocks and Core Keys here.", speed: 1 },
+            { speaker: "Operator", text: "Prisms change their color every time you fire. Core Keys give you bonus gems when broken. Let's finish this!", speed: 1 }
         ],
 
         select_0: [
-            { speaker: "System", text: "Tin Moon route selected. Stable lanes. Low pressure. Good for learning core breaks.", speed: 1 }
+            { speaker: "System", text: "MISSION 0: TIN MOON. Objective: Clear the board of all debris.", speed: 1 }
         ],
 
         select_1: [
-            { speaker: "System", text: "Rust Garden route selected. Dead blocks will clog bad plans fast.", speed: 1 }
+            { speaker: "System", text: "MISSION 1: RUST GARDEN. Objective: Manage dead blocks and clear the board.", speed: 1 }
         ],
 
         select_2: [
-            { speaker: "System", text: "Casino Comet route selected. Bigger clears. Bigger punishment for sloppy drops.", speed: 1 }
+            { speaker: "System", text: "MISSION 2: CASINO COMET. Objective: High-speed board clearance required.", speed: 1 }
         ],
 
         select_3: [
-            { speaker: "System", text: "Dead Orbit route selected. Lane control is now survival, not style.", speed: 1 }
+            { speaker: "System", text: "MISSION 3: DEAD ORBIT. Objective: Survive gravity shifts and clear the board.", speed: 1 }
         ],
 
         select_4: [
-            { speaker: "System", text: "Cluster Core route selected. Final resonance chamber unlocked.", speed: 1 }
+            { speaker: "System", text: "MISSION 4: CLUSTER CORE. Objective: Final board purification sequence.", speed: 1 }
         ],
 
         world_open_0: [
-            { speaker: "Operator", text: "Tin Moon mission set. Four stabilizer levels queued.", speed: 1 }
+            { speaker: "Operator", text: "Tin Moon mission active. Goal: Clear the board to stabilize the core.", speed: 1 }
         ],
 
         world_open_1: [
-            { speaker: "Operator", text: "Rust Garden loaded. Keep your lanes clean before the dead flow spreads.", speed: 1 }
+            { speaker: "Operator", text: "Rust Garden active. Watch out for dead blocks while you clear the grid.", speed: 1 }
         ],
 
         world_open_2: [
-            { speaker: "Operator", text: "Casino Comet armed. The board will tempt you. Do not let it steer.", speed: 1 }
+            { speaker: "Operator", text: "Casino Comet active. Speed is the priority for this board clear.", speed: 1 }
         ],
 
         world_open_3: [
-            { speaker: "Operator", text: "Dead Orbit online. Save your outs. A filled lane is a warning, not decoration.", speed: 1 }
+            { speaker: "Operator", text: "Dead Orbit active. Use drills to keep your lanes open for the final clear.", speed: 1 }
         ],
 
         world_open_4: [
-            { speaker: "Operator", text: "Cluster Core channel open. This one checks everything you learned.", speed: 1 }
+            { speaker: "Operator", text: "Cluster Core active. This is the final purification. Clear it all!", speed: 1 }
         ],
 
         between_0: [
-            { speaker: "Operator", text: "Tin Moon stabilized. The next orbital lane is opening.", speed: 1 },
-            { speaker: "Core", text: "Again. Cleaner this time.", speed: 2 }
+            { speaker: "Operator", text: "Board cleared! Tin Moon is stable. Proceeding to the next sector.", speed: 1 }
         ],
 
         between_1: [
-            { speaker: "Operator", text: "Rust Garden secured. Less debris, louder signal.", speed: 1 },
-            { speaker: "Core", text: "The rot moved. So did I.", speed: 2 }
+            { speaker: "Operator", text: "Rust Garden purified. Great job handling those spores.", speed: 1 }
         ],
 
         between_2: [
-            { speaker: "Operator", text: "Casino Comet cleared. Profit curve spiked, but the core survived it.", speed: 1 },
-            { speaker: "Core", text: "Risk fed me. Barely.", speed: 2 }
+            { speaker: "Operator", text: "Casino Comet cleared. Nice work on that high-speed clearance.", speed: 1 }
         ],
 
         between_3: [
-            { speaker: "Operator", text: "Dead Orbit survived. One final approach remains.", speed: 1 },
-            { speaker: "Core", text: "No more practice loops.", speed: 2 }
+            { speaker: "Operator", text: "Dead Orbit survived. Only the Cluster Core remains. Let's finish this.", speed: 1 }
         ],
 
         between_4: [
-            { speaker: "Core", text: "All loops complete. Set course for the Sun Gate.", speed: 2 }
+            { speaker: "Operator", text: "The board is clear. The Sun Gate is open. Let's go!", speed: 1 }
         ],
 
         sun_goal: [
-            { speaker: "Operator", text: "All planetary loops converged. Solar gate opening.", speed: 1 },
-            { speaker: "Core", text: "One final ignition. Feed the sun and become more than an operator.", speed: 2 }
+            { speaker: "Operator", text: "Final objective reached! The Sun Gate is open. Clear the board one more time to ignite the core!", speed: 1 }
         ],
 
         intro_default: [
-            { speaker: "Core", text: "Maintain flow. Build the chain. Reach the sun.", speed: 2 }
+            { speaker: "Operator", text: "Mission Objective: Clear every block from the board except for the core.", speed: 1 }
         ]
     };
 }
@@ -275,8 +286,15 @@ function story_try_start_level_dialogue() {
     dialogue_ensure_globals();
 
     if (global.gameMode != "STORY") return false;
+    if (global.dialogue_active) return false;
 
-    var _sceneId = story_get_scene_id_for_planet(global.storyPlanet);
+    // Try level-specific intro first (e.g. intro_0_1), then fall back to planet intro (intro_0)
+    var _sceneId = "intro_" + string(global.storyPlanet) + "_" + string(global.storyLevel);
+    var _cat = story_plot_catalog();
+    
+    if (!variable_struct_exists(_cat, _sceneId)) {
+        _sceneId = "intro_" + string(global.storyPlanet);
+    }
 
     if (variable_struct_exists(global.story_seen_scenes, _sceneId)) {
         return false;
@@ -465,25 +483,32 @@ function dialogue_get_speaker_color(_speaker) {
 
 
 function dialogue_draw_box(_x1, _y1, _x2, _y2) {
-    // Shadow
-    draw_set_alpha(0.72);
-    draw_set_color(c_black);
-    draw_roundrect_ext(_x1 + 6, _y1 + 6, _x2 + 6, _y2 + 6, 18, 18, false);
+    var _w = _x2 - _x1;
+    var _h = _y2 - _y1;
 
-    // Main fill
-    draw_set_alpha(0.92);
-    draw_set_color(make_color_rgb(18, 24, 44));
-    draw_roundrect_ext(_x1, _y1, _x2, _y2, 18, 18, false);
-
-    // Border
-    draw_set_alpha(0.60);
-    draw_set_color(make_color_rgb(110, 150, 255));
-    draw_roundrect_ext(_x1, _y1, _x2, _y2, 18, 18, true);
-
-    // Inner top line
-    draw_set_alpha(0.28);
-    draw_set_color(c_white);
-    draw_line_width(_x1 + 22, _y1 + 42, _x2 - 22, _y1 + 42, 2);
+    if (sprite_exists(spr_dialogue_box)) {
+        // Nine-slice sprite — configure insets to 8px in the GameMaker sprite editor
+        // Shadow
+        draw_set_alpha(0.55);
+        draw_sprite_stretched_ext(spr_dialogue_box, 0, _x1 + 7, _y1 + 7, _w, _h, c_black, 0.55);
+        // Main box
+        draw_set_alpha(1.0);
+        draw_sprite_stretched_ext(spr_dialogue_box, 0, _x1, _y1, _w, _h, c_white, 1.0);
+    } else {
+        // Procedural fallback while sprite is being made
+        draw_set_alpha(0.72);
+        draw_set_color(c_black);
+        draw_roundrect_ext(_x1 + 6, _y1 + 6, _x2 + 6, _y2 + 6, 18, 18, false);
+        draw_set_alpha(0.92);
+        draw_set_color(make_color_rgb(18, 24, 44));
+        draw_roundrect_ext(_x1, _y1, _x2, _y2, 18, 18, false);
+        draw_set_alpha(0.60);
+        draw_set_color(make_color_rgb(110, 150, 255));
+        draw_roundrect_ext(_x1, _y1, _x2, _y2, 18, 18, true);
+        draw_set_alpha(0.28);
+        draw_set_color(c_white);
+        draw_line_width(_x1 + 22, _y1 + 42, _x2 - 22, _y1 + 42, 2);
+    }
 
     draw_set_alpha(1.0);
 }
@@ -500,10 +525,10 @@ function dialogue_draw_prompt(_x2, _y2) {
 
     draw_text_transformed(
         _x2 - 22,
-        _y2 - 32,
+        _y2 - 32 * (global.TXT_SMALL / 1.8), // scale the vertical offset so it doesn't get pushed off the box
         "A / SPACE: NEXT    B / ESC: SKIP",
-        0.75,
-        0.75,
+        global.TXT_SMALL,
+        global.TXT_SMALL,
         0
     );
 
@@ -528,6 +553,105 @@ function dialogue_draw() {
     var _guiW = display_get_gui_width();
     var _guiH = display_get_gui_height();
 
+    // ── STORYBOARD CINEMATIC ────────────────────────────────────────────────
+    if (global.dialogue_scene_id == "backstory_intro") {
+        var _cW = _guiW * 0.7;
+        var _cH = _guiH * 0.55;
+        var _cX = _guiW * 0.5 - _cW * 0.5;
+        var _cY = _guiH * 0.10;
+        
+        draw_set_color(make_color_rgb(10, 15, 30));
+        draw_set_alpha(0.9);
+        draw_roundrect_ext(_cX, _cY, _cX + _cW, _cY + _cH, 20, 20, false);
+        draw_set_color(make_color_rgb(110, 150, 255));
+        draw_set_alpha(0.6);
+        draw_roundrect_ext(_cX, _cY, _cX + _cW, _cY + _cH, 20, 20, true);
+        
+        var _time = current_time * 0.001;
+        var _cxCenter = _cX + _cW * 0.5;
+        var _cyCenter = _cY + _cH * 0.5;
+        
+        // Draw starry background
+        draw_set_alpha(0.5);
+        draw_set_color(c_white);
+        for(var _s = 0; _s < 25; _s++) {
+            var _sx = _cX + ((_s * 83 + current_time * 0.1) mod _cW);
+            var _sy = _cY + ((_s * 137) mod _cH);
+            draw_circle(_sx, _sy, 1 + (_s mod 2), false);
+        }
+        
+        if (global.dialogue_index <= 1) {
+            // Scene 1: Rocket launching / flight
+            draw_set_alpha(1.0);
+            var _rocketY = _cyCenter + sin(_time * 4) * 15;
+            
+            // Thrust
+            draw_set_color(c_orange);
+            draw_circle(_cxCenter - 60 - random(15), _rocketY, 20 + random(8), false);
+            draw_set_color(c_yellow);
+            draw_circle(_cxCenter - 50 - random(10), _rocketY, 12 + random(5), false);
+            
+            // Ship body
+            draw_set_color(c_white);
+            draw_triangle(_cxCenter + 60, _rocketY, _cxCenter - 40, _rocketY - 25, _cxCenter - 40, _rocketY + 25, false);
+            // Fins
+            draw_set_color(c_red);
+            draw_triangle(_cxCenter - 20, _rocketY - 15, _cxCenter - 50, _rocketY - 40, _cxCenter - 40, _rocketY, false);
+            draw_triangle(_cxCenter - 20, _rocketY + 15, _cxCenter - 50, _rocketY + 40, _cxCenter - 40, _rocketY, false);
+            // Window
+            draw_set_color(c_aqua);
+            draw_circle(_cxCenter + 10, _rocketY, 8, false);
+            
+        } else if (global.dialogue_index <= 3) {
+            // Scene 2: Approaching debris planet
+            draw_set_alpha(1.0);
+            // Planet
+            draw_set_color(make_color_rgb(80, 120, 200));
+            draw_circle(_cxCenter + 150, _cyCenter, 90, false);
+            draw_set_color(make_color_rgb(50, 80, 150));
+            draw_circle(_cxCenter + 130, _cyCenter - 20, 20, false);
+            
+            // Debris ring
+            draw_set_color(make_color_rgb(150, 100, 100));
+            for(var _r = 0; _r < 24; _r++) {
+                var _a = _time * 0.5 + _r;
+                var _dist = 130 + sin(_r * 3) * 25;
+                draw_circle(_cxCenter + 150 + cos(_a) * _dist, _cyCenter + sin(_a) * _dist, 12 + sin(_r)*4, false);
+            }
+            
+            // Ship (scaled down)
+            draw_set_color(c_orange);
+            draw_circle(_cxCenter - 110 - random(8), _cyCenter, 8, false);
+            draw_set_color(c_white);
+            draw_triangle(_cxCenter - 50, _cyCenter, _cxCenter - 100, _cyCenter - 12, _cxCenter - 100, _cyCenter + 12, false);
+            draw_set_color(c_red);
+            draw_triangle(_cxCenter - 80, _cyCenter - 8, _cxCenter - 100, _cyCenter - 20, _cxCenter - 100, _cyCenter, false);
+            draw_triangle(_cxCenter - 80, _cyCenter + 8, _cxCenter - 100, _cyCenter + 20, _cxCenter - 100, _cyCenter, false);
+            
+        } else {
+            // Scene 3: Firing blocks to clear
+            draw_set_alpha(1.0);
+            // Planet slice
+            draw_set_color(make_color_rgb(80, 120, 200));
+            draw_circle(_cxCenter + 250, _cyCenter, 140, false);
+            
+            // Ship firing
+            draw_set_color(c_orange);
+            draw_circle(_cxCenter - 210 - random(12), _cyCenter, 12, false);
+            draw_set_color(c_white);
+            draw_triangle(_cxCenter - 100, _cyCenter, _cxCenter - 200, _cyCenter - 20, _cxCenter - 200, _cyCenter + 20, false);
+            
+            // Block traveling
+            var _bx = _cxCenter - 80 + ((current_time * 0.6) mod 250);
+            draw_set_color(c_red);
+            draw_roundrect(_bx, _cyCenter - 20, _bx + 40, _cyCenter + 20, false);
+            draw_set_color(make_color_rgb(255, 100, 100));
+            draw_roundrect(_bx+4, _cyCenter - 16, _bx + 36, _cyCenter + 16, false);
+        }
+        draw_set_alpha(1.0);
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     var _margin = max(32, _guiW * 0.08);
     var _boxH = clamp(_guiH * 0.25, 150, 220);
 
@@ -542,30 +666,95 @@ function dialogue_draw() {
     draw_set_halign(fa_left);
     draw_set_valign(fa_top);
 
+    // Typography scales
+    var _speakerScale = global.TXT_H3;
+    var _charScale = global.TXT_H4;
+    var _maxWidth = _x2 - _x1 - 48;
+
     // Speaker
     draw_set_color(dialogue_get_speaker_color(_speaker));
-    draw_text_transformed(
-        _x1 + 24,
-        _y1 + 16,
-        _speaker + ":",
-        1.05,
-        1.05,
-        0
-    );
+    draw_text_transformed(_x1 + 24, _y1 + 16, _speaker + ":", _speakerScale, _speakerScale, 0);
 
-    // Text
+    // Text (Custom Word Wrap + Per-Character Typing Animation)
+    var _cx = _x1 + 24;
+    var _cy = _y1 + 16 + (28 * _speakerScale);
+    var _lineH = 26 * _charScale;
+    
+    // Fast word-wrap pre-pass
+    var _words = [];
+    var _currentWord = "";
+    for (var i = 1; i <= string_length(_fullText); i++) {
+        var _c = string_char_at(_fullText, i);
+        if (_c == " " || _c == "\n") {
+            if (_currentWord != "") array_push(_words, _currentWord);
+            array_push(_words, _c); // push space/newline as own word
+            _currentWord = "";
+        } else {
+            _currentWord += _c;
+        }
+    }
+    if (_currentWord != "") array_push(_words, _currentWord);
+
+    // Draw pass
+    var _charIndex = 1;
     draw_set_color(c_white);
-
-    draw_text_ext_transformed(
-        _x1 + 24,
-        _y1 + 58,
-        _shownText,
-        28,
-        _x2 - _x1 - 48,
-        1.0,
-        1.0,
-        0
-    );
+    
+    for (var w = 0; w < array_length(_words); w++) {
+        var _word = _words[w];
+        if (_charIndex > global.dialogue_char_index) break;
+        
+        if (_word == "\n") {
+            _cx = _x1 + 24;
+            _cy += _lineH;
+            _charIndex++;
+            continue;
+        }
+        
+        var _wordW = string_width(_word) * _charScale;
+        
+        // Wrap to next line if word exceeds width
+        if (_word != " " && _cx + _wordW > _x1 + 24 + _maxWidth) {
+            _cx = _x1 + 24;
+            _cy += _lineH;
+        }
+        
+        if (_word == " ") {
+            _cx += _wordW;
+            _charIndex++;
+            continue;
+        }
+        
+        // Draw individual characters with pop animation
+        for (var c = 1; c <= string_length(_word); c++) {
+            if (_charIndex > global.dialogue_char_index) break;
+            
+            var _char = string_char_at(_word, c);
+            var _cw = string_width(_char) * _charScale;
+            
+            // Pop animation for newly revealed chars
+            var _age = global.dialogue_char_index - _charIndex;
+            var _popY = 0;
+            var _popS = _charScale;
+            if (_age < 3) {
+                var _intensity = (3 - _age) / 3;
+                _popY = -sin(_intensity * pi) * 4;
+                _popS = _charScale * (1.0 + _intensity * 0.15);
+            }
+            
+            // Drop shadow
+            draw_set_color(make_color_rgb(10, 15, 30));
+            draw_set_alpha(0.6);
+            draw_text_transformed(_cx + 2, _cy + 3 + _popY, _char, _popS, _popS, 0);
+            
+            // Main char
+            draw_set_color(c_white);
+            draw_set_alpha(1.0);
+            draw_text_transformed(_cx, _cy + _popY, _char, _popS, _popS, 0);
+            
+            _cx += _cw;
+            _charIndex++;
+        }
+    }
 
     dialogue_draw_prompt(_x2, _y2);
 

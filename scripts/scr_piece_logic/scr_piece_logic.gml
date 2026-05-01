@@ -276,52 +276,127 @@ function make_piece_data(_type, _id, _dir = 0) {
         type: _type,
         color: _color,
         dir: _dir,
-        id: _id
+        id: _id,
+        shard_value: 0,
+        locked_hp: 0,
+        special_value: 0
     };
 
     if (_type == "asteroid") {
         _data.shield_hp = 2;
     }
+    if (_type == "locked") {
+        _data.locked_hp = 2;
+    }
+    if (_type == "multiplier") {
+        _data.special_value = 2;
+    }
+    if (_type == "debt") {
+        _data.special_value = 750;
+    }
+    if (_type == "core_key") {
+        _data.shard_value = 2;
+    }
+    if (_type == "wild") {
+        _data.id = 999;
+        _data.color = c_white;
+    }
 
     return _data;
 }
 
+function story_specialty_type_for_piece() {
+    if (global.gameMode != "STORY") return "normal";
+
+    var _world = clamp(global.storyPlanet, 0, 4);
+    var _level = clamp(global.storyLevel, 0, 5);
+    var _chance = 0.10 + (_level * 0.012);
+    if (_world == 0) _chance = 0.08 + (_level * 0.01);
+    if (piece_rng_random(1) >= _chance) return "normal";
+
+    switch (_world) {
+        case 0:
+            return (piece_rng_random(1) < 0.55) ? "wild" : "normal";
+        case 1:
+            return (piece_rng_random(1) < 0.52) ? "locked" : "spore";
+        case 2:
+            return (piece_rng_random(1) < 0.58) ? "multiplier" : "debt";
+        case 3:
+            return (piece_rng_random(1) < 0.55) ? "gravity" : "void";
+        case 4:
+            return (piece_rng_random(1) < 0.50) ? "prism" : "core_key";
+    }
+
+    return "normal";
+}
+
 
 function generate_piece() {
+    // --- Smart Biasing: Help player clear the core and leftovers ---
+    var _coreId = -1;
+    var _cx = -1, _cy = -1;
+    var _buried = 0;
+    var _counts = array_create(10, 0); // Count of each color id
+    
+    if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
+        for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+            for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
+                var _c = global.grid[_y][_x];
+                if (_c == undefined) continue;
+                if (_c.id > 0 && _c.id < 10) _counts[_c.id]++;
+                if (_c.type == "core") { _coreId = _c.id; _cx = _x; _cy = _y; }
+            }
+        }
+        if (_coreId != -1) {
+            var _dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+            for (var i = 0; i < 4; i++) {
+                var _nx = _cx + _dirs[i][0]; var _ny = _cy + _dirs[i][1];
+                if (_nx >= 0 && _nx < global.TOTAL_COLS && _ny >= 0 && _ny < global.TOTAL_ROWS) {
+                    if (global.grid[_ny][_nx] != undefined) _buried++;
+                }
+            }
+        }
+    }
+
+    // Normal Piece Count for scaling
+    var _totalBlocks = 0;
+    for (var i = 1; i < 10; i++) _totalBlocks += _counts[i];
+
     // Dead blocks
     if (global.level >= 5 && piece_rng_random(1) < 0.10) {
-        return {
-            type: "dead",
-            color: c_dkgray,
-            dir: 0,
-            id: 999
-        };
+        return { type: "dead", color: c_dkgray, dir: 0, id: 999 };
     }
 
-    // Bombs
-    if (piece_rng_random(1) < 0.01 + (global.level * 0.0015)) {
-        return {
-            type: "bomb",
-            color: c_black,
-            dir: 0,
-            id: 888
-        };
+    // Bombs: increased chance if core is buried
+    var _bombChance = 0.01 + (global.level * 0.0015);
+    if (_buried >= 3) _bombChance += 0.04; 
+    if (piece_rng_random(1) < _bombChance) {
+        return { type: "bomb", color: c_black, dir: 0, id: 888 };
     }
 
-    // Drills
-    if (global.level >= 1 && piece_rng_random(1) < 0.008 + (global.level * 0.001)) {
-        return {
-            type: "drill",
-            color: c_silver,
-            dir: 0,
-            id: 777
-        };
+    // Drills: restricted to level 3+ AND only AFTER the first 5 turns
+    var _drillChance = 0.008 + (global.level * 0.001);
+    if (_buried >= 2) _drillChance += 0.03;
+    if (global.level >= 3 && global.turnCount > 5 && piece_rng_random(1) < _drillChance) {
+        return { type: "drill", color: c_silver, dir: 0, id: 777 };
     }
 
-    // Metal
-    if (piece_rng_random(1) < 0.15) {
-        var _midx = piece_rng_irandom(array_length(global.activeColors) - 1);
-        var _metalId = global.activeColors[_midx];
+    // Metal (Arrows)
+    var _metalRate = 0.15;
+    if (_totalBlocks < 10) _metalRate *= 0.2; // 80% more rare if board is clearing
+    
+    if (global.level >= 2 && piece_rng_random(1) < _metalRate) {
+        var _lonelyColors = [];
+        for (var i = 1; i < 10; i++) if (_counts[i] > 0 && _counts[i] < 4) array_push(_lonelyColors, i);
+        
+        var _metalId = -1;
+        if (array_length(_lonelyColors) > 0 && piece_rng_random(1) < 0.6) {
+            // Bias arrow color to help clear leftovers
+            _metalId = _lonelyColors[irandom(array_length(_lonelyColors) - 1)];
+        } else {
+            var _midx = piece_rng_irandom(array_length(global.activeColors) - 1);
+            _metalId = global.activeColors[_midx];
+        }
 
         return {
             type: "metal",
@@ -346,15 +421,54 @@ function generate_piece() {
     }
 
     // Normal
-    var _nidx = piece_rng_irandom(array_length(global.activeColors) - 1);
-    var _id = global.activeColors[_nidx];
+    var _totalBlocks = 0;
+    for (var i = 1; i < 10; i++) _totalBlocks += _counts[i];
+    
+    // Dynamic Help: The fewer blocks left, the more we help (up to 90% helpage)
+    var _helpFactor = clamp(1.0 - (_totalBlocks / 45), 0, 1);
+    var _lonelyChance = 0.35 + (_helpFactor * 0.55);
+    var _coreChance   = 0.25 + (_helpFactor * 0.40);
 
-    return {
-        type: "normal",
-        color: get_color_from_id(_id),
-        dir: 0,
-        id: _id
-    };
+    var _id = -1;
+    var _lonelyColors = [];
+    for (var i = 1; i < 10; i++) {
+        if (_counts[i] > 0 && _counts[i] < 4) array_push(_lonelyColors, i);
+    }
+
+    if (array_length(_lonelyColors) > 0 && random(1) < _lonelyChance) {
+        // High chance to clear leftovers as board empties (LIVE random)
+        _id = _lonelyColors[irandom(array_length(_lonelyColors) - 1)];
+    } else if (_coreId != -1 && random(1) < _coreChance) {
+        // Scaled core help (LIVE random)
+        _id = _coreId;
+    } else {
+        // Fallback to SEEDED random for normal pieces
+        var _nidx = piece_rng_irandom(array_length(global.activeColors) - 1);
+        _id = global.activeColors[_nidx];
+    }
+
+    var _shardRate = 0.10;
+    if (global.gameMode == "STORY") _shardRate = 0.14 + (global.storyPlanet * 0.015);
+    if (global.gameMode == "BONUS") {
+        var _bidx = clamp(global.bonusPlanet, 0, array_length(global.bonusPlanets) - 1);
+        _shardRate = global.bonusPlanets[_bidx].shard_rate;
+    }
+
+    var _type = story_specialty_type_for_piece();
+    var _piece = make_piece_data(_type, _id, 0);
+    _piece.shard_value = (piece_rng_random(1) < _shardRate) ? 1 : 0;
+
+    if (_type == "wild") {
+        _piece.color = c_white;
+    } else if (_type == "void") {
+        _piece.color = make_color_rgb(25, 15, 45);
+        _piece.id = 0;
+        _piece.shard_value = 0;
+    } else if (_type == "core_key") {
+        _piece.shard_value = max(_piece.shard_value, 2);
+    }
+
+    return _piece;
 }
 
 
@@ -363,7 +477,10 @@ function piece_data_from_instance(_inst) {
         type: _inst.type,
         color: _inst.color,
         dir: _inst.dir,
-        id: _inst.color_id
+        id: _inst.color_id,
+        shard_value: variable_instance_exists(_inst, "shard_value") ? _inst.shard_value : 0,
+        locked_hp: variable_instance_exists(_inst, "locked_hp") ? _inst.locked_hp : 0,
+        special_value: variable_instance_exists(_inst, "special_value") ? _inst.special_value : 0
     };
 
     if (_inst.type == "asteroid") {
@@ -394,6 +511,9 @@ function _place_block_instance(_gx, _gy, _pieceData) {
     _inst.color_id = _pieceData.id;
     _inst.grid_x   = _gx;
     _inst.grid_y   = _gy;
+    _inst.shard_value = variable_struct_exists(_pieceData, "shard_value") ? _pieceData.shard_value : 0;
+    _inst.locked_hp = variable_struct_exists(_pieceData, "locked_hp") ? _pieceData.locked_hp : 0;
+    _inst.special_value = variable_struct_exists(_pieceData, "special_value") ? _pieceData.special_value : 0;
 
     if (_pieceData.type == "asteroid") {
         if (variable_struct_exists(_pieceData, "shield_hp")) {
@@ -423,7 +543,10 @@ function place_grid_cell(_gx, _gy, _pieceData) {
         color: _pieceData.color,
         dir: _pieceData.dir,
         id: _pieceData.id,
-        inst: _inst
+        inst: _inst,
+        shard_value: variable_struct_exists(_pieceData, "shard_value") ? _pieceData.shard_value : 0,
+        locked_hp: variable_struct_exists(_pieceData, "locked_hp") ? _pieceData.locked_hp : 0,
+        special_value: variable_struct_exists(_pieceData, "special_value") ? _pieceData.special_value : 0
     };
 
     if (_pieceData.type == "asteroid") {
@@ -482,9 +605,9 @@ function setup_active_piece_after_spawn(_inst, _gx, _gy) {
 
 
 function spawn_piece() {
+    global.turnCount++;
+
     if (array_length(global.nextQueue) <= 0) {
-        array_push(global.nextQueue, generate_piece());
-        array_push(global.nextQueue, generate_piece());
         array_push(global.nextQueue, generate_piece());
     }
 
@@ -562,30 +685,40 @@ function hold_piece() {
 
 function story_level_catalog() {
     return [
-        { world_id: 0, level_id: 0, seed: 1001, palette_count: 3, objective: { type: "clear_cores", value: 16 } },
-        { world_id: 0, level_id: 1, seed: 1002, palette_count: 3, objective: { type: "clear_cores", value: 18 } },
-        { world_id: 0, level_id: 2, seed: 1003, palette_count: 3, objective: { type: "clear_cores", value: 20 } },
-        { world_id: 0, level_id: 3, seed: 1004, palette_count: 3, objective: { type: "score", value: 12000 } },
+        { world_id: 0, level_id: 0, seed: 1001, palette_count: 3, turn_limit: 35, objective: { type: "clear_board", value: 1 } },
+        { world_id: 0, level_id: 1, seed: 1002, palette_count: 3, turn_limit: 40, objective: { type: "clear_board", value: 1 } },
+        { world_id: 0, level_id: 2, seed: 1003, palette_count: 3, turn_limit: 45, objective: { type: "clear_board", value: 1 } },
+        { world_id: 0, level_id: 3, seed: 1004, palette_count: 3, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
+        { world_id: 0, level_id: 4, seed: 1005, palette_count: 3, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
+        { world_id: 0, level_id: 5, seed: 1006, palette_count: 4, objective: { type: "clear_cores", value: 6 } },
 
-        { world_id: 1, level_id: 0, seed: 2001, palette_count: 3, objective: { type: "clear_cores", value: 22 } },
-        { world_id: 1, level_id: 1, seed: 2002, palette_count: 3, objective: { type: "clear_cores", value: 24 } },
-        { world_id: 1, level_id: 2, seed: 2003, palette_count: 4, objective: { type: "score", value: 18000 } },
-        { world_id: 1, level_id: 3, seed: 2004, palette_count: 4, objective: { type: "clear_cores", value: 28 } },
+        { world_id: 1, level_id: 0, seed: 2001, palette_count: 3, turn_limit: 45, objective: { type: "clear_board", value: 1 } },
+        { world_id: 1, level_id: 1, seed: 2002, palette_count: 3, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
+        { world_id: 1, level_id: 2, seed: 2003, palette_count: 4, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
+        { world_id: 1, level_id: 3, seed: 2004, palette_count: 4, objective: { type: "clear_board", value: 1 } },
+        { world_id: 1, level_id: 4, seed: 2005, palette_count: 4, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
+        { world_id: 1, level_id: 5, seed: 2006, palette_count: 4, objective: { type: "clear_board", value: 1 } },
 
-        { world_id: 2, level_id: 0, seed: 3001, palette_count: 4, objective: { type: "clear_cores", value: 30 } },
-        { world_id: 2, level_id: 1, seed: 3002, palette_count: 4, objective: { type: "score", value: 22000 } },
-        { world_id: 2, level_id: 2, seed: 3003, palette_count: 4, objective: { type: "clear_cores", value: 34 } },
-        { world_id: 2, level_id: 3, seed: 3004, palette_count: 4, objective: { type: "survive_waves", value: 6 } },
+        { world_id: 2, level_id: 0, seed: 3001, palette_count: 4, objective: { type: "clear_board", value: 1 } },
+        { world_id: 2, level_id: 1, seed: 3002, palette_count: 4, objective: { type: "clear_board", value: 1 } },
+        { world_id: 2, level_id: 2, seed: 3003, palette_count: 4, objective: { type: "clear_board", value: 1 } },
+        { world_id: 2, level_id: 3, seed: 3004, palette_count: 4, objective: { type: "clear_board", value: 1 } },
+        { world_id: 2, level_id: 4, seed: 3005, palette_count: 5, objective: { type: "clear_board", value: 1 } },
+        { world_id: 2, level_id: 5, seed: 3006, palette_count: 5, objective: { type: "clear_cores", value: 12 } },
 
-        { world_id: 3, level_id: 0, seed: 4001, palette_count: 4, objective: { type: "clear_cores", value: 38 } },
-        { world_id: 3, level_id: 1, seed: 4002, palette_count: 5, full_palette: true, objective: { type: "survive_waves", value: 8 } },
-        { world_id: 3, level_id: 2, seed: 4003, palette_count: 5, objective: { type: "score", value: 28000 } },
-        { world_id: 3, level_id: 3, seed: 4004, palette_count: 5, full_palette: true, objective: { type: "clear_cores", value: 42 } },
+        { world_id: 3, level_id: 0, seed: 4001, palette_count: 4, objective: { type: "clear_board", value: 1 } },
+        { world_id: 3, level_id: 1, seed: 4002, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 3, level_id: 2, seed: 4003, palette_count: 5, objective: { type: "clear_board", value: 1 } },
+        { world_id: 3, level_id: 3, seed: 4004, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 3, level_id: 4, seed: 4005, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 3, level_id: 5, seed: 4006, palette_count: 5, full_palette: true, objective: { type: "clear_cores", value: 14 } },
 
-        { world_id: 4, level_id: 0, seed: 5001, palette_count: 5, full_palette: true, objective: { type: "clear_cores", value: 48 } },
-        { world_id: 4, level_id: 1, seed: 5002, palette_count: 5, full_palette: true, objective: { type: "score", value: 36000 } },
-        { world_id: 4, level_id: 2, seed: 5003, palette_count: 6, objective: { type: "survive_waves", value: 10 } },
-        { world_id: 4, level_id: 3, seed: 5004, palette_count: 6, full_palette: true, objective: { type: "clear_cores", value: 55 } }
+        { world_id: 4, level_id: 0, seed: 5001, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 4, level_id: 1, seed: 5002, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 4, level_id: 2, seed: 5003, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 4, level_id: 3, seed: 5004, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 4, level_id: 4, seed: 5005, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 4, level_id: 5, seed: 5006, palette_count: 6, full_palette: true, objective: { type: "clear_cores", value: 20 } }
     ];
 }
 
@@ -674,14 +807,14 @@ function story_place_cell(_gx, _gy, _type, _cid, _dir = 0) {
 
 
 function story_get_layout_settings(_def) {
-    var _rank = (_def.world_id * 10) + _def.level_id;
+    var _rank = (_def.world_id * 6) + _def.level_id;
 
     return {
         rank: _rank,
-        target_count: clamp(6 + _rank, 6, 26),
-        radius: clamp(2 + floor(_rank / 6), 2, 4),
-        metal_rate: clamp(0.03 + (_rank * 0.003), 0.03, 0.12),
-        asteroid_rate: clamp(0.02 + (_rank * 0.004), 0.02, 0.16)
+        target_count: clamp(7 + _rank, 7, 30),
+        radius: clamp(2 + floor(_rank / 8), 2, 4),
+        metal_rate: clamp(0.03 + (_rank * 0.0035), 0.03, 0.16),
+        asteroid_rate: clamp(0.02 + (_rank * 0.0045), 0.02, 0.18)
     };
 }
 
@@ -759,12 +892,20 @@ function story_apply_level_layout(_def) {
     global.storyLevelSeed = _seed;
     global.storyLevelDef = _def;
 
-    if (_def != undefined && variable_struct_exists(_def, "objective")) {
-        global.storyObjectiveType = _def.objective.type;
-        global.storyObjectiveValue = _def.objective.value;
+    if (_def != undefined) {
+        if (variable_struct_exists(_def, "turn_limit")) {
+            global.turnLimit = _def.turn_limit;
+        } else {
+            global.turnLimit = 0;
+        }
 
-        if (_def.objective.type == "clear_cores") {
-            global.storyTarget = _def.objective.value;
+        if (variable_struct_exists(_def, "objective")) {
+            global.storyObjectiveType = _def.objective.type;
+            global.storyObjectiveValue = _def.objective.value;
+
+            if (_def.objective.type == "clear_cores") {
+                global.storyTarget = _def.objective.value;
+            }
         }
     }
 

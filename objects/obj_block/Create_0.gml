@@ -19,6 +19,9 @@ clear_timer = 0;
 clear_timer_max = 20;
 
 shield_hp = 2;
+shard_value = 0;
+locked_hp = 0;
+special_value = 0;
 
 // Sprite assignment (to be handled in Draw or here)
 function update_sprite() {
@@ -37,6 +40,8 @@ function update_sprite() {
     if (type == "bomb") sprite_index = spr_bomb;
     if (type == "dead") sprite_index = spr_deadmetal;
     if (type == "drill") sprite_index = spr_drill;
+    if (type == "wild") sprite_index = spr_wildcard;
+    if (type == "void") sprite_index = spr_deadmetal;
     // Core blocks now look like normal colored blocks to keep them matchable
     if (type == "asteroid") {
         if (asset_get_index("spr_asteroid") != -1) {

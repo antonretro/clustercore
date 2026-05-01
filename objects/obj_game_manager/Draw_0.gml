@@ -165,11 +165,12 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
                 if (_lx < global.HIDDEN_SIDES || _lx >= global.TOTAL_COLS - global.HIDDEN_SIDES
                 || _ly < global.HIDDEN_ROWS  || _ly >= global.TOTAL_ROWS  - global.HIDDEN_ROWS) break;
                 var _fade = (_laneStep + 1) / max(1, _laneMax);
-                draw_set_alpha((0.04 + 0.18 * _fade) * _pulse * 3);
+                // Subtler hologram lane
+                draw_set_alpha((0.02 + 0.12 * _fade) * _pulse);
                 draw_set_color(_ap.color);
                 var _lsx = _bx + (_lx - global.HIDDEN_SIDES) * _cw;
                 var _lsy = _by + (_ly - global.HIDDEN_ROWS)  * _cw;
-                draw_rectangle(_lsx, _lsy, _lsx + _cw, _lsy + _cw, false);
+                draw_rectangle(_lsx + 1, _lsy + 1, _lsx + _cw - 1, _lsy + _cw - 1, false);
                 _laneStep++;
             }
             gpu_set_blendmode(bm_normal);
@@ -219,11 +220,151 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
     }
 }
 
-// --- Core Hologram ---
-if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && !instance_exists(obj_block) && global.activePiece != undefined) {
+// --- Core Hologram / Rebuild Roulette ---
+if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.activePiece != undefined) {
     var _cpx = _bx + (_centerGX - global.HIDDEN_SIDES) * _cw + 8 * _scale;
     var _cpy = _by + (_centerGY - global.HIDDEN_ROWS)  * _cw + 8 * _scale;
-    draw_sprite_ext(spr_pinkSprite, 0, _cpx, _cpy, _scale, _scale, 0, global.activePiece.color, 0.15 + abs(sin(current_time * 0.003)) * 0.1);
+    
+    if (global.coreRebuildTimer > 0) {
+        // "Mario Kart" Roulette cycling
+        var _cIdx2 = clamp(global.coreRebuildColorIdx, 0, array_length(global.activeColors) - 1);
+        var _rouletteCol = get_color_from_id(global.activeColors[_cIdx2]);
+        var _rouletteScale = _scale * (1.2 + abs(sin(current_time * 0.02)) * 0.3);
+        
+        gpu_set_blendmode(bm_add);
+        draw_sprite_ext(spr_pinkSprite, 0, _cpx, _cpy, _rouletteScale * 1.5, _rouletteScale * 1.5, current_time * 0.8, _rouletteCol, 0.9);
+        draw_set_alpha(0.3); draw_circle_color(_cpx, _cpy, 60 * _scale, _rouletteCol, c_black, false);
+        gpu_set_blendmode(bm_normal);
+        draw_set_alpha(1.0);
+    } else if (!instance_exists(obj_block)) {
+        // Normal empty-board hologram
+        draw_sprite_ext(spr_pinkSprite, 0, _cpx, _cpy, _scale, _scale, 0, global.activePiece.color, 0.15 + abs(sin(current_time * 0.003)) * 0.1);
+    }
+}
+
+// --- Planet Restoration Tiles ---
+if (global.restoredTilesAlpha > 0) {
+    // Biome sprite lookup (create these 16x16 sprites in GameMaker)
+    var _biomeSpr = [
+        -1,             // 0 = none
+        spr_tile_ocean,    // 1 = Ocean
+        spr_tile_forest,   // 2 = Forest
+        spr_tile_mountain, // 3 = Mountain
+        spr_tile_desert,   // 4 = Desert
+        spr_tile_tundra    // 5 = Tundra
+    ];
+    var _biomeFallback = [
+        c_black,
+        make_color_rgb(30, 80, 200),   // Ocean
+        make_color_rgb(40, 140, 60),   // Forest
+        make_color_rgb(120, 120, 130), // Mountain
+        make_color_rgb(220, 180, 80),  // Desert
+        make_color_rgb(200, 240, 255)  // Tundra
+    ];
+
+    for (var _ty = 0; _ty < global.TOTAL_ROWS; _ty++) {
+        for (var _tx = 0; _tx < global.TOTAL_COLS; _tx++) {
+            var _tData = global.restoredMap[_ty][_tx];
+            if (_tData == 0 || (typeof(_tData) == "struct" && _tData.type == 0)) continue;
+
+            var _tsx  = _bx + (_tx - global.HIDDEN_SIDES) * _cw;
+            var _tsy  = _by + (_ty - global.HIDDEN_ROWS)  * _cw;
+            var _tsxC = _tsx + 8 * _scale;
+            var _tsyC = _tsy + 8 * _scale;
+            var _tType = clamp(_tData.type, 0, 5);
+            var _spr  = _biomeSpr[_tType];
+
+            draw_set_alpha(global.restoredTilesAlpha);
+
+            if (_spr != -1 && sprite_exists(_spr)) {
+                draw_sprite_ext(_spr, 0, _tsxC, _tsyC, _scale, _scale, 0, c_white, global.restoredTilesAlpha);
+            } else {
+                draw_set_color(_biomeFallback[_tType]);
+                draw_rectangle(_tsx, _tsy, _tsx + _cw, _tsy + _cw, false);
+            }
+        }
+    }
+    draw_set_alpha(1.0);
+}
+
+// --- Active Core Pulse ---
+with (obj_block) {
+    if (type == "core") {
+        var _ccx = _bx + (x * _scale) + 8 * _scale;
+        var _ccy = _by + (y * _scale) + 8 * _scale;
+        var _cpulse = 0.5 + abs(sin(current_time * 0.005)) * 0.5;
+        gpu_set_blendmode(bm_add);
+        draw_set_color(c_white);
+        draw_set_alpha(_cpulse * 0.3);
+        draw_circle(_ccx, _ccy, (12 + 8 * _cpulse) * _scale, false);
+        gpu_set_blendmode(bm_normal);
+    }
+}
+
+// --- Claw Machine Rendering ---
+if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.activePiece != undefined && !dialogue_is_active()) {
+    var _ap = global.activePiece;
+    var _cxS = _bx + (_ap.x * _scale) + 8 * _scale;
+    var _cyS = _by + (_ap.y * _scale) + 8 * _scale;
+    
+    // Determine outwards vector based on the orbital side
+    var _outX = 0; var _outY = 0; var _clawRot = 0;
+    // Assuming the base sprite (spr_claw) is drawn facing RIGHT (0 degrees)
+    // To face INWARDS towards the grid:
+    if (global.orbitalSide == 0) { _outY = -1; _clawRot = 90; }  // Top side -> face DOWN
+    if (global.orbitalSide == 1) { _outX = 1;  _clawRot = 180; } // Right side -> face LEFT
+    if (global.orbitalSide == 2) { _outY = 1;  _clawRot = 270; } // Bottom side -> face UP
+    if (global.orbitalSide == 3) { _outX = -1; _clawRot = 0; }   // Left side -> face RIGHT
+    
+    // The claw is pushed backwards slightly when it drops the piece
+    var _dropJuice = global.shipRecoil * _scale; // using the same recoil variable
+    var _dist = 12 * _scale + _dropJuice; // Sits much closer so it actually "holds" the block!
+    var _clawX = _cxS + _outX * _dist;
+    var _clawY = _cyS + _outY * _dist;
+    
+    // Tilt effect when moving
+    var _tilt = 0;
+    if (keyboard_check(vk_left) || gamepad_axis_value(0, gp_axislh) < -0.5) _tilt = 12;
+    if (keyboard_check(vk_right) || gamepad_axis_value(0, gp_axislh) > 0.5) _tilt = -12;
+    
+    var _sm = matrix_build(_clawX, _clawY, 0, 0, 0, -global.boardRotation + _clawRot + _tilt, _scale, _scale, 1);
+    matrix_stack_push(_sm);
+    matrix_set(matrix_world, matrix_stack_top());
+    
+    var _hasClaw = false;
+    try { _hasClaw = sprite_exists(spr_claw); } catch(e) {}
+    
+    // Draw the cable extending OUTWARDS (to the LEFT, -X relative to the sprite)
+    draw_set_color(make_color_rgb(100, 110, 120));
+    draw_line_width(-10, 0, -400, 0, 3);
+    draw_set_color(make_color_rgb(160, 170, 180));
+    draw_line_width(-10, 0, -400, 0, 1);
+    
+    if (_hasClaw) {
+        // Frame 0 = Closed (Holding), Frame 1 = Open (Dropped)
+        var _subimg = (global.shipRecoil > 0) ? 1 : 0;
+        draw_sprite(spr_claw, _subimg, 0, 0);
+    } else {
+        // Fallback Vector Art for the Claw (Drawn facing RIGHT)
+        draw_set_color(make_color_rgb(200, 210, 220));
+        draw_rectangle(-12, -8, -6, 8, false); // Base mount
+        draw_circle(-6, 0, 8, false);
+        
+        var _isOpen = (global.shipRecoil > 0);
+        var _armSpread = _isOpen ? 18 : 10;
+        
+        // Left Arm (Top)
+        draw_set_color(make_color_rgb(180, 190, 200));
+        draw_line_width(-6, -6, 8, -_armSpread, 4);
+        draw_line_width(8, -_armSpread, 16, -_armSpread + 4, 4);
+        
+        // Right Arm (Bottom)
+        draw_line_width(-6, 6, 8, _armSpread, 4);
+        draw_line_width(8, _armSpread, 16, _armSpread - 4, 4);
+    }
+    
+    matrix_stack_pop();
+    matrix_set(matrix_world, matrix_stack_top());
 }
 
 // --- Blocks Rendering ---
@@ -248,7 +389,7 @@ with (obj_block) {
     }
 
     // Active Piece HUD (Upright Billboard)
-    if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && id == global.activePiece) {
+    if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && id == global.activePiece && !dialogue_is_active()) {
         var _barW = 14 * _scale; var _barH = 2 * _scale;
         var _barM = matrix_build(_cx5, _cy5, 0, 0, 0, -global.boardRotation, 1, 1, 1);
         matrix_stack_push(_barM);
@@ -289,6 +430,21 @@ for (var i = 0; i < array_length(global.particles); i++) {
 matrix_stack_pop();
 matrix_set(matrix_world, matrix_build(0,0,0,0,0,0,1,1,1));
 
+gpu_set_texfilter(false);
+for (var i = 0; i < array_length(global.flyingShards); i++) {
+    var _fsd = global.flyingShards[i];
+    var _pctFly = clamp(_fsd.life / max(1, _fsd.maxLife), 0, 1);
+    var _spin = current_time * 0.4 + i * 47;
+    var _scl = 2.2 - _pctFly * 0.7;
+    gpu_set_blendmode(bm_add);
+    draw_set_alpha(0.35);
+    draw_set_color(make_color_rgb(120, 230, 255));
+    draw_circle(_fsd.x, _fsd.y, 10 * _scl, false);
+    gpu_set_blendmode(bm_normal);
+    draw_set_alpha(1);
+    draw_sprite_ext(spr_gemshard, 0, _fsd.x, _fsd.y, _scl, _scl, _spin, c_white, 1);
+}
+
 for (var i = 0; i < array_length(global.floatingTexts); i++) {
     var _ft = global.floatingTexts[i]; draw_set_alpha(_ft.life / 90); draw_set_color(_ft.color);
     draw_set_font(main_font); draw_set_halign(fa_center); draw_text_transformed(_ft.x, _ft.y, _ft.text, _ft.scale, _ft.scale, 0);
@@ -326,25 +482,23 @@ if (global.gameState == "GAMEOVER") {
     draw_text_transformed(global.GAME_W/2, global.GAME_H*0.72, "R  Retry     Esc  Menu", 1.0, 1.0, 0);
 }
 
-if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.gameState != "GAMEOVER") {
-    var _hasCoreNow = false;
-    for (var _cy2 = 0; _cy2 < global.TOTAL_ROWS; _cy2++) {
-        for (var _cx2 = 0; _cx2 < global.TOTAL_COLS; _cx2++) {
-            var _c2 = global.grid[_cy2][_cx2];
-            if (_c2 != undefined && _c2.type == "core") { _hasCoreNow = true; break; }
-        }
-        if (_hasCoreNow) break;
-    }
-    draw_set_font(main_font);
-    draw_set_halign(fa_center);
-    draw_set_valign(fa_middle);
-    draw_set_color(_hasCoreNow ? make_color_rgb(180, 255, 210) : global.COLOR_DANGER);
-    draw_text_transformed(global.GAME_W * 0.5, global.GAME_H - 48, _hasCoreNow ? "CORE: ACTIVE" : "CORE: REBUILDING", 0.9, 0.9, 0);
-    draw_set_halign(fa_left);
-    draw_set_valign(fa_top);
+if (global.gameState == "LEVEL_COMPLETE") {
+    draw_set_alpha(0.7); draw_set_color(make_color_rgb(5, 30, 10)); draw_rectangle(0, 0, global.GAME_W, global.GAME_H, false);
+    draw_set_alpha(1); draw_set_font(main_font); draw_set_halign(fa_center);
+    draw_set_color(c_lime);
+    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.40, "MISSION COMPLETE", 2.2, 2.2, 0);
+    draw_set_color(c_white);
+    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.55, "Score: " + string(global.score), 1.2, 1.2, 0);
+    draw_set_color(c_lime);
+    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.75, "SPACE  Continue", 1.0, 1.0, 0);
+    
+    // Subtle green "thing" (glow)
+    gpu_set_blendmode(bm_add);
+    draw_set_alpha(0.15);
+    draw_circle_color(global.GAME_W/2, global.GAME_H/2, 400, c_lime, c_black, false);
+    gpu_set_blendmode(bm_normal);
+    draw_set_alpha(1.0);
 }
-
-dialogue_draw();
 
 surface_reset_target();
 draw_surface_ext(global.game_surface, 0, 0, 1, 1, 0, c_white, 1);
