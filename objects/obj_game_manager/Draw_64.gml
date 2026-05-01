@@ -336,18 +336,6 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     
     // Overlays
     if (global.gameState == "PAUSED") {
-        draw_set_color(c_black); draw_set_alpha(0.82);
-        draw_rectangle(0, 0, _guiW, _guiH, false);
-        draw_set_alpha(1.0); draw_set_halign(fa_center);
-
-        draw_set_color(c_white);
-        draw_text_transformed(_guiW / 2, 160, "PAUSED", global.TXT_H1 * 1.4, global.TXT_H1 * 1.4, 0);
-
-        // Rules card — uses spr_ui_panel nine-slice
-        var _cx3 = _guiW / 2;
-        var _cw = 760; var _ch = 380;
-        var _cy3 = 280;
-    if (global.gameState == "PAUSED") {
         draw_set_color(c_black); draw_set_alpha(0.85);
         draw_rectangle(0, 0, _guiW, _guiH, false);
         draw_set_alpha(1.0); draw_set_halign(fa_center);
