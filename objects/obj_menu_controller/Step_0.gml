@@ -24,6 +24,10 @@ var _shopPress = keyboard_check_pressed(ord("S")) || keyboard_check_pressed(vk_t
 var _bonusPress = keyboard_check_pressed(ord("D"))
                || (_gp && gamepad_button_check_pressed(0, gp_face4));
 
+if (keyboard_check_pressed(vk_f11)) {
+    window_set_fullscreen(!window_get_fullscreen());
+}
+
 // ── TITLE SCREEN ─────────────────────────────────────────────────────────
 if (in_title) {
     if (title_timer > 60 && (_confirm || keyboard_check_pressed(vk_anykey) || mouse_check_button_pressed(mb_left))) {

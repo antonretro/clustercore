@@ -151,7 +151,15 @@ if (global.gameState == "GAMEOVER" || global.gameState == "LEVEL_COMPLETE" || gl
     }
     exit;
 }
-if (global.gameState == "PAUSED") exit;
+if (global.gameState == "PAUSED") {
+    if (keyboard_check_pressed(ord("R"))) room_goto(room_game);
+    if (keyboard_check_pressed(ord("M"))) room_goto(room_menu);
+    if (keyboard_check_pressed(vk_f11)) window_set_fullscreen(!window_get_fullscreen());
+    if (keyboard_check_pressed(vk_escape) || keyboard_check_pressed(ord("P")) || (_gp && gamepad_button_check_pressed(0, gp_start))) {
+        global.gameState = "PLAYING";
+    }
+    exit;
+}
 if (dialogue_is_active()) { dialogue_update(); exit; }
 
 // --- Juice & Feedback Decay ---

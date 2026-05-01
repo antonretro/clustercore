@@ -303,31 +303,35 @@ with (obj_block) {
 
 // --- Claw Machine Rendering ---
 if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.activePiece != undefined && !dialogue_is_active()) {
+    // Step outside the board's rotation matrix so the claw can be anchored to the screen!
+    matrix_stack_pop();
+    matrix_set(matrix_world, matrix_stack_top());
+    
     var _ap = global.activePiece;
     var _cxS = _bx + (_ap.x * _scale) + 8 * _scale;
     var _cyS = _by + (_ap.y * _scale) + 8 * _scale;
     
-    // Determine outwards vector based on the orbital side
-    var _outX = 0; var _outY = 0; var _clawRot = 0;
-    // Assuming the base sprite (spr_claw) is drawn facing RIGHT (0 degrees)
-    // To face INWARDS towards the grid:
-    if (global.orbitalSide == 0) { _outY = -1; _clawRot = 90; }  // Top side -> face DOWN
-    if (global.orbitalSide == 1) { _outX = 1;  _clawRot = 180; } // Right side -> face LEFT
-    if (global.orbitalSide == 2) { _outY = 1;  _clawRot = 270; } // Bottom side -> face UP
-    if (global.orbitalSide == 3) { _outX = -1; _clawRot = 0; }   // Left side -> face RIGHT
+    // Transform grid coordinates into absolute screen coordinates
+    var _worldCoords = matrix_transform_vertex(_matRot, _cxS, _cyS, 0);
+    var _screenX = _worldCoords[0];
+    var _screenY = _worldCoords[1];
     
     // The claw is pushed backwards slightly when it drops the piece
-    var _dropJuice = global.shipRecoil * _scale; // using the same recoil variable
-    var _dist = 12 * _scale + _dropJuice; // Sits much closer so it actually "holds" the block!
-    var _clawX = _cxS + _outX * _dist;
-    var _clawY = _cyS + _outY * _dist;
+    var _dropJuice = global.shipRecoil * _scale;
+    var _dist = 12 * _scale + _dropJuice;
+    
+    // Since the board always rotates to put the active piece at the top,
+    // the claw is ALWAYS drawn pushed UP relative to the screen.
+    var _clawX = _screenX;
+    var _clawY = _screenY - _dist;
     
     // Tilt effect when moving
     var _tilt = 0;
     if (keyboard_check(vk_left) || gamepad_axis_value(0, gp_axislh) < -0.5) _tilt = 12;
     if (keyboard_check(vk_right) || gamepad_axis_value(0, gp_axislh) > 0.5) _tilt = -12;
     
-    var _sm = matrix_build(_clawX, _clawY, 0, 0, 0, _clawRot + _tilt, _scale, _scale, 1);
+    // The claw ALWAYS faces DOWN on the screen (rotation 90)
+    var _sm = matrix_build(_clawX, _clawY, 0, 0, 0, 90 + _tilt, _scale, _scale, 1);
     matrix_stack_push(_sm);
     matrix_set(matrix_world, matrix_stack_top());
     
@@ -335,6 +339,7 @@ if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.active
     try { _hasClaw = sprite_exists(spr_claw); } catch(e) {}
     
     // Draw the cable extending OUTWARDS (to the LEFT, -X relative to the sprite)
+    // Because the sprite faces DOWN (90 deg), LEFT (-X) translates to UP (-Y) on the screen!
     draw_set_color(make_color_rgb(100, 110, 120));
     draw_line_width(-10, 0, -400, 0, 3);
     draw_set_color(make_color_rgb(160, 170, 180));
@@ -363,7 +368,10 @@ if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.active
         draw_line_width(8, _armSpread, 16, _armSpread - 4, 4);
     }
     
+    // Pop the Claw matrix
     matrix_stack_pop();
+    // Re-push the Board matrix so the Blocks render correctly!
+    matrix_stack_push(_matRot);
     matrix_set(matrix_world, matrix_stack_top());
 }
 

@@ -347,35 +347,24 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
         var _cx3 = _guiW / 2;
         var _cw = 760; var _ch = 380;
         var _cy3 = 280;
-        if (sprite_exists(spr_ui_panel)) {
-            draw_set_alpha(0.35);
-            draw_sprite_stretched_ext(spr_ui_panel, 0, _cx3 - _cw/2 + 6, _cy3 + 6, _cw, _ch, c_black, 0.35);
-            draw_set_alpha(1.0);
-            draw_sprite_stretched_ext(spr_ui_panel, 0, _cx3 - _cw/2, _cy3, _cw, _ch, c_white, 1.0);
-        } else {
-            draw_set_alpha(0.15); draw_set_color(c_white);
-            draw_roundrect_ext(_cx3 - _cw/2, _cy3, _cx3 + _cw/2, _cy3 + _ch, 16, 16, false);
-            draw_set_alpha(0.5); draw_set_color(global.COLOR_ACCENT);
-            draw_roundrect_ext(_cx3 - _cw/2, _cy3, _cx3 + _cw/2, _cy3 + _ch, 16, 16, true);
-        }
-
-        draw_set_alpha(1.0);
-        draw_set_color(c_yellow);
-        draw_text_transformed(_cx3, _cy3 + 28, "HOW TO PLAY", global.TXT_H2, global.TXT_H2, 0);
+    if (global.gameState == "PAUSED") {
+        draw_set_color(c_black); draw_set_alpha(0.85);
+        draw_rectangle(0, 0, _guiW, _guiH, false);
+        draw_set_alpha(1.0); draw_set_halign(fa_center);
+        
         draw_set_color(c_white);
-        draw_text_transformed(_cx3, _cy3 + 80,  "Connect 4+ same-color blocks to clear them", global.TXT_H4, global.TXT_H4, 0);
-        draw_text_transformed(_cx3, _cy3 + 116, "Direction blocks clear only in a matching 4+ line along their arrow axis", global.TXT_SMALL, global.TXT_SMALL, 0);
-        draw_text_transformed(_cx3, _cy3 + 150, "Diagonal lines of 4+ also count!", global.TXT_SMALL, global.TXT_SMALL, 0);
-        draw_set_color(make_color_rgb(180, 255, 180));
-        draw_text_transformed(_cx3, _cy3 + 188, "SPORE  (3-dot block): when cleared, repaints one neighbor to its color", global.TXT_SMALL, global.TXT_SMALL, 0);
-        draw_set_color(c_white);
-        draw_text_transformed(_cx3, _cy3 + 222, "Aim at the glowing CORE to score big", global.TXT_SMALL, global.TXT_SMALL, 0);
-        draw_set_color(make_color_rgb(160, 180, 255));
-        draw_text_transformed(_cx3, _cy3 + 268, "SPACE  Fire    Arrows  Move    C / Shift  Hold", global.TXT_SMALL, global.TXT_SMALL, 0);
-        draw_text_transformed(_cx3, _cy3 + 302, "Q / E  Side Jump    Z / Up  Rotate    G  Ghost", global.TXT_SMALL, global.TXT_SMALL, 0);
-
-        draw_set_color(make_color_rgb(180, 180, 180));
-        draw_text_transformed(_cx3, 700, "ESC  Resume", global.TXT_H3, global.TXT_H3, 0);
+        draw_text_transformed(_guiW/2, _guiH/2 - 120, "PAUSED", global.TXT_H1, global.TXT_H1, 0);
+        
+        draw_set_color(make_color_rgb(180, 200, 255));
+        draw_text_transformed(_guiW/2, _guiH/2 - 20, "ESC / P - Resume", global.TXT_H2, global.TXT_H2, 0);
+        draw_text_transformed(_guiW/2, _guiH/2 + 20, "R - Restart Level", global.TXT_H2, global.TXT_H2, 0);
+        draw_text_transformed(_guiW/2, _guiH/2 + 60, "F11 - Toggle Fullscreen", global.TXT_H2, global.TXT_H2, 0);
+        draw_text_transformed(_guiW/2, _guiH/2 + 100, "M - Return to Main Menu", global.TXT_H2, global.TXT_H2, 0);
+        
+        draw_set_color(make_color_rgb(150, 150, 150));
+        draw_text_transformed(_guiW/2, _guiH/2 + 200, "HOW TO PLAY", global.TXT_H3, global.TXT_H3, 0);
+        draw_text_transformed(_guiW/2, _guiH/2 + 230, "Space: Drop | Arrows: Move | C: Hold", global.TXT_SMALL, global.TXT_SMALL, 0);
+        draw_text_transformed(_guiW/2, _guiH/2 + 260, "Q/E: Orbital Side | Z/Up: Rotate", global.TXT_SMALL, global.TXT_SMALL, 0);
     }
 
     if (global.gameState == "GAMEOVER" || global.gameState == "LEVEL_COMPLETE") {
@@ -415,7 +404,8 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
         }
 
         draw_set_color(make_color_rgb(180, 180, 180));
-        draw_text_transformed(_guiW / 2, _guiH / 2 + 170, "SPACE  Continue     ESC  Menu", global.TXT_H3, global.TXT_H3, 0);
+        var _prompt = _isComplete ? "SPACE  Continue     ESC  Menu" : "R  Retry     ESC  Menu";
+        draw_text_transformed(_guiW / 2, _guiH / 2 + 170, _prompt, global.TXT_H3, global.TXT_H3, 0);
     }
 }
 
