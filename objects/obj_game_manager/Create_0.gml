@@ -365,9 +365,10 @@ start_game = function() {
     global.storyComplete = false;
     global.bonusComplete = false;
     
-    // Normalize board rotation to stop unspinning from the previous level
+    // Normalize board rotation and orbital side to stop unspinning from the previous level
     global.boardRotation = 0;
     global.targetRotation = 0;
+    global.orbitalSide = 0;
 
     if (global.gameMode == "STORY") {
         setup_story_planet();
