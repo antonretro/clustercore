@@ -81,6 +81,10 @@ function hard_drop_radial() {
 // story_advance_planet  — Story Mode: move to next planet or end game
 // ─────────────────────────────────────────────────────────────────────────────
 function story_advance_planet() {
+    // Snap the board back to perfect zero so the background isn't upside down during MISSION COMPLETE
+    global.boardRotation = 0;
+    global.targetRotation = 0;
+    
     var _prevPlanet = global.storyPlanet;
     var _prevLevel = global.storyLevel;
     global.locking = false;

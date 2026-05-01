@@ -73,7 +73,9 @@ if (global.gameState == "PLAYING" && global.gameMode == "STORY") {
 
 // --- Board rotation smooth lerp (Planet visual only) ---
 var _isRotating = (abs(global.targetRotation - global.boardRotation) > 0.5);
-global.boardRotation += (global.targetRotation - global.boardRotation) * 0.2;
+if (global.gameState != "FINISHING_LEVEL") {
+    global.boardRotation += (global.targetRotation - global.boardRotation) * 0.2;
+}
 
 // Classic: physically transpose grid once rotation animation completes
 if (global.gameMode == "CLASSIC") {

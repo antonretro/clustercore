@@ -327,7 +327,7 @@ if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.active
     if (keyboard_check(vk_left) || gamepad_axis_value(0, gp_axislh) < -0.5) _tilt = 12;
     if (keyboard_check(vk_right) || gamepad_axis_value(0, gp_axislh) > 0.5) _tilt = -12;
     
-    var _sm = matrix_build(_clawX, _clawY, 0, 0, 0, -global.boardRotation + _clawRot + _tilt, _scale, _scale, 1);
+    var _sm = matrix_build(_clawX, _clawY, 0, 0, 0, _clawRot + _tilt, _scale, _scale, 1);
     matrix_stack_push(_sm);
     matrix_set(matrix_world, matrix_stack_top());
     
