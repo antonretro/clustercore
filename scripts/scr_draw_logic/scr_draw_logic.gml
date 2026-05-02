@@ -82,8 +82,12 @@ function cluster_core_draw_block(_inst, _bx, _by, _scale, _alphaOverride = -1, _
             var _sbAsset = asset_get_index("spr_super_bomb");
             if (sprite_exists(_sbAsset)) _baseSpr = _sbAsset;
         }
+        
+        // --- 1px Gap/Padding Logic ---
+        // We slightly shrink the sprite so the grid lines show through
+        var _gapScl = 0.94; // approx 1px gap at standard scale
         draw_sprite_ext(_baseSpr, _inst.image_index, _cx, _cy,
-            _scale * _inst.scale_x, _scale * _inst.scale_y, _blockRot, c_white, _alpha);
+            _scale * _inst.scale_x * _gapScl, _scale * _inst.scale_y * _gapScl, _blockRot, c_white, _alpha);
     }
     
     // 2. Specialty Overlays (Drawn on top of base color)
@@ -92,7 +96,10 @@ function cluster_core_draw_block(_inst, _bx, _by, _scale, _alphaOverride = -1, _
 
     // Metal / Directional Core arrows
     if (_inst.type == "metal" || (_inst.type == "core" && variable_instance_exists(_inst, "core_arrow") && _inst.core_arrow)) {
-        var _arSpr = (_inst.dir == 0) ? spr_lr_arrows : spr_ud_arrows;
+        var _arSpr = spr_lr_arrows;
+        if (_inst.dir == 1) _arSpr = spr_ud_arrows;
+        if (_inst.dir == 2) _arSpr = asset_get_index("spr_uldr_arrows");
+        
         if (sprite_exists(_arSpr)) {
             draw_sprite_ext(_arSpr, 0, _cx, _cy, _sclX, _sclY, _arrowRot, c_white, _alpha);
         }
@@ -105,7 +112,9 @@ function cluster_core_draw_block(_inst, _bx, _by, _scale, _alphaOverride = -1, _
 
     switch (_inst.type) {
         case "locked": 
-            _overlaySpr = asset_get_index("spr_locked_cage");
+            var _lhp = variable_instance_exists(_inst, "locked_hp") ? _inst.locked_hp : 2;
+            if (_lhp >= 2) _overlaySpr = asset_get_index("spr_locked_cage");
+            else _overlaySpr = asset_get_index("spr_locked_overlay");
             _mark = ""; 
             break;
         case "multiplier": 

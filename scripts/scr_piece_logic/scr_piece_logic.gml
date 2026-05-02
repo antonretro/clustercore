@@ -1,5 +1,5 @@
 // =============================================================================
-// scr_piece_logic — spawning, holding, orbital positioning, story layout
+// scr_piece_logic Ã¢â‚¬â€ spawning, holding, orbital positioning, story layout
 // =============================================================================
 //
 // PLANET/STORY coordinate contract:
@@ -330,80 +330,63 @@ function refill_piece_bag() {
 }
 
 function generate_piece() {
+    var _report = board_analyze_intent();
+    
+    // Update Pity Budget based on board pressure
+    global.pityBudget += (_report.core_pressure * 0.2) + (_report.junk_pressure * 0.15);
+    if (_report.total_blocks > 40) global.pityBudget += 0.1;
+    
+    // Create candidates
+    var _bestScore = -999;
+    var _bestPiece = undefined;
+    var _numCandidates = (global.pityBudget > 5) ? 4 : 2; // More choices if we are struggling
+
+    for (var i = 0; i < _numCandidates; i++) {
+        var _candidate = _generate_raw_candidate(_report);
+        var _score = _score_piece_usefulness(_candidate, _report);
+        
+        if (_score > _bestScore || _bestPiece == undefined) {
+            _bestScore = _score;
+            _bestPiece = _candidate;
+        }
+    }
+
+    // Pity spend
+    if (_bestScore > 10) global.pityBudget = max(0, global.pityBudget - 1);
+    
+    // Memory
+    if (variable_struct_exists(_bestPiece, "id")) {
+        array_push(global.lastGeneratedColors, _bestPiece.id);
+        if (array_length(global.lastGeneratedColors) > 4) array_shift(global.lastGeneratedColors);
+    }
+
+    return _bestPiece;
+}
+
+/// @function _generate_raw_candidate
+/// @description Internal helper to create a random piece before scoring.
+function _generate_raw_candidate(_report) {
     if (array_length(global.pieceBag) == 0) refill_piece_bag();
     var _colorId = array_shift(global.pieceBag);
+
+    // Roll for Specials
+    var _roll = piece_rng_random(1.0);
     
-    // --- Smart Biasing: Help player clear the core and leftovers ---
-    var _coreId = -1;
-    var _cx = -1, _cy = -1;
-    var _buried = 0;
-    var _counts = array_create(10, 0); // Count of each color id
-    
-    if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
-        for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
-            for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
-                var _c = global.grid[_y][_x];
-                if (_c == undefined) continue;
-                if (_c.id > 0 && _c.id < 10) _counts[_c.id]++;
-                if (_c.type == "core") { _coreId = _c.id; _cx = _x; _cy = _y; }
-            }
-        }
-        if (_coreId != -1) {
-            var _dirs = [[-1,0],[1,0],[0,-1],[0,1]];
-            for (var i = 0; i < 4; i++) {
-                var _nx = _cx + _dirs[i][0]; var _ny = _cy + _dirs[i][1];
-                if (_nx >= 0 && _nx < global.TOTAL_COLS && _ny >= 0 && _ny < global.TOTAL_ROWS) {
-                    if (global.grid[_ny][_nx] != undefined) _buried++;
-                }
-            }
-        }
+    // Pity influence on specials
+    var _bonus = global.pityBudget * 0.01;
+
+    // Drills / Bombs
+    if (global.level >= 3 && _roll < (0.01 + _bonus + (_report.needs_drill ? 0.05 : 0))) {
+        return { type: "drill", color: c_silver, dir: 0, id: 777 };
     }
-
-    // Normal Piece Count for scaling
-    var _totalBlocks = 0;
-    for (var i = 1; i < 10; i++) _totalBlocks += _counts[i];
-
-    // Dead blocks
-    if (global.level >= 5 && piece_rng_random(1) < 0.10) {
-        return { type: "dead", color: c_dkgray, dir: 0, id: 999 };
-    }
-
-    // Bombs: increased chance if core is buried
-    var _bombChance = 0.01 + (global.level * 0.0015);
-    if (_buried >= 3) _bombChance += 0.04; 
-    if (piece_rng_random(1) < _bombChance) {
+    if (_roll < (0.015 + _bonus + (_report.needs_bomb ? 0.06 : 0))) {
         return { type: "bomb", color: c_black, dir: 0, id: 888 };
     }
 
-    // Super Bomb: VERY rare, high level or classic
-    if ((global.level >= 10 || global.gameMode == "CLASSIC") && piece_rng_random(1) < 0.005) {
-        return { type: "super_bomb", color: make_color_rgb(180, 0, 255), dir: 0, id: 666 };
-    }
-
-    // Drills: restricted to level 3+ AND only AFTER the first 5 turns
-    var _drillChance = 0.008 + (global.level * 0.001);
-    if (_buried >= 2) _drillChance += 0.03;
-    if (global.level >= 3 && global.turnCount > 5 && piece_rng_random(1) < _drillChance) {
-        return { type: "drill", color: c_silver, dir: 0, id: 777 };
-    }
-
-    // Metal (Arrows)
-    var _metalRate = 0.15;
-    if (_totalBlocks < 10) _metalRate *= 0.2; // 80% more rare if board is clearing
-    
-    if (global.level >= 2 && piece_rng_random(1) < _metalRate) {
-        var _lonelyColors = [];
-        for (var i = 1; i < 10; i++) if (_counts[i] > 0 && _counts[i] < 4) array_push(_lonelyColors, i);
-        
-        var _metalId = -1;
-        if (array_length(_lonelyColors) > 0 && piece_rng_random(1) < 0.6) {
-            // Bias arrow color to help clear leftovers
-            _metalId = _lonelyColors[irandom(array_length(_lonelyColors) - 1)];
-        } else {
-            var _midx = piece_rng_irandom(array_length(global.activeColors) - 1);
-            _metalId = global.activeColors[_midx];
-        }
-
+    // Arrows
+    if (global.level >= 2 && _roll < 0.12) {
+        var _midx = piece_rng_irandom(array_length(global.activeColors) - 1);
+        var _metalId = global.activeColors[_midx];
         return {
             type: "metal",
             color: get_color_from_id(_metalId),
@@ -412,68 +395,50 @@ function generate_piece() {
         };
     }
 
-    // Asteroid
-    if (global.level >= 3 && piece_rng_random(1) < 0.05) {
-        var _aidx = piece_rng_irandom(array_length(global.activeColors) - 1);
-        var _astId = global.activeColors[_aidx];
-
-        return {
-            type: "asteroid",
-            color: get_color_from_id(_astId),
-            dir: 0,
-            id: _astId,
-            shield_hp: 2
-        };
-    }
-
-    // Normal
-    var _totalBlocks = 0;
-    for (var i = 1; i < 10; i++) _totalBlocks += _counts[i];
-    
-    // Dynamic Help: The fewer blocks left, the more we help (up to 90% helpage)
-    var _helpFactor = clamp(1.0 - (_totalBlocks / 45), 0, 1);
-    var _lonelyChance = 0.35 + (_helpFactor * 0.55);
-    var _coreChance   = 0.25 + (_helpFactor * 0.40);
-
-    var _id = -1;
-    var _lonelyColors = [];
-    for (var i = 1; i < 10; i++) {
-        if (_counts[i] > 0 && _counts[i] < 4) array_push(_lonelyColors, i);
-    }
-
-    if (array_length(_lonelyColors) > 0 && random(1) < _lonelyChance) {
-        // High chance to clear leftovers as board empties (LIVE random)
-        _id = _lonelyColors[irandom(array_length(_lonelyColors) - 1)];
-    } else if (_coreId != -1 && random(1) < _coreChance) {
-        // Scaled core help (LIVE random)
-        _id = _coreId;
-    } else {
-        // Fallback to BAG for normal pieces
-        _id = _colorId;
-    }
-
-    var _shardRate = 0.10;
-    if (global.gameMode == "STORY") _shardRate = 0.14 + (global.storyPlanet * 0.015);
-    if (global.gameMode == "BONUS") {
-        var _bidx = clamp(global.bonusPlanet, 0, array_length(global.bonusPlanets) - 1);
-        _shardRate = global.bonusPlanets[_bidx].shard_rate;
-    }
-
+    // Normal Piece
     var _type = story_specialty_type_for_piece();
-    var _piece = make_piece_data(_type, _id, 0);
+    var _piece = make_piece_data(_type, _colorId, 0);
+    
+    var _shardRate = 0.10 + (global.level * 0.01);
     _piece.shard_value = (piece_rng_random(1) < _shardRate) ? 1 : 0;
-
-    if (_type == "wild") {
-        _piece.color = c_white;
-    } else if (_type == "void") {
-        _piece.color = make_color_rgb(25, 15, 45);
-        _piece.id = 0;
-        _piece.shard_value = 0;
-    } else if (_type == "core_key") {
-        _piece.shard_value = max(_piece.shard_value, 2);
-    }
-
+    
     return _piece;
+}
+
+/// @function _score_piece_usefulness
+/// @description Assigns a score to a piece based on the current board intent.
+function _score_piece_usefulness(_piece, _report) {
+    var _score = 10; // Base score
+    
+    // Color categorization bonuses
+    if (variable_struct_exists(_piece, "id")) {
+        var _id = _piece.id;
+        
+        // Is it hot? (Near-match)
+        for (var i = 0; i < array_length(_report.hot_colors); i++) {
+            if (_report.hot_colors[i] == _id) { _score += 15; break; }
+        }
+        // Is it warm?
+        for (var i = 0; i < array_length(_report.warm_colors); i++) {
+            if (_report.warm_colors[i] == _id) { _score += 7; break; }
+        }
+        // Is it dead?
+        for (var i = 0; i < array_length(_report.dead_colors); i++) {
+            if (_report.dead_colors[i] == _id) { _score -= 20; break; }
+        }
+        
+        // Memory penalty (Anti-streak)
+        for (var i = 0; i < array_length(global.lastGeneratedColors); i++) {
+            if (global.lastGeneratedColors[i] == _id) { _score -= 5; }
+        }
+    }
+    
+    // Type bonuses
+    if (_piece.type == "bomb" && _report.needs_bomb) _score += 20;
+    if (_piece.type == "drill" && _report.needs_drill) _score += 20;
+    if (_piece.type == "metal") _score += 2; // Slight bias for arrows as they are rarer
+
+    return _score;
 }
 
 
@@ -610,7 +575,6 @@ function setup_active_piece_after_spawn(_inst, _gx, _gy) {
 
 
 function spawn_piece() {
-    global.turnCount++;
     if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
         recalculate_planet_surface();
     }
@@ -961,4 +925,144 @@ function check_if_cell_creates_match(_gx, _gy, _cid) {
     
     ds_map_destroy(_visited);
     return (_count >= 4);
+}
+
+// =============================================================================
+// Board Intent Analyzer helper functions
+// =============================================================================
+
+function board_cell_can_color_match(_c) {
+    if (_c == undefined) return false;
+    if (_c.id <= 0 || _c.id >= 10) return false;
+    if (_c.type == "metal" || _c.type == "core_arrow") return false;
+    if (_c.type == "bomb" || _c.type == "drill" || _c.type == "dead") return false;
+    if (_c.type == "void" || _c.type == "asteroid" || _c.type == "locked" || _c.type == "spore") return false;
+    return true;
+}
+
+function board_count_open_extensions(_x, _y, _dx, _dy) {
+    var _open = 0;
+    var _bx = _x - _dx;
+    var _by = _y - _dy;
+    if (grid_in_bounds(_bx, _by) && global.grid[_by][_bx] == undefined) _open++;
+    var _ax = _x + _dx;
+    var _ay = _y + _dy;
+    if (grid_in_bounds(_ax, _ay) && global.grid[_ay][_ax] == undefined) _open++;
+    return _open;
+}
+
+function board_analyze_intent() {
+    var _report = {
+        color_potential: array_create(10, 0),
+        hot_colors: [],
+        warm_colors: [],
+        cold_colors: [],
+        dead_colors: [],
+        core_pressure: 0,
+        core_access_distance: 0,
+        junk_pressure: 0,
+        needs_bomb: false,
+        needs_drill: false,
+        arrow_opportunities: [],
+        total_blocks: 0,
+        nearest_match_distance: 99
+    };
+    var _counts = array_create(10, 0);
+    var _coreId = -1;
+    var _cx = -1, _cy = -1;
+    var _junkBlocks = 0;
+    var _buriedCore = 0;
+    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
+            var _c = global.grid[_y][_x];
+            if (_c == undefined) continue;
+            _report.total_blocks++;
+            if (_c.id > 0 && _c.id < 10) _counts[_c.id]++;
+            if (_c.type == "core") { _coreId = _c.id; _cx = _x; _cy = _y; }
+            if (_c.type == "asteroid" || _c.type == "locked" || _c.type == "spore") _junkBlocks++;
+        }
+    }
+    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
+        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
+            var _c = global.grid[_y][_x];
+            if (_c == undefined) continue;
+            if (board_cell_can_color_match(_c)) {
+                var _dirs = [[1,0], [0,1], [1,1], [1,-1]];
+                for (var i = 0; i < 4; i++) {
+                    var _dx = _dirs[i][0];
+                    var _dy = _dirs[i][1];
+                    var _nx = _x + _dx;
+                    var _ny = _y + _dy;
+                    if (!grid_in_bounds(_nx, _ny)) continue;
+                    var _nc = global.grid[_ny][_nx];
+                    if (_nc != undefined && _nc.id == _c.id) {
+                        var _open = board_count_open_extensions(_x, _y, -_dx, -_dy) + board_count_open_extensions(_nx, _ny, _dx, _dy);
+                        if (_open > 0) {
+                            _report.color_potential[_c.id] += 8;
+                            _report.nearest_match_distance = min(_report.nearest_match_distance, 2);
+                            var _nnx = _nx + _dx;
+                            var _nny = _ny + _dy;
+                            if (grid_in_bounds(_nnx, _nny)) {
+                                var _nnc = global.grid[_nny][_nnx];
+                                if (_nnc != undefined && _nnc.id == _c.id) {
+                                    _report.color_potential[_c.id] += 15;
+                                    _report.nearest_match_distance = min(_report.nearest_match_distance, 1);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (_c.type == "metal") {
+                var _axis = (_c.dir == 0) ? "h" : "v";
+                var _aDir = (_c.dir == 0) ? {x:1, y:0} : {x:0, y:1};
+                var _matchCount = 1;
+                var _openSlots = 0;
+                var _scanDirs = [1, -1];
+                for (var _sd = 0; _sd < 2; _sd++) {
+                    var _dMult = _scanDirs[_sd];
+                    for (var _step = 1; _step < 4; _step++) {
+                        var _ax = _x + (_aDir.x * _step * _dMult);
+                        var _ay = _y + (_aDir.y * _step * _dMult);
+                        if (!grid_in_bounds(_ax, _ay)) break;
+                        var _ac = global.grid[_ay][_ax];
+                        if (_ac == undefined) _openSlots++;
+                        else if (_ac.id == _c.id) _matchCount++;
+                        else break;
+                    }
+                }
+                if (_matchCount >= 2 && _openSlots > 0) {
+                    _report.color_potential[_c.id] += 12;
+                    array_push(_report.arrow_opportunities, { color: _c.id, axis: _axis, size: _matchCount, open: _openSlots });
+                }
+            }
+            if (_coreId != -1) {
+                var _dist = abs(_x - _cx) + abs(_y - _cy);
+                if (_dist <= 2) _report.color_potential[_c.id] += 4;
+            }
+        }
+    }
+    if (_coreId != -1) {
+        var _adj = [[-1,0],[1,0],[0,-1],[0,1]];
+        for (var i = 0; i < 4; i++) {
+            var _nx = _cx + _adj[i][0];
+            var _ny = _cy + _adj[i][1];
+            if (grid_in_bounds(_nx, _ny) && global.grid[_ny][_nx] != undefined) _buriedCore++;
+        }
+        _report.core_access_distance = _buriedCore;
+        _report.core_pressure = _buriedCore / 4.0;
+    }
+    _report.junk_pressure = clamp(_junkBlocks / 15.0, 0, 1.0);
+    _report.needs_bomb = (_report.junk_pressure > 0.4 || _report.core_access_distance >= 3);
+    _report.needs_drill = (_report.core_pressure > 0.5 && _report.total_blocks > 25);
+    if (_coreId != -1 && _report.core_pressure > 0.7) _report.color_potential[_coreId] += 12;
+    for (var i = 0; i < array_length(global.activeColors); i++) {
+        var _id = global.activeColors[i];
+        var _pot = _report.color_potential[_id];
+        if (_counts[_id] == 0) array_push(_report.dead_colors, _id);
+        else if (_pot >= 22) array_push(_report.hot_colors, _id);
+        else if (_pot >= 8) array_push(_report.warm_colors, _id);
+        else array_push(_report.cold_colors, _id);
+    }
+    return _report;
 }

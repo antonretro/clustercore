@@ -37,10 +37,25 @@ for (var i = 0; i < array_length(global.bg_stars); i++) {
     if (_isFever) draw_line_width(_s.x, _s.y, _s.x, _s.y - 40, _s.size);
     else draw_rectangle(_s.x, _s.y, _s.x + _s.size, _s.y + _s.size, false);
 }
+
+// Background Planets (Parallax)
+for (var i = 0; i < array_length(global.bg_planets); i++) {
+    var _bp = global.bg_planets[i];
+    _bp.x += _bp.speed;
+    _bp.rot += _bp.rot_speed;
+    if (_bp.x > global.GAME_W + 500) _bp.x = -500;
+    
+    // Subtle parallax shift based on board rotation
+    var _pxO = lengthdir_x(global.boardRotation * 0.4 * _bp.depth_parallax, 45);
+    var _pyO = lengthdir_y(global.boardRotation * 0.4 * _bp.depth_parallax, 45);
+    
+    draw_sprite_ext(_bp.sprite, 0, _bp.x + _pxO, _bp.y + _pyO, _bp.scale, _bp.scale, _bp.rot, c_white, 0.45);
+}
 draw_set_alpha(1.0);
 
 // --- Board Matrix Setup ---
-var _matRot = matrix_build(global.GAME_W/2, global.GAME_H/2, 0, 0, 0, global.boardRotation, 1, 1, 1);
+var _entryY = (global.entry_timer * global.entry_timer) * 0.25;
+var _matRot = matrix_build(global.GAME_W/2, global.GAME_H/2 + _entryY, 0, 0, 0, global.boardRotation, 1, 1, 1);
 matrix_stack_push(_matRot);
 matrix_set(matrix_world, matrix_stack_top());
 
@@ -79,6 +94,13 @@ if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
 // --- Board Backdrop & Grid ---
 draw_set_alpha(0.85); draw_set_color(make_color_rgb(15, 15, 25));
 draw_roundrect_ext(_bx - 12, _by - 12, _bx + _bw + 12, _by + _bh + 12, 20, 20, false);
+
+// --- Victory Planet (In-Board Reveal) ---
+if (global.victoryPlanetAlpha > 0) {
+    var _vps = global.victoryPlanetScale * 0.4; // Scale it to fit the board
+    draw_sprite_ext(global.victoryPlanetSprite, 0, _bx + _bw/2, _by + _bh/2, _vps, _vps, 0, c_white, global.victoryPlanetAlpha);
+}
+
 draw_set_alpha(0.07); draw_set_color(c_white);
 for (var i = 0; i <= global.COLS; i++) draw_line(_bx + i * _cw, _by, _bx + i * _cw, _by + _bh);
 for (var i = 0; i <= global.ROWS; i++) draw_line(_bx, _by + i * _cw, _bx + _bw, _by + i * _cw);
@@ -195,11 +217,20 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
             }
             gpu_set_blendmode(bm_normal);
         }
-        // Laser & Ghost
+        // Laser Bloom & Glow
         gpu_set_blendmode(bm_add);
-        draw_set_alpha(0.30 + _pulse); draw_set_color(_ap.color);
-        draw_line_width(_apcx, _apcy, _gpcx, _gpcy, max(2, 2 * _scale));
-        draw_set_alpha(0.75); draw_set_color(c_white);
+        var _laserPulse = 0.5 + _pulse * 0.5;
+        
+        // Outer soft glow
+        draw_set_alpha(0.15 * _laserPulse); draw_set_color(_ap.color);
+        draw_line_width(_apcx, _apcy, _gpcx, _gpcy, max(8, 6 * _scale));
+        
+        // Main beam
+        draw_set_alpha(0.40 * _laserPulse); draw_set_color(_ap.color);
+        draw_line_width(_apcx, _apcy, _gpcx, _gpcy, max(3, 3 * _scale));
+        
+        // Core white hot line
+        draw_set_alpha(0.85); draw_set_color(c_white);
         draw_line_width(_apcx, _apcy, _gpcx, _gpcy, max(1, _scale));
         gpu_set_blendmode(bm_normal);
         
@@ -423,6 +454,12 @@ with (obj_block) {
     }
 }
 
+// ── Grid Overlay (Drawn ABOVE blocks for structure) ──────────────────────────
+draw_set_color(c_black); draw_set_alpha(0.18); // Subtle dark lines over blocks
+for (var i = 0; i <= global.COLS; i++) draw_line(_bx + i * _cw, _by, _bx + i * _cw, _by + _bh);
+for (var i = 0; i <= global.ROWS; i++) draw_line(_bx, _by + i * _cw, _bx + _bw, _by + i * _cw);
+draw_set_alpha(1.0);
+
 if (global.settings.hintPulseEnabled) {
     hint_draw_overlay(_bx, _by, _cw, _scale);
 }
@@ -495,22 +532,20 @@ if (global.gameState == "GAMEOVER") {
     draw_text_transformed(global.GAME_W/2, global.GAME_H*0.72, "R  Retry     Esc  Menu", 1.0, 1.0, 0);
 }
 
-if (global.gameState == "LEVEL_COMPLETE") {
-    draw_set_alpha(0.7); draw_set_color(make_color_rgb(5, 30, 10)); draw_rectangle(0, 0, global.GAME_W, global.GAME_H, false);
-    draw_set_alpha(1); draw_set_font(main_font); draw_set_halign(fa_center);
-    draw_set_color(c_lime);
-    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.40, "MISSION COMPLETE", 2.2, 2.2, 0);
-    draw_set_color(c_white);
-    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.55, "Score: " + string(global.score), 1.2, 1.2, 0);
-    draw_set_color(c_lime);
-    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.75, "SPACE  Continue", 1.0, 1.0, 0);
+// --- Meteor Storm Draw ---
+for (var i = 0; i < array_length(global.meteors); i++) {
+    var _m = global.meteors[i];
+    var _mSpr = spr_space_rock;
+    if (_m.type == "normal") {
+        var _colorAssets = [spr_redSprite, spr_orangeSprite, spr_yellowSprite, spr_greenSprite, spr_lightblueSprite, spr_pinkSprite];
+        _mSpr = _colorAssets[clamp(_m.color - 1, 0, array_length(_colorAssets) - 1)];
+    } else if (_m.type == "dirt") {
+        _mSpr = asset_get_index("spr_dirt_block");
+    }
     
-    // Subtle green "thing" (glow)
-    gpu_set_blendmode(bm_add);
-    draw_set_alpha(0.15);
-    draw_circle_color(global.GAME_W/2, global.GAME_H/2, 400, c_lime, c_black, false);
-    gpu_set_blendmode(bm_normal);
-    draw_set_alpha(1.0);
+    if (sprite_exists(_mSpr)) {
+        draw_sprite_ext(_mSpr, 0, _m.x, _m.y, global.PIXEL_SCALE * 0.9, global.PIXEL_SCALE * 0.9, _m.rot, c_white, 1.0);
+    }
 }
 
 surface_reset_target();

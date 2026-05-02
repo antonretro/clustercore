@@ -94,7 +94,15 @@ function add_cluster_matches(_grid, _cols, _rows, _clear_grid) {
 
             var _cell = _grid[_y][_x];
 
-            if (!cell_can_match(_cell) || _cell.type == "metal") {
+            // 1. First ensure the cell is not undefined
+            if (!cell_can_match(_cell)) {
+                _visited[_y][_x] = true;
+                continue;
+            }
+
+            // 2. Now it is safe to check for arrows
+            var _hasArrow = (_cell.type == "metal") || (variable_struct_exists(_cell, "core_arrow") && _cell.core_arrow);
+            if (_hasArrow) {
                 _visited[_y][_x] = true;
                 continue;
             }

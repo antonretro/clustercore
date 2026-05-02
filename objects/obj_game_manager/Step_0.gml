@@ -28,6 +28,12 @@ for (var i = array_length(global.particles) - 1; i >= 0; i--) {
     _p.x += _p.vx; _p.y += _p.vy; _p.life--;
     if (_p.life <= 0) array_delete(global.particles, i, 1);
 }
+
+// Cinematic Entry Blocking
+if (global.entry_timer > 0) {
+    global.entry_timer--;
+    exit;
+}
 for (var i = array_length(global.floatingTexts) - 1; i >= 0; i--) {
     var _t = global.floatingTexts[i];
     _t.y += _t.vy; _t.life--;
@@ -55,6 +61,99 @@ if (global.settings.hintPulseEnabled) {
 
 if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
     update_core_stability();
+    
+    // --- Meteor Storm Update (Endless Only) ---
+    if (global.gameMode == "PLANET" && global.gameState == "PLAYING") {
+        global.meteorSpawnTimer--;
+        if (global.meteorSpawnTimer <= 0) {
+            global.meteorSpawnTimer = global.meteorRate * (0.8 + random(0.4));
+            
+            // Spawn meteor at edge
+            var _ang = random(360);
+            var _dist = 1200;
+            var _mx = global.GAME_W/2 + lengthdir_x(_dist, _ang);
+            var _my = global.GAME_H/2 + lengthdir_y(_dist, _ang);
+            var _spd = 4 + random(4);
+            
+            var _mType = "asteroid";
+            var _r = random(100);
+            if (_r < 40) _mType = "normal";
+            if (_r > 80) _mType = "dirt";
+            
+            array_push(global.meteors, {
+                x: _mx, y: _my,
+                vx: lengthdir_x(_spd, _ang + 180),
+                vy: lengthdir_y(_spd, _ang + 180),
+                type: _mType,
+                color: irandom(5) + 1,
+                rot: random(360),
+                rot_spd: -2 + random(4),
+                active: true
+            });
+        }
+    }
+    
+    // Update meteors
+    for (var i = array_length(global.meteors) - 1; i >= 0; i--) {
+        var _m = global.meteors[i];
+        _m.x += _m.vx; _m.y += _m.vy; _m.rot += _m.rot_spd;
+        
+        // ROTATION-AWARE Grid Collision Check
+        // We must transform screen-space (x,y) into board-relative space by un-rotating it
+        var _distToCtr = point_distance(_m.x, _m.y, global.GAME_W/2, global.GAME_H/2);
+        var _angToCtr  = point_direction(global.GAME_W/2, global.GAME_H/2, _m.x, _m.y);
+        var _relAng    = _angToCtr - global.boardRotation;
+        
+        var _boardX = global.GAME_W/2 + lengthdir_x(_distToCtr, _relAng);
+        var _boardY = global.GAME_H/2 + lengthdir_y(_distToCtr, _relAng);
+        
+        var _bwHalf = (global.TOTAL_COLS * 16 * global.PIXEL_SCALE) / 2;
+        var _bhHalf = (global.TOTAL_ROWS * 16 * global.PIXEL_SCALE) / 2;
+        
+        var _gx = floor((_boardX - (global.GAME_W/2 - _bwHalf)) / (16*global.PIXEL_SCALE));
+        var _gy = floor((_boardY - (global.GAME_H/2 - _bhHalf)) / (16*global.PIXEL_SCALE));
+        
+        if (grid_in_bounds(_gx, _gy)) {
+            var _occ = (global.grid[_gy][_gx] != undefined);
+            if (_occ) {
+                // Impact! Settle in the PREVIOUS position relative to the board
+                var _prevDist = point_distance(_m.x - _m.vx, _m.y - _m.vy, global.GAME_W/2, global.GAME_H/2);
+                var _prevAng  = point_direction(global.GAME_W/2, global.GAME_H/2, _m.x - _m.vx, _m.y - _m.vy) - global.boardRotation;
+                var _pbX = global.GAME_W/2 + lengthdir_x(_prevDist, _prevAng);
+                var _pbY = global.GAME_H/2 + lengthdir_y(_prevDist, _prevAng);
+                
+                var _bgx = floor((_pbX - (global.GAME_W/2 - _bwHalf)) / (16*global.PIXEL_SCALE));
+                var _bgy = floor((_pbY - (global.GAME_H/2 - _bhHalf)) / (16*global.PIXEL_SCALE));
+                
+                if (grid_in_bounds(_bgx, _bgy) && global.grid[_bgy][_bgx] == undefined) {
+                    var _newType = (_m.type == "dirt") ? "normal" : _m.type;
+                    var _nInst = instance_create_layer(0, 0, "Instances", obj_block);
+                    global.grid[_bgy][_bgx] = {
+                        type: _newType,
+                        color: get_color_from_id(_m.color),
+                        id: _m.color,
+                        dir: irandom(1),
+                        inst: _nInst
+                    };
+                    with (_nInst) {
+                        grid_x = _bgx; grid_y = _bgy;
+                        x = (grid_x - global.HIDDEN_SIDES) * 16;
+                        y = (grid_y - global.HIDDEN_ROWS)  * 16;
+                        type = _newType;
+                        color_id = _m.color;
+                        if (_m.type == "dirt") sprite_index = asset_get_index("spr_dirt_block");
+                        update_sprite();
+                    }
+                    create_particles(_m.x, _m.y, c_white);
+                    sfx_piece_lock();
+                }
+                array_delete(global.meteors, i, 1);
+            }
+        }
+        
+        // Out of bounds cleanup
+        if (_m.x < -2000 || _m.x > 4000 || _m.y < -2000 || _m.y > 4000) array_delete(global.meteors, i, 1);
+    }
 }
 
 if (global.gameState == "PLAYING" && global.gameMode == "STORY") {
@@ -128,11 +227,23 @@ if (global.gameState == "GAMEOVER" || global.gameState == "LEVEL_COMPLETE" || gl
     if (global.gameState == "LEVEL_COMPLETE") {
         if (_proceed) start_game();
     } else if (global.gameState == "FINISHING_LEVEL") {
+        if (!global.victoryRevealActive) {
+            global.victoryRevealActive = true;
+            var _plts = [spr_mercury, spr_venus, spr_earth, spr_mars, spr_jupiter, spr_saturn, spr_neptune];
+            global.victoryPlanetSprite = _plts[irandom(array_length(_plts)-1)];
+            global.victoryPlanetAlpha = 0;
+            global.victoryPlanetScale = 0.2;
+            global.flashAlpha = 1.0; // TRIGGER FLASH AT START
+        }
+        
         global.finishTimer--;
         
-        // FADE IN PLANET TILES
-        if (global.finishTimer < 70) {
-            global.restoredTilesAlpha = min(1.0, global.restoredTilesAlpha + 0.025);
+        // FADE IN REVEAL PLANET, FADE OUT GRID
+        // We wait a few frames for the spin to pick up before the "POP"
+        if (global.finishTimer < 85) {
+            global.victoryPlanetAlpha = min(1.0, global.victoryPlanetAlpha + 0.04);
+            global.victoryPlanetScale = min(5.0, global.victoryPlanetScale + 0.08);
+            global.restoredTilesAlpha = max(0.0, global.restoredTilesAlpha - 0.05);
         }
         
         // ACCELERATING VICTORY SPIN + SHAKE
@@ -149,6 +260,7 @@ if (global.gameState == "GAMEOVER" || global.gameState == "LEVEL_COMPLETE" || gl
         
         if (global.finishTimer <= 0) {
             story_advance_planet();
+            global.victoryRevealActive = false;
         }
     } else {
         if (keyboard_check_pressed(ord("R")) || (_gp && gamepad_button_check_pressed(0, gp_face1))) room_goto(room_game);

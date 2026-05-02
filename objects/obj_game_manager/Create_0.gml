@@ -41,7 +41,7 @@ global.orbitalSide = 0;
 global.orbitalX = floor((global.COLS - 1) / 2);
 global.previewDepth = 1; // Targeting depth for the preview
 global.pieceTimer = 300;
-global.MAX_PIECE_TIME = 300;
+global.MAX_PIECE_TIME = 600;
 global.launchCharge = 0;
 global.MAX_CHARGE = 40; // ~0.6 seconds to full charge
 global.comboChain = 0;
@@ -148,6 +148,7 @@ global.locking = false;
 global.hitstop = 0;
 global.jackpotFlash = 0;
 global.shipRecoil = 0;
+global.entry_timer = 60; // Board entry effect (60 frames)
 global.dasTimer = 0;
 global.dasRepeatTimer = 0;
 global.softDropDasTimer = 0;
@@ -182,6 +183,8 @@ global.turnCount = 0;
 global.turnLimit = 0;
 global.storyBonus = 0;
 global.storyRank = "D";
+global.pityBudget = 0; // Cumulative pressure to provide a 'good' piece
+global.lastGeneratedColors = []; // Memory to avoid streaks
 
 // --- Visual FX Pools ---
 global.particles = [];
@@ -197,6 +200,41 @@ global.targetRotation = 0;
 for (var i = 0; i < 1; i++) {
     array_push(global.nextQueue, generate_piece());
 }
+
+// --- Background ---
+stars = [];
+for (var i = 0; i < 200; i++) {
+    stars[i] = { x: random(global.GAME_W), y: random(global.GAME_H), s: 0.5 + random(1.5), a: 0.1 + random(0.5) };
+}
+
+// Background Planets (Custom User Sprites)
+global.bg_planets = [];
+var _availableSprites = [spr_mercury, spr_venus, spr_earth, spr_mars, spr_jupiter, spr_saturn, spr_neptune, spr_saterlite1, spr_saterlite2];
+for (var i = 0; i < 4; i++) {
+    var _spr = _availableSprites[irandom(array_length(_availableSprites) - 1)];
+    array_push(global.bg_planets, {
+        sprite: _spr,
+        x: random(global.GAME_W),
+        y: random(global.GAME_H),
+        scale: 0.4 + random(0.6), // Much smaller, more like background
+        rot: random(360),
+        rot_speed: -0.05 + random(0.1),
+        speed: 0.02 + random(0.04),
+        depth_parallax: 0.05 + random(0.1) // Subtle movement
+    });
+}
+
+// Victory Reveal
+global.victoryPlanetSprite = spr_earth;
+global.victoryPlanetAlpha = 0;
+global.victoryPlanetScale = 0.5;
+global.victoryRevealActive = false;
+global.restoredTilesAlpha = 0; // Reset this too
+
+// Meteor Storm System
+global.meteors = [];
+global.meteorSpawnTimer = 300; // First spawn soon
+global.meteorRate = 600;      // Every ~10 seconds
 
 // Background Star Init
 for (var i = 0; i < 60; i++) {
@@ -254,15 +292,20 @@ setup_story_planet = function() {
     global.storyTarget += _lvIdx * 4;
     global.scoreToNext = 1200 + (global.storyPlanet * 450);
     
-    while (array_length(global.activeColors) > _planet.colors && array_length(global.activeColors) > 3) {
-        var _lastColorIndex = array_length(global.activeColors) - 1;
-        var _movedColor = global.activeColors[_lastColorIndex];
-        array_delete(global.activeColors, _lastColorIndex, 1);
-        array_push(global.reserveColors, _movedColor);
+    // Freshly shuffle the entire color palette for this level
+    var _allColors = [1, 2, 3, 4, 5, 6];
+    for (var i = array_length(_allColors) - 1; i > 0; i--) {
+        var _j = irandom(i);
+        var _temp = _allColors[i];
+        _allColors[i] = _allColors[_j];
+        _allColors[_j] = _temp;
     }
-    while (array_length(global.activeColors) < _planet.colors && array_length(global.reserveColors) > 0) {
-        array_push(global.activeColors, array_shift(global.reserveColors));
-    }
+    
+    global.activeColors = [];
+    global.reserveColors = [];
+    var _count = clamp(_planet.colors, 3, 6);
+    for (var i = 0; i < _count; i++) array_push(global.activeColors, _allColors[i]);
+    for (var i = _count; i < 6; i++) array_push(global.reserveColors, _allColors[i]);
     
     // Hard reset the piece pool to match the NEW planet colors
     global.pieceBag = [];
@@ -301,8 +344,9 @@ start_game = function() {
     global.storyWavesSurvived = 0;
     global.storyShardsCollected = 0;
     global.storyFeverTriggered = false;
-    global.storyMegaClears = 0;
-    global.storyComplete = false;
+    global.bestCombo = 0;
+    global.coreRebuildColorIdx = 0;
+    global.storyCleared = 0;
     global.bonusComplete = false;
     
     // Normalize board rotation and orbital side to stop unspinning from the previous level
@@ -311,6 +355,8 @@ start_game = function() {
     global.orbitalSide = 0;
 
     if (global.gameMode == "STORY") {
+        // Deterministic seeding so restarting a level gives the same board/pieces
+        random_set_seed(1000 + global.storyPlanet * 100 + global.storyLevel);
         setup_story_planet();
     }
     if (global.gameMode == "BONUS") {
@@ -411,7 +457,7 @@ start_game = function() {
     global.softDropRepeatTimer = 0;
     global.coreStability = global.coreStabilityMax;
     global.coreUnstable = false;
-    global.MAX_PIECE_TIME = 300 + global.shopTimerBonus * 30;
+    global.MAX_PIECE_TIME = 600 + global.shopTimerBonus * 60;
     global.pieceTimer = global.MAX_PIECE_TIME;
     
     // Reset Restoration State

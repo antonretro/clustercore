@@ -121,6 +121,22 @@ function story_progress_mark_complete(_world, _level) {
     wallet_save();
 }
 
+function achievements_save() {
+    ini_open("cluster_core.ini");
+    for (var i = 0; i < array_length(global.achievements); i++) {
+        ini_write_real("achievements", "unlocked_" + string(i), global.achievements[i].unlocked ? 1 : 0);
+    }
+    ini_close();
+}
+
+function achievements_load() {
+    ini_open("cluster_core.ini");
+    for (var i = 0; i < array_length(global.achievements); i++) {
+        global.achievements[i].unlocked = ini_read_real("achievements", "unlocked_" + string(i), 0) > 0;
+    }
+    ini_close();
+}
+
 function bonus_progress_is_unlocked(_idx) {
     return (_idx <= global.storyUnlockedPlanet);
 }

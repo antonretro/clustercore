@@ -85,33 +85,39 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     function draw_stat_panel(_x, _y, _w, _h, _label, _val, _scale = 2) {
         _x = floor(_x); _y = floor(_y);
         var _accentCol = (global.feverTimer > 0) ? c_yellow : global.COLOR_ACCENT;
+        var _gradTop   = make_color_rgb(45, 60, 110); // Lighter blue top
+        var _gradBot   = make_color_rgb(15, 20, 45);  // Deep navy bottom
+        var _edgeCol   = make_color_rgb(140, 180, 255); // Frosted highlight
 
-        if (sprite_exists(spr_ui_panel)) {
-            // Shadow
-            draw_set_alpha(0.35);
-            draw_sprite_stretched_ext(spr_ui_panel, 0, _x + 5, _y + 5, _w, _h, c_black, 0.35);
-            // Panel (tint blue when fever active)
-            var _tint = (global.feverTimer > 0) ? make_color_rgb(255, 220, 80) : c_white;
-            draw_set_alpha(1.0);
-            draw_sprite_stretched_ext(spr_ui_panel, 0, _x, _y, _w, _h, _tint, 1.0);
-        } else {
-            draw_set_alpha(0.28); draw_set_color(c_black);
-            draw_roundrect_ext(_x+5, _y+5, _x+_w+5, _y+_h+5, 15, 15, false);
-            draw_set_alpha(0.18); draw_set_color(make_color_rgb(30, 40, 80));
-            draw_roundrect_ext(_x, _y, _x+_w, _y+_h, 15, 15, false);
-            draw_set_alpha(0.65); draw_set_color(_accentCol);
-            draw_roundrect_ext(_x, _y, _x+_w, _y+_h, 15, 15, true);
-        }
+        // ── Pixelated Shadow (Chunky offset) ─────────────────────────────────
+        draw_set_alpha(0.6);
+        draw_set_color(c_black);
+        draw_roundrect_ext(_x + 6, _y + 6, _x + _w + 6, _y + _h + 6, 8, 8, false);
 
+        // ── Vertical Gradient Background ─────────────────────────────────────
+        draw_set_alpha(0.8);
+        draw_rectangle_colour(_x, _y, _x + _w, _y + _h, _gradTop, _gradTop, _gradBot, _gradBot, false);
+
+        // ── Frosted Outline ──────────────────────────────────────────────────
+        draw_set_alpha(0.4);
+        draw_set_color(_edgeCol);
+        draw_roundrect_ext(_x, _y, _x + _w, _y + _h, 8, 8, true);
+        
+        // Pixel-style highlight line
+        draw_set_alpha(0.15);
+        draw_set_color(c_white);
+        draw_line_width(_x + 4, _y + 4, _x + _w - 4, _y + 4, 2);
+
+        // ── Text Content ──────────────────────────────────────────────────────
         draw_set_halign(fa_center); draw_set_valign(fa_top);
-        // Label — small, top of panel
         draw_set_alpha(0.75); draw_set_color(_accentCol);
-        draw_text_transformed(floor(_x + _w * 0.5), floor(_y + 8), _label, global.TXT_SMALL, global.TXT_SMALL, 0);
-        // Value — centered in remaining space
+        draw_text_transformed(floor(_x + _w * 0.5), floor(_y + 10), _label, global.TXT_SMALL, global.TXT_SMALL, 0);
+        
         draw_set_halign(fa_center); draw_set_valign(fa_middle);
         draw_set_alpha(1.0); draw_set_color(c_white);
         draw_text_transformed(floor(_x + _w * 0.5), floor(_y + _h * 0.6), _val, _scale, _scale, 0);
         draw_set_valign(fa_top);
+        draw_set_alpha(1.0);
     }
 
     // Board position (matches Draw_0)
@@ -119,11 +125,12 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     var _bw2 = global.COLS * 16 * _scale;
     var _bh2 = global.ROWS * 16 * _scale;
     var _bx2 = (_guiW - _bw2) / 2;
-    var _by2 = (_guiH - _bh2) / 2;
+    var _entryY = (global.entry_timer * global.entry_timer) * 0.25;
+    var _by2 = (_guiH - _bh2) / 2 + _entryY;
 
     // --- LEFT COLUMN (dynamic heights, always fills _bh2 exactly) ---
-    var _pw  = 240;
-    var _lx  = _bx2 - _pw - 60;
+    var _pw  = 260; // Widened for better sprite visibility
+    var _lx  = _bx2 - _pw - 40;
     var _gap = 12;
     var _sH  = floor(_bh2 * 0.215);
     var _lH  = floor(_bh2 * 0.146);
@@ -139,9 +146,9 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     draw_stat_panel(_lx, _lOff3, _pw, _bstH, "BEST",     "x" + string(global.bestCombo), global.TXT_H3 * global.ui_scales.combo);
 
     if (global.holdPiece != undefined) {
-        var _hScale = 3.5;
-        var _hcx = _lx + 120;
-        var _hcy = _lOff2 + floor(_hoH * 0.5);
+        var _hScale = 4.2; // Upscaled from 3.5
+        var _hcx = _lx + _pw * 0.5;
+        var _hcy = _lOff2 + floor(_hoH * 0.5) + 10;
         var _hSpr = spr_pinkSprite;
         switch(global.holdPiece.id) {
             case 1: _hSpr = spr_pinkSprite; break;
@@ -165,7 +172,7 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     }
 
     // --- RIGHT COLUMN (dynamic heights, always fills _bh2 exactly) ---
-    var _rx  = _bx2 + _bw2 + 60;
+    var _rx  = _bx2 + _bw2 + 40;
     var _hasObj = (global.gameMode == "STORY" || global.gameMode == "BONUS");
     var _objH = _hasObj ? floor(_bh2 * 0.197) : 0;
     var _nH  = floor(_bh2 * 0.400) + (_hasObj ? 0 : floor(_bh2 * 0.197) + _gap);
@@ -224,15 +231,15 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     }
 
     draw_stat_panel(_rx, _rOff1, _pw, _shH, "SHARDS", string(global.walletShards),              global.TXT_H3);
-    draw_stat_panel(_rx, _rOff2, _pw, _coH, "COMBO",  "x" + string(global.comboChain),          global.TXT_H3 * global.ui_scales.combo);
+    draw_stat_panel(_rx, _rOff2, _pw, _coH, "CLUSTER COMBO",  "x" + string(global.comboChain),          global.TXT_H3 * global.ui_scales.combo);
     draw_sprite_ext(spr_gemshard, 0, _rx + 42, global.shardCounterY + 8, 1.7, 1.7, 0, c_white, 1);
 
     gpu_set_texfilter(false);
     for (var i = 0; i < array_length(global.nextQueue); i++) {
         var _qPiece = global.nextQueue[i];
-        var _qScale = (i == 0) ? 3.5 : 2.2;
-        var _qcx = _rx + 120;
-        var _qcy = _rOff0 + floor(_nH * 0.5);
+        var _qScale = (i == 0) ? 4.2 : 2.5; // Upscaled from 3.5 / 2.2
+        var _qcx = _rx + _pw * 0.5;
+        var _qcy = _rOff0 + floor(_nH * 0.5) + (i == 0 ? 10 : 60);
         var _qSpr = spr_pinkSprite;
         switch(_qPiece.id) {
             case 1: _qSpr = spr_pinkSprite; break;
@@ -246,10 +253,10 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
         if (_qPiece.type == "super_bomb") _qSpr = asset_get_index("spr_super_bomb");
         if (_qPiece.type == "drill") _qSpr = spr_drill;
         if (_qPiece.type == "dead") _qSpr = spr_deadmetal;
-        draw_sprite_ext(_qSpr, 0, _qcx, _qcy, _qScale, _qScale, 0, c_white, (i == 0 ? 1.0 : 0.5));
+        draw_sprite_ext(_qSpr, 0, _qcx, _qcy, _qScale, _qScale, 0, c_white, (i == 0 ? 1.0 : 0.4));
         if (_qPiece.type == "metal") {
             var _qRot = (global.orbitalSide * 90) + (_qPiece.dir == 0 ? 90 : 0);
-            draw_sprite_ext(spr_ud_arrows, 0, _qcx, _qcy, _qScale, _qScale, _qRot, c_white, (i == 0 ? 1.0 : 0.5));
+            draw_sprite_ext(spr_ud_arrows, 0, _qcx, _qcy, _qScale, _qScale, _qRot, c_white, (i == 0 ? 1.0 : 0.4));
         }
     }
     gpu_set_texfilter(false);
@@ -333,7 +340,7 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     }
 
     draw_set_halign(fa_center);
-    var _feverLabel = (global.feverTimer > 0) ? "\u2605 FEVER MODE \u2605" : "";
+    var _feverLabel = (global.feverTimer > 0) ? "CLUSTER FEVER" : "";
     draw_text_wavy(_bx2 + _bw2 / 2, _by2 + _bh2 + 26, _feverLabel, global.TXT_H3, c_yellow);
     
     // Overlays
@@ -357,26 +364,52 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
         draw_text_transformed(_guiW/2, _guiH/2 + 260, "Q/E: Orbital Side | Z/Up: Rotate", global.TXT_SMALL, global.TXT_SMALL, 0);
     }
 
-    if (global.gameState == "GAMEOVER" || global.gameState == "LEVEL_COMPLETE") {
-        draw_set_color(c_black); draw_set_alpha(0.85);
-        draw_rectangle(0, 0, _guiW, _guiH, false);
-        draw_set_alpha(1.0); draw_set_halign(fa_center);
+
+    // ── GAME OVER / LEVEL CLEAR PANEL ────────────────────────────────────────
+    if (global.gameState == "GAMEOVER" || global.gameState == "FINISHING_LEVEL" || global.gameState == "LEVEL_COMPLETE") {
+        var _isComplete = (global.gameState == "FINISHING_LEVEL" || global.gameState == "LEVEL_COMPLETE");
         
-        var _isComplete = (global.gameState == "LEVEL_COMPLETE");
-        var _titleCol = _isComplete ? c_yellow : global.COLOR_DANGER;
-        var _titleText = _isComplete ? "MISSION COMPLETE" : "GAME OVER";
-        if (global.storyComplete) _titleText = "STORY CLEAR";
-
+        // --- Central Glass Panel ---
+        var _pw = 620;
+        var _ph = 380;
+        var _px1 = _guiW / 2 - _pw / 2;
+        var _py1 = _guiH / 2 - _ph / 2;
+        var _px2 = _px1 + _pw;
+        var _py2 = _py1 + _ph;
+        
+        // Pixelated Shadow
+        draw_set_alpha(0.6);
+        draw_set_color(c_black);
+        draw_roundrect_ext(_px1 + 8, _py1 + 8, _px2 + 8, _py2 + 8, 16, 16, false);
+        
+        // Vertical Gradient Background
+        var _cTop = make_color_rgb(45, 60, 110);
+        var _cBot = make_color_rgb(15, 20, 45);
+        draw_set_alpha(0.92);
+        draw_rectangle_colour(_px1, _py1, _px2, _py2, _cTop, _cTop, _cBot, _cBot, false);
+        
+        // Frosted Outline
+        draw_set_alpha(0.4);
+        draw_set_color(make_color_rgb(140, 180, 255));
+        draw_roundrect_ext(_px1, _py1, _px2, _py2, 16, 16, true);
+        
+        draw_set_alpha(1.0);
+        draw_set_halign(fa_center);
+        draw_set_valign(fa_middle);
+        
+        // Header
+        var _title = _isComplete ? "LEVEL CLEAR" : "GAME OVER";
+        var _titleCol = _isComplete ? make_color_rgb(100, 255, 150) : make_color_rgb(255, 80, 80);
         draw_set_color(_titleCol);
-        draw_text_transformed(_guiW / 2, _guiH / 2 - 140, _titleText, global.TXT_H1 * 1.2, global.TXT_H1 * 1.2, 0);
+        draw_text_transformed(_guiW / 2, _py1 + 60, _title, global.TXT_H1, global.TXT_H1, 0);
 
-        // Score display
+        // Stats
         draw_set_color(c_white);
-        draw_text_transformed(_guiW / 2, _guiH / 2 - 40, "FINAL SCORE: " + string(global.score), global.TXT_H2, global.TXT_H2, 0);
+        draw_text_transformed(_guiW / 2, _py1 + 130, "FINAL SCORE: " + string(global.score), global.TXT_H2, global.TXT_H2, 0);
 
         if (_isComplete) {
             draw_set_color(c_yellow);
-            draw_text_transformed(_guiW / 2, _guiH / 2 + 10, "TURN BONUS: +" + string(global.storyBonus), global.TXT_H3, global.TXT_H3, 0);
+            draw_text_transformed(_guiW / 2, _py1 + 190, "TURN BONUS: +" + string(global.storyBonus), global.TXT_H3, global.TXT_H3, 0);
             var _rankCol = c_white;
             switch(global.storyRank) {
                 case "S": _rankCol = c_yellow; break;
@@ -385,15 +418,15 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
                 case "C": _rankCol = make_color_rgb(255, 200, 100); break;
             }
             draw_set_color(_rankCol);
-            draw_text_transformed(_guiW / 2, _guiH / 2 + 80, "RANK: " + global.storyRank, global.TXT_H1, global.TXT_H1, 0);
+            draw_text_transformed(_guiW / 2, _py1 + 250, "RANK: " + global.storyRank, global.TXT_H1, global.TXT_H1, 0);
         } else {
             draw_set_color(make_color_rgb(180, 200, 255));
-            draw_text_transformed(_guiW / 2, _guiH / 2 + 30, "BEST: " + string(global.highScore), global.TXT_H2, global.TXT_H2, 0);
+            draw_text_transformed(_guiW / 2, _py1 + 190, "BEST: " + string(global.highScore), global.TXT_H2, global.TXT_H2, 0);
             draw_set_color(c_white);
-            draw_text_transformed(_guiW / 2, _guiH / 2 + 75, "COMBO: x" + string(global.bestCombo), global.TXT_H3, global.TXT_H3, 0);
+            draw_text_transformed(_guiW / 2, _py1 + 240, "COMBO: x" + string(global.bestCombo), global.TXT_H3, global.TXT_H3, 0);
         }
 
-        draw_set_color(make_color_rgb(180, 180, 180));
+        draw_set_color(make_color_rgb(255, 214, 102));
         var _prompt = _isComplete ? "SPACE  Continue     ESC  Menu" : "R  Retry     ESC  Menu";
         draw_text_transformed(_guiW / 2, _guiH / 2 + 170, _prompt, global.TXT_H3, global.TXT_H3, 0);
     }

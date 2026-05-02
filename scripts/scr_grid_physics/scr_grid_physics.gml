@@ -276,6 +276,34 @@ function crack_locked_cell(_gx, _gy) {
     return true;
 }
 
+function crack_asteroid_cell(_gx, _gy) {
+    if (!grid_in_bounds(_gx, _gy)) return false;
+    var _cell = global.grid[_gy][_gx];
+    if (_cell == undefined || _cell.type != "asteroid") return false;
+
+    var _hp = (variable_struct_exists(_cell, "shield_hp")) ? _cell.shield_hp : 2;
+    if (_hp <= 1) {
+        // Break completely
+        _cell.inst.clearing = true;
+        global.grid[_gy][_gx] = undefined;
+        var _sp = _grid_screen_pos(_gx, _gy);
+        create_floating_text_ext(_sp.x, _sp.y, "SHATTER", make_color_rgb(180, 180, 180), 0.9);
+        create_particles((_gx - global.HIDDEN_SIDES) * 16, (_gy - global.HIDDEN_ROWS) * 16, make_color_rgb(100, 100, 100));
+        return true;
+    }
+
+    _cell.shield_hp = _hp - 1;
+    if (_cell.inst != undefined) {
+        _cell.inst.shield_hp = _cell.shield_hp;
+        _cell.inst.scale_x = 1.3; _cell.inst.scale_y = 1.3;
+        with (_cell.inst) update_sprite();
+    }
+    var _sp = _grid_screen_pos(_gx, _gy);
+    create_floating_text_ext(_sp.x, _sp.y, "SHIELD", make_color_rgb(220, 220, 120), 0.7);
+    create_particles((_gx - global.HIDDEN_SIDES) * 16, (_gy - global.HIDDEN_ROWS) * 16, make_color_rgb(100, 100, 100));
+    return true;
+}
+
 function rotate_prism_blocks() {
     if (array_length(global.activeColors) <= 0) return;
 
@@ -339,6 +367,7 @@ function planet_has_outer_danger_block() {
 }
 
 function lock_piece() {
+    global.turnCount++;
     global.locking = true;
     steam_ach_unlock("ACH_FIRST_DROP");
     var _p  = global.activePiece;
@@ -872,6 +901,12 @@ function settle_matches() {
     }
 
     var _matches = find_matches_in_grid(global.grid, { cols: global.TOTAL_COLS }, global.TOTAL_ROWS);
+    
+    // HARD GUARD: Only proceed if we found a valid 4+ match
+    if (array_length(_matches) < 4) {
+        _matches = []; // Reject anything smaller than 4
+    }
+
     if (array_length(_matches) > 0) {
         // Final clear guarantee: expand from all matched seeds to the full
         // orthogonally connected same-id component. This prevents L-shape
@@ -921,9 +956,8 @@ function settle_matches() {
                 
                 // Color Lock: Prevent wildcards from bridging different colors during expansion
                 if (_n.id != 999 && _ncE.id != 999 && _ncE.id != _n.id) continue;
-                // HARD BLOCK: Metal blocks can NEVER be pulled in by spillover expansion.
-                // They are only cleared if they were part of the initial legal match (seed).
-                if (_ncE.type == "metal" && !_seedMask[_nyE][_nxE]) continue;
+                var _ncHasArrow = (_ncE.type == "metal") || (variable_struct_exists(_ncE, "core_arrow") && _ncE.core_arrow);
+                if (_ncHasArrow && !_seedMask[_nyE][_nxE]) continue;
                 _visit[_nyE][_nxE] = true;
                 _clearMask[_nyE][_nxE] = true;
                 array_push(_q, {x:_nxE, y:_nyE, id:_n.id});
@@ -972,6 +1006,37 @@ function settle_matches() {
             }
         }
         _matches = _filteredMatches;
+        var _adjDirs = [[-1,0],[1,0],[0,-1],[0,1]];
+        
+        // --- SMART CLUSTER COLLECTION PASS ---
+        // If ANY block is adjacent to a cleared cell and shares its color, collect it.
+        // This allows LINE + ADDITIONS (L-shapes, T-shapes, clusters) to clear together.
+        var _extraBlocks = [];
+        for (var _am = 0; _am < array_length(_matches); _am++) {
+            var _pma = _matches[_am];
+            var _pca = global.grid[_pma.y][_pma.x];
+            if (_pca == undefined) continue;
+            
+            for (var _ad = 0; _ad < 4; _ad++) {
+                var _ax = _pma.x + _adjDirs[_ad][0];
+                var _ay = _pma.y + _adjDirs[_ad][1];
+                if (!grid_in_bounds(_ax, _ay)) continue;
+                if (_activeClearMask[_ay][_ax]) continue; // already clearing
+                
+                var _ac = global.grid[_ay][_ax];
+                if (_ac != undefined) {
+                    // Check if color matches
+                    if (match_cells_share_color(_pca, _ac)) {
+                        _activeClearMask[_ay][_ax] = true;
+                        array_push(_extraBlocks, {x: _ax, y: _ay});
+                    }
+                }
+            }
+        }
+        for (var _eb = 0; _eb < array_length(_extraBlocks); _eb++) {
+            array_push(_matches, _extraBlocks[_eb]);
+        }
+
         if (array_length(_matches) <= 0) {
             global.locking = false;
             recalculate_planet_surface(); // Ensure surface is fresh for next piece preview
@@ -991,7 +1056,6 @@ function settle_matches() {
             return;
         }
 
-        var _adjDirs = [[-1,0],[1,0],[0,-1],[0,1]];
         for (var _vm = 0; _vm < array_length(_matches); _vm++) {
             var _mpv = _matches[_vm];
             var _sporeCell = global.grid[_mpv.y][_mpv.x];
@@ -1009,6 +1073,7 @@ function settle_matches() {
                     global.grid[_vy][_vx] = undefined;
                 } else if (!_activeClearMask[_vy][_vx]) {
                     crack_locked_cell(_vx, _vy);
+                    crack_asteroid_cell(_vx, _vy);
                 }
 
                 if (_sporeCell != undefined && _sporeCell.type == "spore"
@@ -1022,6 +1087,7 @@ function settle_matches() {
         }
 
         global.comboChain++;
+        global.pityBudget = max(0, global.pityBudget - (array_length(_matches) * 0.1) - (global.comboChain * 0.2));
         if (global.comboChain >= 3) steam_ach_unlock("ACH_CHAIN_3");
         var _pts = (array_length(_matches) * 100 * global.comboChain * ((global.feverTimer > 0) ? 2 : 1) * _specialMultiplier) + _debtBonus;
         global.score += _pts; global.levelScore += _pts;
@@ -1118,6 +1184,36 @@ function settle_matches() {
         }
 
         for (var i = array_length(_matches) - 1; i >= 0; i--) {
+            var _mpArrow = _matches[i];
+            var _cArrow = global.grid[_mpArrow.y][_mpArrow.x];
+            if (_cArrow == undefined) continue;
+            
+            var _isArrow = (_cArrow.type == "metal") || (variable_struct_exists(_cArrow, "core_arrow") && _cArrow.core_arrow);
+            if (_isArrow) {
+                // Firing a pulse in the arrow's direction
+                var _pDir = _cArrow.dir; // 0=H, 1=V, 2=ULDR
+                
+                // Vertical pulse (V or Cross)
+                if (_pDir == 1 || _pDir == 2) {
+                    for (var _ay = 0; _ay < global.TOTAL_ROWS; _ay++) {
+                        if (_ay == _mpArrow.y) continue;
+                        crack_asteroid_cell(_mpArrow.x, _ay);
+                        crack_locked_cell(_mpArrow.x, _ay);
+                    }
+                }
+                
+                // Horizontal pulse (H or Cross)
+                if (_pDir == 0 || _pDir == 2) {
+                    for (var _ax = 0; _ax < global.TOTAL_COLS; _ax++) {
+                        if (_ax == _mpArrow.x) continue;
+                        crack_asteroid_cell(_ax, _mpArrow.y);
+                        crack_locked_cell(_ax, _mpArrow.y);
+                    }
+                }
+            }
+        }
+
+        for (var i = array_length(_matches) - 1; i >= 0; i--) {
             var _m = _matches[i];
             var _cell = global.grid[_m.y][_m.x];
             if (_cell == undefined) continue;
@@ -1132,16 +1228,8 @@ function settle_matches() {
                     _cell.inst.core_arrow = false;
                 }
             }
-            if (_cell.type == "asteroid" && _cell.inst != undefined && _cell.inst.shield_hp > 1) {
-                _cell.inst.shield_hp--;
-                _cell.inst.scale_x = 1.3; _cell.inst.scale_y = 1.3;
-                with (_cell.inst) update_sprite();
-                var _asp = _grid_screen_pos(_m.x, _m.y);
-                create_floating_text_ext(_asp.x, _asp.y, "SHIELD", make_color_rgb(220, 220, 120), 0.7);
-                create_particles((_m.x - global.HIDDEN_SIDES) * 16,
-                                 (_m.y - global.HIDDEN_ROWS)  * 16, make_color_rgb(100,100,100));
-                continue;
-            }
+            // Asteroids are no longer cleared by color matches (Junk rule)
+            // They are only cleared by crack_asteroid_cell via collateral neighbor logic
             var _sp = _grid_screen_pos(_m.x, _m.y);
             var _pts_each = 100 * global.comboChain * ((global.feverTimer > 0) ? 2 : 1);
             create_floating_text_ext(_sp.x, _sp.y, "+" + string(_pts_each), _cell.color, 0.8);

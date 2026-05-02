@@ -485,30 +485,31 @@ function dialogue_get_speaker_color(_speaker) {
 function dialogue_draw_box(_x1, _y1, _x2, _y2) {
     var _w = _x2 - _x1;
     var _h = _y2 - _y1;
+    
+    var _gradTop   = make_color_rgb(45, 60, 110); // Frosted blue top
+    var _gradBot   = make_color_rgb(15, 20, 45);  // Deep navy bottom
+    var _edgeCol   = make_color_rgb(140, 180, 255); // Frosted highlight
 
-    if (sprite_exists(spr_dialogue_box)) {
-        // Nine-slice sprite — configure insets to 8px in the GameMaker sprite editor
-        // Shadow
-        draw_set_alpha(0.55);
-        draw_sprite_stretched_ext(spr_dialogue_box, 0, _x1 + 7, _y1 + 7, _w, _h, c_black, 0.55);
-        // Main box
-        draw_set_alpha(1.0);
-        draw_sprite_stretched_ext(spr_dialogue_box, 0, _x1, _y1, _w, _h, c_white, 1.0);
-    } else {
-        // Procedural fallback while sprite is being made
-        draw_set_alpha(0.72);
-        draw_set_color(c_black);
-        draw_roundrect_ext(_x1 + 6, _y1 + 6, _x2 + 6, _y2 + 6, 18, 18, false);
-        draw_set_alpha(0.92);
-        draw_set_color(make_color_rgb(18, 24, 44));
-        draw_roundrect_ext(_x1, _y1, _x2, _y2, 18, 18, false);
-        draw_set_alpha(0.60);
-        draw_set_color(make_color_rgb(110, 150, 255));
-        draw_roundrect_ext(_x1, _y1, _x2, _y2, 18, 18, true);
-        draw_set_alpha(0.28);
-        draw_set_color(c_white);
-        draw_line_width(_x1 + 22, _y1 + 42, _x2 - 22, _y1 + 42, 2);
-    }
+    // ── Pixelated Shadow ──────────────────────────────────────────────────
+    draw_set_alpha(0.6);
+    draw_set_color(c_black);
+    draw_roundrect_ext(_x1 + 6, _y1 + 6, _x2 + 6, _y2 + 6, 12, 12, false);
+
+    // ── Vertical Gradient Background (Glass) ──────────────────────────────
+    draw_set_alpha(0.85);
+    draw_rectangle_colour(_x1, _y1, _x2, _y2, _gradTop, _gradTop, _gradBot, _gradBot, false);
+
+    // ── Frosted Outline ───────────────────────────────────────────────────
+    draw_set_alpha(0.35);
+    draw_set_color(_edgeCol);
+    draw_roundrect_ext(_x1, _y1, _x2, _y2, 12, 12, true);
+    
+    // ── Speaker Accent Bar ───────────────────────────────────────────────
+    var _speaker = global.dialogue_speaker;
+    var _accent  = dialogue_get_speaker_color(_speaker);
+    draw_set_alpha(0.8);
+    draw_set_color(_accent);
+    draw_rectangle(_x1 + 18, _y1 + 16, _x1 + 22, _y1 + 16 + (24 * global.TXT_H3), false);
 
     draw_set_alpha(1.0);
 }
@@ -653,7 +654,7 @@ function dialogue_draw() {
     // ────────────────────────────────────────────────────────────────────────
 
     var _margin = max(32, _guiW * 0.08);
-    var _boxH = clamp(_guiH * 0.25, 150, 220);
+    var _boxH = clamp(_guiH * 0.28, 180, 260); // Increased height to prevent overflow
 
     var _x1 = _margin;
     var _x2 = _guiW - _margin;
@@ -668,19 +669,18 @@ function dialogue_draw() {
 
     // Typography scales
     var _speakerScale = global.TXT_H3;
-    var _charScale = global.TXT_H4;
-    var _maxWidth = _x2 - _x1 - 48;
-
+    var _charScale = global.TXT_H4 * 0.95; // Slightly smaller to fit more lines
     // Speaker
     draw_set_color(dialogue_get_speaker_color(_speaker));
-    draw_text_transformed(_x1 + 24, _y1 + 16, _speaker + ":", _speakerScale, _speakerScale, 0);
+    draw_text_transformed(_x1 + 40, _y1 + 20, _speaker + ":", _speakerScale, _speakerScale, 0);
 
     // Text (Custom Word Wrap + Per-Character Typing Animation)
-    var _cx = _x1 + 24;
-    var _cy = _y1 + 16 + (28 * _speakerScale);
+    var _cx = _x1 + 40;
+    var _cy = _y1 + 20 + (24 * _speakerScale); // Reduced offset from 34 to 24
     var _lineH = 26 * _charScale;
     
     // Fast word-wrap pre-pass
+    var _maxWidth = _x2 - _x1 - 80;
     var _words = [];
     var _currentWord = "";
     for (var i = 1; i <= string_length(_fullText); i++) {
@@ -704,7 +704,7 @@ function dialogue_draw() {
         if (_charIndex > global.dialogue_char_index) break;
         
         if (_word == "\n") {
-            _cx = _x1 + 24;
+            _cx = _x1 + 40;
             _cy += _lineH;
             _charIndex++;
             continue;
@@ -713,8 +713,8 @@ function dialogue_draw() {
         var _wordW = string_width(_word) * _charScale;
         
         // Wrap to next line if word exceeds width
-        if (_word != " " && _cx + _wordW > _x1 + 24 + _maxWidth) {
-            _cx = _x1 + 24;
+        if (_word != " " && _cx + _wordW > _x1 + 40 + _maxWidth) {
+            _cx = _x1 + 40;
             _cy += _lineH;
         }
         
