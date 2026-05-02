@@ -28,6 +28,12 @@ if (keyboard_check_pressed(vk_f11)) {
     window_set_fullscreen(!window_get_fullscreen());
 }
 
+// Debug: Enter test harness
+if (keyboard_check_pressed(vk_f12)) {
+    room_goto(room_test);
+    exit;
+}
+
 // ── TITLE SCREEN ─────────────────────────────────────────────────────────
 if (in_title) {
     if (title_timer > 60 && (_confirm || keyboard_check_pressed(vk_anykey) || mouse_check_button_pressed(mb_left))) {

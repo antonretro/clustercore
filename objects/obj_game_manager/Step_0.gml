@@ -102,6 +102,11 @@ if (keyboard_check_pressed(vk_f11)) {
     window_set_fullscreen(!window_get_fullscreen());
 }
 
+if (keyboard_check_pressed(vk_f12)) {
+    room_goto(room_test);
+    exit;
+}
+
 // Settings hotkeys
 if (keyboard_check_pressed(ord("G"))) global.settings.ghostEnabled = !global.settings.ghostEnabled;
 if (keyboard_check_pressed(ord("S"))) global.settings.shakeEnabled = !global.settings.shakeEnabled;
@@ -155,6 +160,7 @@ if (global.gameState == "PAUSED") {
     if (keyboard_check_pressed(ord("R"))) room_goto(room_game);
     if (keyboard_check_pressed(ord("M"))) room_goto(room_menu);
     if (keyboard_check_pressed(vk_f11)) window_set_fullscreen(!window_get_fullscreen());
+    if (keyboard_check_pressed(vk_f12)) { room_goto(room_test); exit; }
     if (keyboard_check_pressed(vk_escape) || keyboard_check_pressed(ord("P")) || (_gp && gamepad_button_check_pressed(0, gp_start))) {
         global.gameState = "PLAYING";
     }
