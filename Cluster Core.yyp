@@ -61,7 +61,7 @@
     {"id":{"name":"scr_match_contracts","path":"scripts/scr_match_contracts/scr_match_contracts.yy",},},
     {"id":{"name":"scr_match_engine","path":"scripts/scr_match_engine/scr_match_engine.yy",},},
     {"id":{"name":"scr_piece_logic","path":"scripts/scr_piece_logic/scr_piece_logic.yy",},},
-    {"id":{"name":"scr_sfx","path":"scripts/scr_sfx/scr_sfx.yy",},},
+
     {"id":{"name":"scr_story_dialogue","path":"scripts/scr_story_dialogue/scr_story_dialogue.yy",},},
     {"id":{"name":"scr_test_contracts","path":"scripts/scr_test_contracts/scr_test_contracts.yy",},},
     {"id":{"name":"scr_test_gravity","path":"scripts/scr_test_gravity/scr_test_gravity.yy",},},
