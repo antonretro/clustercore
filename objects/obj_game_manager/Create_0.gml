@@ -276,73 +276,7 @@ update_staging_ring_cache = function() {
     for (var i = global.ROWS; i >= 1; i--)  array_push(global.stagingRingCells, {sx: 0, sy: i});
 };
 
-draw_block_instance = function(_inst, _bx, _by, _scale, _alpha = -1, _altX = -1, _altY = -1) {
-    var _instAlpha = (_alpha == -1) ? _inst.image_alpha : _alpha;
-    var _drawX = (_altX == -1) ? (_bx + _inst.x * _scale) : (_altX - 8 * _scale);
-    var _drawY = (_altY == -1) ? (_by + _inst.y * _scale) : (_altY - 8 * _scale);
-    var _cx = _drawX + 8 * _scale;
-    var _cy = _drawY + 8 * _scale;
-
-    // Block square: counter-rotate by boardRotation so it always appears UPRIGHT
-    var _blockRot = _inst.visualRotation + _inst.rotation - global.boardRotation;
-    // Arrow overlay: no counter-rotation — matrix naturally rotates it with the board
-    var _arrowRot = _inst.visualRotation + _inst.rotation;
-
-    if (_inst.sprite_index != -1) {
-        draw_sprite_ext(_inst.sprite_index, _inst.image_index, _cx, _cy,
-            _scale * _inst.scale_x, _scale * _inst.scale_y, _blockRot, c_white, _instAlpha);
-    }
-    if (_inst.type == "metal" || (_inst.type == "core" && variable_instance_exists(_inst, "core_arrow") && _inst.core_arrow)) {
-        var _arSpr = (_inst.dir == 0) ? spr_lr_arrows : spr_ud_arrows;
-        draw_sprite_ext(_arSpr, 0, _cx, _cy, _scale * _inst.scale_x, _scale * _inst.scale_y, _arrowRot, c_white, _instAlpha);
-    }
-    if (_inst.type == "locked") {
-        draw_set_alpha(_instAlpha);
-        draw_set_color(make_color_rgb(230, 210, 90));
-        var _pad = (variable_instance_exists(_inst, "locked_hp") && _inst.locked_hp <= 1) ? 5 : 3;
-        draw_rectangle(_cx - (8 - _pad) * _scale, _cy - (8 - _pad) * _scale, _cx + (8 - _pad) * _scale, _cy + (8 - _pad) * _scale, true);
-        draw_line_width(_cx - 5 * _scale, _cy, _cx + 5 * _scale, _cy, max(1, 2 * _scale));
-        draw_line_width(_cx, _cy - 5 * _scale, _cx, _cy + 5 * _scale, max(1, 2 * _scale));
-        draw_set_alpha(1);
-    }
-    if (_inst.type == "wild" || _inst.type == "spore" || _inst.type == "multiplier" || _inst.type == "debt" || _inst.type == "gravity" || _inst.type == "void" || _inst.type == "prism" || _inst.type == "core_key") {
-        draw_set_halign(fa_center);
-        draw_set_valign(fa_middle);
-        draw_set_alpha(_instAlpha);
-        draw_set_font(main_font);
-        var _mark = "";
-        var _markCol = c_white;
-        if (_inst.type == "wild") { _mark = ""; _markCol = c_white; }
-        if (_inst.type == "spore") { _mark = "..."; _markCol = make_color_rgb(180, 255, 150); }
-        if (_inst.type == "multiplier") { _mark = "x2"; _markCol = c_yellow; }
-        if (_inst.type == "debt") { _mark = "$"; _markCol = make_color_rgb(255, 110, 190); }
-        if (_inst.type == "gravity") { _mark = "G"; _markCol = make_color_rgb(170, 220, 255); }
-        if (_inst.type == "void") { _mark = "O"; _markCol = make_color_rgb(40, 15, 80); }
-        if (_inst.type == "prism") { _mark = "<>"; _markCol = c_aqua; }
-        if (_inst.type == "core_key") { _mark = "K"; _markCol = c_aqua; }
-        draw_set_color(_markCol);
-        draw_text_transformed(_cx, _cy + 1 * _scale, _mark, 0.45 * _scale, 0.45 * _scale, 0);
-        draw_set_alpha(1);
-        draw_set_halign(fa_left);
-        draw_set_valign(fa_top);
-    }
-    if (variable_instance_exists(_inst, "shard_value") && _inst.shard_value > 0) {
-        var _shSeed = (_inst.grid_x * 13) + (_inst.grid_y * 17);
-        var _shPulse = 0.86 + abs(sin(current_time * 0.008 + _shSeed)) * 0.18;
-        draw_sprite_ext(spr_shard_on_block, 0, _cx, _cy - 2 * _scale,
-            _scale * _inst.scale_x * _shPulse, _scale * _inst.scale_y * _shPulse, _blockRot, c_white, _instAlpha);
-    }
-    if (_inst.type == "core") {
-        gpu_set_blendmode(bm_add);
-        var _cp2 = 0.3 + abs(sin(current_time * 0.005)) * 0.4;
-        draw_sprite_ext(_inst.sprite_index, _inst.image_index, _cx, _cy, _scale*_inst.scale_x*1.4, _scale*_inst.scale_y*1.4, _blockRot, c_white, _cp2 * 0.5 * _instAlpha);
-        gpu_set_blendmode(bm_normal);
-        draw_set_color(c_white); draw_set_alpha((_cp2 + 0.2) * _instAlpha);
-        draw_rectangle(_cx - 9*_scale, _cy - 9*_scale, _cx + 9*_scale, _cy + 9*_scale, true);
-        draw_rectangle(_cx - 10*_scale, _cy-10*_scale, _cx+10*_scale, _cy+10*_scale, true);
-        draw_set_alpha(1.0);
-    }
-};
+// --- Global drawing helpers are now in scr_draw_logic.gml ---
 
 // --- Core Flow Functions ---
 start_game = function() {

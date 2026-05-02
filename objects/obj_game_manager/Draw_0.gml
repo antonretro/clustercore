@@ -184,7 +184,7 @@ if (global.gameState == "PLAYING" && global.activePiece != undefined && global.s
         gpu_set_blendmode(bm_normal);
         
         draw_set_alpha(_pulse);
-        draw_block_instance(_ap, _bx, _by, _scale, _pulse, _gpcx, _gpcy);
+        cluster_core_draw_block(_ap, _bx, _by, _scale, _pulse, _gpcx, _gpcy);
         
         // Target cross
         draw_set_alpha(0.85); draw_set_color(_ap.color);
@@ -232,26 +232,33 @@ if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.active
         var _rouletteScale = _scale * (1.2 + abs(sin(current_time * 0.02)) * 0.3);
         
         gpu_set_blendmode(bm_add);
-        draw_sprite_ext(spr_pinkSprite, 0, _cpx, _cpy, _rouletteScale * 1.5, _rouletteScale * 1.5, current_time * 0.8, _rouletteCol, 0.9);
+        // Ensure spr_pinkSprite exists before drawing
+        var _rSpr = asset_get_index("spr_pinkSprite");
+        if (_rSpr != -1 && sprite_exists(_rSpr)) {
+            draw_sprite_ext(_rSpr, 0, _cpx, _cpy, _rouletteScale * 1.5, _rouletteScale * 1.5, current_time * 0.8, _rouletteCol, 0.9);
+        }
         draw_set_alpha(0.3); draw_circle_color(_cpx, _cpy, 60 * _scale, _rouletteCol, c_black, false);
         gpu_set_blendmode(bm_normal);
         draw_set_alpha(1.0);
     } else if (!instance_exists(obj_block)) {
         // Normal empty-board hologram
-        draw_sprite_ext(spr_pinkSprite, 0, _cpx, _cpy, _scale, _scale, 0, global.activePiece.color, 0.15 + abs(sin(current_time * 0.003)) * 0.1);
+        var _hSpr = asset_get_index("spr_pinkSprite");
+        if (_hSpr != -1 && sprite_exists(_hSpr)) {
+            draw_sprite_ext(_hSpr, 0, _cpx, _cpy, _scale, _scale, 0, global.activePiece.color, 0.15 + abs(sin(current_time * 0.003)) * 0.1);
+        }
     }
 }
 
 // --- Planet Restoration Tiles ---
 if (global.restoredTilesAlpha > 0) {
-    // Biome sprite lookup (create these 16x16 sprites in GameMaker)
+    // Biome sprite lookup
     var _biomeSpr = [
         -1,             // 0 = none
-        spr_tile_ocean,    // 1 = Ocean
-        spr_tile_forest,   // 2 = Forest
-        spr_tile_mountain, // 3 = Mountain
-        spr_tile_desert,   // 4 = Desert
-        spr_tile_tundra    // 5 = Tundra
+        asset_get_index("spr_tile_ocean"),    
+        asset_get_index("spr_tile_forest"),   
+        asset_get_index("spr_tile_mountain"), 
+        asset_get_index("spr_tile_desert"),   
+        asset_get_index("spr_tile_tundra")    
     ];
     var _biomeFallback = [
         c_black,
@@ -287,19 +294,7 @@ if (global.restoredTilesAlpha > 0) {
     draw_set_alpha(1.0);
 }
 
-// --- Active Core Pulse ---
-with (obj_block) {
-    if (type == "core") {
-        var _ccx = _bx + (x * _scale) + 8 * _scale;
-        var _ccy = _by + (y * _scale) + 8 * _scale;
-        var _cpulse = 0.5 + abs(sin(current_time * 0.005)) * 0.5;
-        gpu_set_blendmode(bm_add);
-        draw_set_color(c_white);
-        draw_set_alpha(_cpulse * 0.3);
-        draw_circle(_ccx, _ccy, (12 + 8 * _cpulse) * _scale, false);
-        gpu_set_blendmode(bm_normal);
-    }
-}
+// Core pulse handled in draw_block_instance script
 
 // --- Claw Machine Rendering ---
 if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.activePiece != undefined && !dialogue_is_active()) {
@@ -335,8 +330,8 @@ if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.active
     matrix_stack_push(_sm);
     matrix_set(matrix_world, matrix_stack_top());
     
-    var _hasClaw = false;
-    try { _hasClaw = sprite_exists(spr_claw); } catch(e) {}
+    var _clawIdx = asset_get_index("spr_claw");
+    var _hasClaw = (_clawIdx != -1 && sprite_exists(_clawIdx));
     
     // Draw the cable extending OUTWARDS (to the LEFT, -X relative to the sprite)
     // Because the sprite faces DOWN (90 deg), LEFT (-X) translates to UP (-Y) on the screen!
@@ -348,7 +343,7 @@ if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.active
     if (_hasClaw) {
         // Frame 0 = Closed (Holding), Frame 1 = Open (Dropped)
         var _subimg = (global.shipRecoil > 0) ? 1 : 0;
-        draw_sprite(spr_claw, _subimg, 0, 0);
+        draw_sprite(_clawIdx, _subimg, 0, 0);
     } else {
         // Fallback Vector Art for the Claw (Drawn facing RIGHT)
         draw_set_color(make_color_rgb(200, 210, 220));
@@ -377,24 +372,13 @@ if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.active
 
 // --- Blocks Rendering ---
 with (obj_block) {
+    if (!visible || clearing) continue;
+    
     var _cx5 = _bx + (x * _scale) + 8 * _scale;
     var _cy5 = _by + (y * _scale) + 8 * _scale;
-    // Allow drawing blocks in the staging rows/columns too
-    if (_cy5 < _by - 16 * _scale && id != global.activePiece) continue;
-
-    other.draw_block_instance(id, _bx, _by, _scale);
-
-    // Active Highlight
-    if (id == global.activePiece) {
-        var _ap2 = 0.45 + abs(sin(current_time * 0.01)) * 0.35;
-        gpu_set_blendmode(bm_add);
-        draw_set_alpha(_ap2); draw_set_color(c_white);
-        draw_rectangle(_cx5 - 10*_scale, _cy5 - 10*_scale, _cx5 + 10*_scale, _cy5 + 10*_scale, true);
-        draw_set_color(color);
-        draw_rectangle(_cx5 - 12*_scale, _cy5 - 12*_scale, _cx5 + 12*_scale, _cy5 + 12*_scale, true);
-        gpu_set_blendmode(bm_normal);
-        draw_set_alpha(1);
-    }
+    
+    // Draw the block itself (and any specialty overlays/pulses)
+    cluster_core_draw_block(id, _bx, _by, _scale);
 
     // Active Piece HUD (Upright Billboard)
     if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && id == global.activePiece && !dialogue_is_active()) {

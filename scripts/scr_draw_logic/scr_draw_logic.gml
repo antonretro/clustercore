@@ -59,33 +59,107 @@ function drawlogic_calculate_planet_preview_path_legacy(_inst) {
 // ─────────────────────────────────────────────────────────────────────────────
 // draw_block_instance — Centralised block rendering
 // ─────────────────────────────────────────────────────────────────────────────
-function draw_block_instance(_inst, _bx, _by, _scale) {
-    var _drawX = _bx + (_inst.x * _scale);
-    var _drawY = _by + (_inst.y * _scale);
-    var _cx = _drawX + 8 * _scale;
-    var _cy = _drawY + 8 * _scale;
+function cluster_core_draw_block(_inst, _bx, _by, _scale, _alphaOverride = -1, _xOverride = -1, _yOverride = -1) {
+    // Determine drawing coordinates (allow absolute screen override for ghost piece)
+    var _ix = (_xOverride != -1) ? (_xOverride - 8 * _scale) : (_bx + (_inst.x * _scale));
+    var _iy = (_yOverride != -1) ? (_yOverride - 8 * _scale) : (_by + (_inst.y * _scale));
+    
+    // Centers for sprites that draw from center
+    var _cx = _ix + 8 * _scale;
+    var _cy = _iy + 8 * _scale;
 
-    // Use visual rotation logic: stay upright relative to screen
-    var _renderRot = -global.boardRotation + _inst.visualRotation + _inst.rotation;
+    var _alpha = (_alphaOverride != -1) ? _alphaOverride : _inst.image_alpha;
+    
+    // Block square: counter-rotate by boardRotation so it always appears UPRIGHT
+    var _blockRot = _inst.visualRotation + _inst.rotation - global.boardRotation;
+    // Arrow overlay: no counter-rotation — matrix naturally rotates it with the board
+    var _arrowRot = _inst.visualRotation + _inst.rotation;
 
-    if (_inst.sprite_index != -1) {
+    // 1. Draw Base Sprite
+    if (_inst.sprite_index != -1 && sprite_exists(_inst.sprite_index)) {
         draw_sprite_ext(_inst.sprite_index, _inst.image_index, _cx, _cy,
-            _scale * _inst.scale_x, _scale * _inst.scale_y, _renderRot, c_white, _inst.image_alpha);
+            _scale * _inst.scale_x, _scale * _inst.scale_y, _blockRot, c_white, _alpha);
     }
     
-    // Metal arrow overlay (rotates WITH board)
-    if (_inst.type == "metal") {
+    // 2. Specialty Overlays (Drawn on top of base color)
+    var _sclX = _scale * _inst.scale_x;
+    var _sclY = _scale * _inst.scale_y;
+
+    // Metal / Directional Core arrows
+    if (_inst.type == "metal" || (_inst.type == "core" && variable_instance_exists(_inst, "core_arrow") && _inst.core_arrow)) {
         var _arSpr = (_inst.dir == 0) ? spr_lr_arrows : spr_ud_arrows;
-        draw_sprite_ext(_arSpr, 0, _cx, _cy, _scale * _inst.scale_x, _scale * _inst.scale_y, 0, c_white, _inst.image_alpha);
+        if (sprite_exists(_arSpr)) {
+            draw_sprite_ext(_arSpr, 0, _cx, _cy, _sclX, _sclY, _arrowRot, c_white, _alpha);
+        }
     }
     
-    // Core glow/highlight
+    // Overlay Sprites with Text Fallbacks
+    var _mark = "";
+    var _markCol = c_white;
+    var _overlaySpr = -1;
+
+    switch (_inst.type) {
+        case "locked": 
+            _overlaySpr = asset_get_index("spr_locked_overlay");
+            _mark = "L"; _markCol = make_color_rgb(230, 210, 90); 
+            break;
+        case "multiplier": 
+            _overlaySpr = asset_get_index("spr_multiplier_overlay");
+            _mark = "x2"; _markCol = c_yellow; 
+            break;
+        case "spore": 
+            _overlaySpr = asset_get_index("spr_spore_overlay");
+            _mark = "..."; _markCol = make_color_rgb(180, 255, 150); 
+            break;
+        case "void": 
+            _overlaySpr = asset_get_index("spr_void_overlay");
+            _mark = "O"; _markCol = make_color_rgb(40, 15, 80); 
+            break;
+        case "debt":
+            _mark = "$"; _markCol = make_color_rgb(255, 110, 190);
+            break;
+        case "gravity":
+            _mark = "G"; _markCol = make_color_rgb(170, 220, 255);
+            break;
+        case "prism":
+            _mark = "<>"; _markCol = c_aqua;
+            break;
+        case "core_key":
+            _mark = "K"; _markCol = c_aqua;
+            break;
+    }
+
+    if (_overlaySpr != -1 && sprite_exists(_overlaySpr)) {
+        draw_sprite_ext(_overlaySpr, 0, _cx, _cy, _sclX, _sclY, _blockRot, c_white, _alpha);
+    } else if (_mark != "") {
+        draw_set_halign(fa_center); draw_set_valign(fa_middle);
+        draw_set_alpha(_alpha);
+        var _font = asset_get_index("main_font");
+        if (_font != -1) draw_set_font(_font);
+        draw_set_color(_markCol);
+        draw_text_transformed(_cx, _cy + 1 * _scale, _mark, 0.45 * _scale, 0.45 * _scale, 0);
+        draw_set_alpha(1.0);
+        draw_set_halign(fa_left); draw_set_valign(fa_top);
+    }
+    
+    // Shard/Gem overlays
+    if (variable_instance_exists(_inst, "shard_value") && _inst.shard_value > 0) {
+        var _shSeed = (_inst.grid_x * 13) + (_inst.grid_y * 17);
+        var _shPulse = 0.86 + abs(sin(current_time * 0.008 + _shSeed)) * 0.18;
+        var _shSpr = asset_get_index("spr_shard_on_block");
+        if (_shSpr != -1 && sprite_exists(_shSpr)) {
+            draw_sprite_ext(_shSpr, 0, _cx, _cy - 2 * _scale, _sclX * _shPulse, _sclY * _shPulse, _blockRot, c_white, _alpha);
+        }
+    }
+
+    // 3. Core glow/highlight
     if (_inst.type == "core") {
         gpu_set_blendmode(bm_add);
         var _cp2 = 0.3 + abs(sin(current_time * 0.005)) * 0.4;
-        draw_sprite_ext(_inst.sprite_index, _inst.image_index, _cx, _cy, _scale*_inst.scale_x*1.4, _scale*_inst.scale_y*1.4, _renderRot, c_white, _cp2 * 0.5);
+        draw_sprite_ext(_inst.sprite_index, _inst.image_index, _cx, _cy, _scale*_inst.scale_x*1.4, _scale*_inst.scale_y*1.4, _blockRot, c_white, _cp2 * 0.5 * _alpha);
         gpu_set_blendmode(bm_normal);
-        draw_set_color(c_white); draw_set_alpha(_cp2 + 0.2);
+        
+        draw_set_color(c_white); draw_set_alpha((_cp2 + 0.2) * _alpha);
         draw_rectangle(_cx - 9*_scale, _cy - 9*_scale, _cx + 9*_scale, _cy + 9*_scale, true);
         draw_rectangle(_cx - 10*_scale, _cy-10*_scale, _cx+10*_scale, _cy+10*_scale, true);
         draw_set_alpha(1.0);

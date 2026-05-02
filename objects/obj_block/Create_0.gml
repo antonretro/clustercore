@@ -37,19 +37,19 @@ function update_sprite() {
     }
     
     // 2. Overwrite for special solo types
-    if (type == "bomb") sprite_index = spr_bomb;
-    if (type == "dead") sprite_index = spr_deadmetal;
+    if (type == "bomb")  sprite_index = spr_bomb;
+    if (type == "dead")  sprite_index = spr_deadmetal;
     if (type == "drill") sprite_index = spr_drill;
-    if (type == "wild") sprite_index = spr_wildcard;
-    if (type == "void") sprite_index = spr_deadmetal;
+    if (type == "wild")  sprite_index = spr_wildcard;
+    if (type == "void")  sprite_index = spr_deadmetal;
+    
     // Core blocks now look like normal colored blocks to keep them matchable
     if (type == "asteroid") {
-        if (asset_get_index("spr_asteroid") != -1) {
+        if (asset_get_index("spr_space_rock") != -1) {
             sprite_index = spr_space_rock;
             image_index = (shield_hp <= 1 ? 1 : 0);
         }
     }
-    // Metal blocks KEEP their color sprite, but will have an arrow drawn on top.
 }
 
 // Initial update

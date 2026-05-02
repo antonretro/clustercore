@@ -606,6 +606,9 @@ function setup_active_piece_after_spawn(_inst, _gx, _gy) {
 
 function spawn_piece() {
     global.turnCount++;
+    if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
+        recalculate_planet_surface();
+    }
 
     if (array_length(global.nextQueue) <= 0) {
         array_push(global.nextQueue, generate_piece());

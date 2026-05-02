@@ -930,6 +930,7 @@ function settle_matches() {
         _matches = _filteredMatches;
         if (array_length(_matches) <= 0) {
             global.locking = false;
+            recalculate_planet_surface(); // Ensure surface is fresh for next piece preview
             rotate_prism_blocks();
             if (planet_has_outer_danger_block()) {
                 global.gameState = "GAMEOVER";
@@ -1266,8 +1267,9 @@ function migrate_core(_oldX, _oldY, _avoidMask = undefined) {
         && _cell.type != "drill" && _cell.type != "dead"
         && (_cell.inst == undefined || !variable_instance_exists(_cell.inst, "clearing") || !_cell.inst.clearing)) {
             var _avoid = false;
-            if (_avoidMask != undefined && _ny >= 0 && _ny < array_length(_avoidMask)) {
-                if (_nx >= 0 && _nx < array_length(_avoidMask[_ny])) _avoid = _avoidMask[_ny][_nx];
+            if (_avoidMask != undefined && is_array(_avoidMask) && _ny >= 0 && _ny < array_length(_avoidMask)) {
+                var _row = _avoidMask[_ny];
+                if (is_array(_row) && _nx >= 0 && _nx < array_length(_row)) _avoid = _row[_nx];
             }
             if (!_avoid) array_push(_candidates, {x: _nx, y: _ny});
         }
@@ -1517,24 +1519,29 @@ function calculate_planet_preview_path(_inst) {
         _hlVis[_ty][_tx] = true;
         var _nbDirs = [[-1,0],[1,0],[0,-1],[0,1]];
         var _hlQueue = [];
+        
+        // Initial neighbors
         for (var _nd = 0; _nd < 4; _nd++) {
             var _nnx = _tx + _nbDirs[_nd][0], _nny = _ty + _nbDirs[_nd][1];
             if (_nnx >= 0 && _nnx < global.TOTAL_COLS && _nny >= 0 && _nny < global.TOTAL_ROWS) {
                 var _nc = global.grid[_nny][_nnx];
-                if (_nc != undefined && _nc.id == _inst.color_id) {
+                if (_nc != undefined && _nc.id == _inst.color_id && cell_can_match(_nc)) {
                     _hlVis[_nny][_nnx] = true;
                     array_push(_hlList, {x: _nnx, y: _nny});
                     array_push(_hlQueue, {x: _nnx, y: _nny});
                 }
             }
         }
-        while (array_length(_hlQueue) > 0) {
-            var _curr = _hlQueue[0]; array_delete(_hlQueue, 0, 1);
+        
+        // BFS with head pointer for O(N) performance
+        var _head = 0;
+        while (_head < array_length(_hlQueue)) {
+            var _curr = _hlQueue[_head++];
             for (var _nd = 0; _nd < 4; _nd++) {
                 var _nnx = _curr.x + _nbDirs[_nd][0], _nny = _curr.y + _nbDirs[_nd][1];
                 if (_nnx >= 0 && _nnx < global.TOTAL_COLS && _nny >= 0 && _nny < global.TOTAL_ROWS) {
                     var _nc = global.grid[_nny][_nnx];
-                    if (_nc != undefined && _nc.id == _inst.color_id && !_hlVis[_nny][_nnx]) {
+                    if (_nc != undefined && _nc.id == _inst.color_id && !_hlVis[_nny][_nnx] && cell_can_match(_nc)) {
                         _hlVis[_nny][_nnx] = true;
                         array_push(_hlList, {x: _nnx, y: _nny});
                         array_push(_hlQueue, {x: _nnx, y: _nny});
@@ -1542,6 +1549,7 @@ function calculate_planet_preview_path(_inst) {
                 }
             }
         }
+        // Match occurs if 3+ neighbors share color (making 4 including self)
         _isMatchRdy = (array_length(_hlList) >= 3);
     }
 
