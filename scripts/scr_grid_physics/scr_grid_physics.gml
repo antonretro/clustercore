@@ -522,18 +522,19 @@ function lock_piece() {
         sfx_bomb();
 
         var _blasted = 0;
-        var _bdirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1],[0,-2],[0,2],[-2,0],[2,0]];
-        for (var _bi = 0; _bi < array_length(_bdirs); _bi++) {
-            var _bx2 = _px + _bdirs[_bi][0]; var _by2 = _py + _bdirs[_bi][1];
-            if (_bx2 < 0 || _bx2 >= global.TOTAL_COLS || _by2 < 0 || _by2 >= global.TOTAL_ROWS) continue;
-            var _cell = global.grid[_by2][_bx2];
-            if (_cell != undefined) {
-                if (_cell.type == "core") migrate_core(_bx2, _by2);
-                create_particles((_bx2 - global.HIDDEN_SIDES) * 16,
-                                 (_by2 - global.HIDDEN_ROWS)  * 16, _cell.color);
-                _cell.inst.clearing = true;
-                global.grid[_by2][_bx2] = undefined;
-                _blasted++;
+        for (var _dx = -1; _dx <= 1; _dx++) {
+            for (var _dy = -1; _dy <= 1; _dy++) {
+                var _bx2 = _px + _dx; var _by2 = _py + _dy;
+                if (_bx2 < 0 || _bx2 >= global.TOTAL_COLS || _by2 < 0 || _by2 >= global.TOTAL_ROWS) continue;
+                var _cell = global.grid[_by2][_bx2];
+                if (_cell != undefined) {
+                    if (_cell.type == "core") migrate_core(_bx2, _by2);
+                    create_particles((_bx2 - global.HIDDEN_SIDES) * 16,
+                                     (_by2 - global.HIDDEN_ROWS)  * 16, _cell.color);
+                    if (_cell.inst != undefined) _cell.inst.clearing = true;
+                    global.grid[_by2][_bx2] = undefined;
+                    _blasted++;
+                }
             }
         }
         global.grid[_py][_px] = undefined;
@@ -545,6 +546,47 @@ function lock_piece() {
             global.ui_scales.score = 1.3;
             award_shards(_pts, _blasted);
             charge_jackpot(_blasted + 3);
+            update_level_progress();
+        }
+        instance_destroy(_p);
+        global.activePiece = undefined;
+        if (_blasted > 0) apply_grid_gravity();
+        alarm[0] = 10;
+        return;
+    }
+
+    // ── SUPER BOMB: 5x5 diamond blast ────────────────────────────────────────
+    if (_p.type == "super_bomb") {
+        var _sp = _grid_screen_pos(_px, _py);
+        create_impact(0, (_py - global.HIDDEN_ROWS + 1) * 16, global.COLS * 16, make_color_rgb(255, 0, 255));
+        create_floating_text_ext(_sp.x, _sp.y, "SUPER NOVA!", make_color_rgb(255, 100, 255), 1.8);
+        if (global.settings.shakeEnabled) global.shakeAmount = 25;
+        global.hitstop = 12;
+        sfx_bomb();
+
+        var _blasted = 0;
+        var _bdirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1],[0,-2],[0,2],[-2,0],[2,0]];
+        for (var _bi = 0; _bi < array_length(_bdirs); _bi++) {
+            var _bx2 = _px + _bdirs[_bi][0]; var _by2 = _py + _bdirs[_bi][1];
+            if (_bx2 < 0 || _bx2 >= global.TOTAL_COLS || _by2 < 0 || _by2 >= global.TOTAL_ROWS) continue;
+            var _cell = global.grid[_by2][_bx2];
+            if (_cell != undefined) {
+                if (_cell.type == "core") migrate_core(_bx2, _by2);
+                create_particles((_bx2 - global.HIDDEN_SIDES) * 16,
+                                 (_by2 - global.HIDDEN_ROWS)  * 16, _cell.color);
+                if (_cell.inst != undefined) _cell.inst.clearing = true;
+                global.grid[_by2][_bx2] = undefined;
+                _blasted++;
+            }
+        }
+        global.grid[_py][_px] = undefined;
+        if (_blasted > 0) {
+            var _pts = _blasted * 250 * ((global.feverTimer > 0) ? 2 : 1);
+            global.score += _pts; global.levelScore += _pts;
+            if (global.gameMode == "STORY") global.storyCleared += _blasted;
+            global.ui_scales.score = 1.5;
+            award_shards(_pts, _blasted);
+            charge_jackpot(_blasted + 8);
             update_level_progress();
         }
         instance_destroy(_p);
@@ -875,10 +917,12 @@ function settle_matches() {
                 if (_ncE == undefined) continue;
                 if (_ncE.type == "bomb" || _ncE.type == "dead") continue;
                 var _axisE = (_dirsE[_diE][0] != 0) ? "h" : "v";
-                if (!match_cells_can_link(_fromCell, _ncE, _axisE, true)) continue;
-                // Metal/arrow blocks only clear if they were part of the
-                // original legal match. Normal same-color leftovers still
-                // spill-clean, but arrows never get swept up "for free".
+                if (!match_cells_can_link(_fromCell, _ncE, _axisE, false)) continue;
+                
+                // Color Lock: Prevent wildcards from bridging different colors during expansion
+                if (_n.id != 999 && _ncE.id != 999 && _ncE.id != _n.id) continue;
+                // HARD BLOCK: Metal blocks can NEVER be pulled in by spillover expansion.
+                // They are only cleared if they were part of the initial legal match (seed).
                 if (_ncE.type == "metal" && !_seedMask[_nyE][_nxE]) continue;
                 _visit[_nyE][_nxE] = true;
                 _clearMask[_nyE][_nxE] = true;
@@ -936,6 +980,11 @@ function settle_matches() {
                 global.gameState = "GAMEOVER";
                 if (global.score > global.highScore) { global.highScore = global.score; save_high_score(); }
                 sfx_game_over();
+                return;
+            }
+            if (story_objective_is_met()) {
+                global.gameState = "FINISHING_LEVEL";
+                global.finishTimer = 100;
                 return;
             }
             spawn_piece();

@@ -94,7 +94,7 @@ function add_cluster_matches(_grid, _cols, _rows, _clear_grid) {
 
             var _cell = _grid[_y][_x];
 
-            if (!cell_can_match(_cell)) {
+            if (!cell_can_match(_cell) || _cell.type == "metal") {
                 _visited[_y][_x] = true;
                 continue;
             }
@@ -187,8 +187,13 @@ function add_line_matches(_grid, _cols, _rows, _clear_grid) {
             var _canJoin = false;
             if (_curr != undefined && cell_can_match(_curr)) {
                 if (array_length(_line) == 0) {
-                    _canJoin = true;
-                    _lineId = _curr.id;
+                    // HARD GUARD: Block cannot even START a line if it points the wrong way
+                    if (_curr.type == "metal" && !match_arrow_allows_axis(_curr, "h")) {
+                        _canJoin = false;
+                    } else {
+                        _canJoin = true;
+                        _lineId = _curr.id;
+                    }
                 } else {
                     var _prev = _grid[_y][_x - 1];
                     if (cells_can_match_axis(_prev, _curr, "h", true)) {
@@ -230,8 +235,13 @@ function add_line_matches(_grid, _cols, _rows, _clear_grid) {
             var _canJoinV = false;
             if (_currV != undefined && cell_can_match(_currV)) {
                 if (array_length(_lineV) == 0) {
-                    _canJoinV = true;
-                    _lineIdV = _currV.id;
+                    // HARD GUARD: Block cannot even START a line if it points the wrong way
+                    if (_currV.type == "metal" && !match_arrow_allows_axis(_currV, "v")) {
+                        _canJoinV = false;
+                    } else {
+                        _canJoinV = true;
+                        _lineIdV = _currV.id;
+                    }
                 } else {
                     var _prevV = _grid[_y - 1][_x];
                     if (cells_can_match_axis(_prevV, _currV, "v", true)) {

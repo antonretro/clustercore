@@ -152,13 +152,14 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
             case 6: _hSpr = spr_greenSprite; break;
         }
         if (global.holdPiece.type == "bomb") _hSpr = spr_bomb;
+        if (global.holdPiece.type == "super_bomb") _hSpr = asset_get_index("spr_super_bomb");
         if (global.holdPiece.type == "drill") _hSpr = spr_drill;
         if (global.holdPiece.type == "dead") _hSpr = spr_deadmetal;
         gpu_set_texfilter(false);
         draw_sprite_ext(_hSpr, 0, _hcx, _hcy, _hScale, _hScale, 0, c_white, global.canHold ? 1.0 : 0.4);
         if (global.holdPiece.type == "metal") {
-            var _hArrow = (global.holdPiece.dir == 0) ? spr_lr_arrows : spr_ud_arrows;
-            draw_sprite_ext(_hArrow, 0, _hcx, _hcy, _hScale, _hScale, 0, c_white, global.canHold ? 1.0 : 0.4);
+            var _hRot = (global.orbitalSide * 90) + (global.holdPiece.dir == 0 ? 90 : 0);
+            draw_sprite_ext(spr_ud_arrows, 0, _hcx, _hcy, _hScale, _hScale, _hRot, c_white, global.canHold ? 1.0 : 0.4);
         }
         gpu_set_texfilter(false);
     }
@@ -242,12 +243,13 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
             case 6: _qSpr = spr_greenSprite; break;
         }
         if (_qPiece.type == "bomb") _qSpr = spr_bomb;
+        if (_qPiece.type == "super_bomb") _qSpr = asset_get_index("spr_super_bomb");
         if (_qPiece.type == "drill") _qSpr = spr_drill;
         if (_qPiece.type == "dead") _qSpr = spr_deadmetal;
         draw_sprite_ext(_qSpr, 0, _qcx, _qcy, _qScale, _qScale, 0, c_white, (i == 0 ? 1.0 : 0.5));
         if (_qPiece.type == "metal") {
-            var _qArrow = (_qPiece.dir == 0) ? spr_lr_arrows : spr_ud_arrows;
-            draw_sprite_ext(_qArrow, 0, _qcx, _qcy, _qScale, _qScale, 0, c_white, (i == 0 ? 1.0 : 0.5));
+            var _qRot = (global.orbitalSide * 90) + (_qPiece.dir == 0 ? 90 : 0);
+            draw_sprite_ext(spr_ud_arrows, 0, _qcx, _qcy, _qScale, _qScale, _qRot, c_white, (i == 0 ? 1.0 : 0.5));
         }
     }
     gpu_set_texfilter(false);

@@ -43,30 +43,20 @@ function match_cell_is_excluded(_cell) {
 }
 
 function match_cells_can_link(_c1, _c2, _axis, _allowMetal = true) {
-    if (match_cell_is_excluded(_c1)) return false;
-    if (match_cell_is_excluded(_c2)) return false;
+    if (_c1 == undefined || _c2 == undefined) return false;
+    if (match_cell_is_excluded(_c1) || match_cell_is_excluded(_c2)) return false;
 
+    // 1. Basic Color Match (including wildcards)
     if (!match_cells_share_color(_c1, _c2)) return false;
 
-    var _c1Metal = (_c1.type == "metal");
-    var _c2Metal = (_c2.type == "metal");
-    
-    // A core is directional only if it has the core_arrow flag enabled
-    var _c1Dir = (_c1.type == "core" && variable_struct_exists(_c1, "core_arrow") && _c1.core_arrow) || _c1Metal;
-    var _c2Dir = (_c2.type == "core" && variable_struct_exists(_c2, "core_arrow") && _c2.core_arrow) || _c2Metal;
-    var _coreLink = (_c1.type == "core" || _c2.type == "core");
+    // 2. Metal/Arrow Restriction
+    // If we don't allow metal (like in diagonal scans or cluster matching), fail immediately
+    if (!_allowMetal && (_c1.type == "metal" || _c2.type == "metal")) return false;
+    if (_axis == "d" && (_c1.type == "metal" || _c2.type == "metal")) return false;
 
-    // Metal blocks are restricted to line matches (_allowMetal=true).
-    // In clusters (_allowMetal=false), they are only allowed if linking to the core.
-    if (!_allowMetal && (_c1Metal || _c2Metal) && !_coreLink) {
-        return false;
-    }
-
-    // Full-Proof Directional Check:
-    // If a block is directional (Metal or a Directional Core), it MUST allow the axis.
-    // Standard cores (non-directional) still act as universal links for same-color arrows.
-    if (_c1Dir && !match_arrow_allows_axis(_c1, _axis)) return false;
-    if (_c2Dir && !match_arrow_allows_axis(_c2, _axis)) return false;
+    // If we DO allow metal, both sides must allow the specific axis (H or V)
+    if (_c1.type == "metal" && !match_arrow_allows_axis(_c1, _axis)) return false;
+    if (_c2.type == "metal" && !match_arrow_allows_axis(_c2, _axis)) return false;
 
     return true;
 }

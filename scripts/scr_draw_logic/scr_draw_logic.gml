@@ -77,7 +77,12 @@ function cluster_core_draw_block(_inst, _bx, _by, _scale, _alphaOverride = -1, _
 
     // 1. Draw Base Sprite
     if (_inst.sprite_index != -1 && sprite_exists(_inst.sprite_index)) {
-        draw_sprite_ext(_inst.sprite_index, _inst.image_index, _cx, _cy,
+        var _baseSpr = _inst.sprite_index;
+        if (_inst.type == "super_bomb") {
+            var _sbAsset = asset_get_index("spr_super_bomb");
+            if (sprite_exists(_sbAsset)) _baseSpr = _sbAsset;
+        }
+        draw_sprite_ext(_baseSpr, _inst.image_index, _cx, _cy,
             _scale * _inst.scale_x, _scale * _inst.scale_y, _blockRot, c_white, _alpha);
     }
     
@@ -100,8 +105,8 @@ function cluster_core_draw_block(_inst, _bx, _by, _scale, _alphaOverride = -1, _
 
     switch (_inst.type) {
         case "locked": 
-            _overlaySpr = asset_get_index("spr_locked_overlay");
-            _mark = "L"; _markCol = make_color_rgb(230, 210, 90); 
+            _overlaySpr = asset_get_index("spr_locked_cage");
+            _mark = ""; 
             break;
         case "multiplier": 
             _overlaySpr = asset_get_index("spr_multiplier_overlay");
@@ -126,6 +131,9 @@ function cluster_core_draw_block(_inst, _bx, _by, _scale, _alphaOverride = -1, _
             break;
         case "core_key":
             _mark = "K"; _markCol = c_aqua;
+            break;
+        case "super_bomb":
+            _mark = "!!!"; _markCol = make_color_rgb(255, 100, 255);
             break;
     }
 

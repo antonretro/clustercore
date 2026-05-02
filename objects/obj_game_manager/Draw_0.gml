@@ -87,19 +87,39 @@ draw_roundrect_ext(_bx - 12, _by - 12, _bx + _bw + 12, _by + _bh + 12, 20, 20, t
 
 // --- Lane Tints & Danger Ring ---
 if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
+    var _biomeSpr = [
+        -1,             // 0 = none
+        spr_tile_ocean,    
+        spr_tile_forest,   
+        spr_tile_mountain, 
+        spr_tile_desert,   
+        spr_tile_tundra    
+    ];
+
     for (var _gy3 = global.HIDDEN_ROWS; _gy3 < global.TOTAL_ROWS - global.HIDDEN_ROWS; _gy3++) {
         for (var _gx3 = global.HIDDEN_SIDES; _gx3 < global.TOTAL_COLS - global.HIDDEN_SIDES; _gx3++) {
             var _dist = max(abs(_gx3 - _centerGX), abs(_gy3 - _centerGY));
             if (_dist == 0) continue;
             var _tx = _bx + (_gx3 - global.HIDDEN_SIDES) * _cw;
             var _ty = _by + (_gy3 - global.HIDDEN_ROWS)  * _cw;
-            var _col = make_color_rgb(10, 5, 20);
-            if (_dist == 1) _col = make_color_rgb(30, 10, 50);
-            if (_dist == 2) _col = make_color_rgb(20, 5, 30);
-            if (_dist == 3) _col = make_color_rgb(10, 2, 15);
-            if (_dist == 4) _col = make_color_rgb(45, 8, 8);
-            draw_set_alpha(0.5); draw_set_color(_col);
-            draw_rectangle(_tx, _ty, _tx + _cw, _ty + _cw, false);
+            
+            var _tData = global.restoredMap[_gy3][_gx3];
+            var _bSpr = -1;
+            if (typeof(_tData) == "struct") _bSpr = _biomeSpr[clamp(_tData.type, 0, 5)];
+
+            // Draw terrain tile as the planet foundation (very subtle)
+            if (_bSpr != -1 && sprite_exists(_bSpr)) {
+                var _varIdx = (typeof(_tData) == "struct") ? _tData.variant : 0;
+                draw_sprite_ext(_bSpr, _varIdx, _tx + 8 * _scale, _ty + 8 * _scale, _scale, _scale, 0, c_black, 0.2);
+            } else {
+                // Fallback to old colored rectangles if sprites missing
+                var _col = make_color_rgb(10, 5, 20);
+                if (_dist == 1) _col = make_color_rgb(30, 10, 50);
+                if (_dist == 2) _col = make_color_rgb(20, 5, 30);
+                draw_set_alpha(0.5); draw_set_color(_col);
+                draw_rectangle(_tx, _ty, _tx + _cw, _ty + _cw, false);
+            }
+            
             draw_set_alpha(0.05); draw_set_color(c_white);
             draw_rectangle(_tx, _ty, _tx + _cw, _ty + _cw, true);
         }
@@ -254,11 +274,11 @@ if (global.restoredTilesAlpha > 0) {
     // Biome sprite lookup
     var _biomeSpr = [
         -1,             // 0 = none
-        asset_get_index("spr_tile_ocean"),    
-        asset_get_index("spr_tile_forest"),   
-        asset_get_index("spr_tile_mountain"), 
-        asset_get_index("spr_tile_desert"),   
-        asset_get_index("spr_tile_tundra")    
+        spr_tile_ocean,    
+        spr_tile_forest,   
+        spr_tile_mountain, 
+        spr_tile_desert,   
+        spr_tile_tundra    
     ];
     var _biomeFallback = [
         c_black,
@@ -284,7 +304,8 @@ if (global.restoredTilesAlpha > 0) {
             draw_set_alpha(global.restoredTilesAlpha);
 
             if (_spr != -1 && sprite_exists(_spr)) {
-                draw_sprite_ext(_spr, 0, _tsxC, _tsyC, _scale, _scale, 0, c_white, global.restoredTilesAlpha);
+                var _subimg = (typeof(_tData) == "struct") ? _tData.variant : 0;
+                draw_sprite_ext(_spr, _subimg, _tsxC, _tsyC, _scale, _scale, 0, c_white, global.restoredTilesAlpha);
             } else {
                 draw_set_color(_biomeFallback[_tType]);
                 draw_rectangle(_tsx, _tsy, _tsx + _cw, _tsy + _cw, false);
@@ -372,7 +393,7 @@ if ((global.gameMode == "PLANET" || global.gameMode == "STORY") && global.active
 
 // --- Blocks Rendering ---
 with (obj_block) {
-    if (!visible || clearing) continue;
+    if (!visible) continue;
     
     var _cx5 = _bx + (x * _scale) + 8 * _scale;
     var _cy5 = _by + (y * _scale) + 8 * _scale;

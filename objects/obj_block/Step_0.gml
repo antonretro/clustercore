@@ -14,7 +14,7 @@ if (clearing) {
     // Zoom Out / Shrink and Rotate
     scale_x = 1.0 - _pct;
     scale_y = 1.0 - _pct;
-    rotation += 15; // Fast spin
+    rotation += 25; // Fast spin
     
     // Fade out (using image_alpha)
     image_alpha = 1.0 - _pct;

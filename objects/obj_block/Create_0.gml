@@ -16,7 +16,7 @@ rotation = 0;
 visualRotation = 0;
 clearing = false;
 clear_timer = 0;
-clear_timer_max = 20;
+clear_timer_max = 15;
 
 shield_hp = 2;
 shard_value = 0;

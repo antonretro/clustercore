@@ -306,32 +306,33 @@ function make_piece_data(_type, _id, _dir = 0) {
 }
 
 function story_specialty_type_for_piece() {
-    if (global.gameMode != "STORY") return "normal";
-
-    var _world = clamp(global.storyPlanet, 0, 4);
-    var _level = clamp(global.storyLevel, 0, 5);
-    var _chance = 0.10 + (_level * 0.012);
-    if (_world == 0) _chance = 0.08 + (_level * 0.01);
-    if (piece_rng_random(1) >= _chance) return "normal";
-
-    switch (_world) {
-        case 0:
-            return (piece_rng_random(1) < 0.55) ? "wild" : "normal";
-        case 1:
-            return (piece_rng_random(1) < 0.52) ? "locked" : "spore";
-        case 2:
-            return (piece_rng_random(1) < 0.58) ? "multiplier" : "debt";
-        case 3:
-            return (piece_rng_random(1) < 0.55) ? "gravity" : "void";
-        case 4:
-            return (piece_rng_random(1) < 0.50) ? "prism" : "core_key";
-    }
-
+    // Specialty obstacles (locked, spore, etc.) should only exist in the seed layout,
+    // NOT in the player's active piece queue.
     return "normal";
 }
 
 
+function refill_piece_bag() {
+    var _temp = [];
+    for (var i = 0; i < array_length(global.activeColors); i++) {
+        array_push(_temp, global.activeColors[i]);
+    }
+    // Fisher-Yates shuffle
+    for (var i = array_length(_temp) - 1; i > 0; i--) {
+        var j = irandom(i);
+        var _val = _temp[i];
+        _temp[i] = _temp[j];
+        _temp[j] = _val;
+    }
+    for (var i = 0; i < array_length(_temp); i++) {
+        array_push(global.pieceBag, _temp[i]);
+    }
+}
+
 function generate_piece() {
+    if (array_length(global.pieceBag) == 0) refill_piece_bag();
+    var _colorId = array_shift(global.pieceBag);
+    
     // --- Smart Biasing: Help player clear the core and leftovers ---
     var _coreId = -1;
     var _cx = -1, _cy = -1;
@@ -372,6 +373,11 @@ function generate_piece() {
     if (_buried >= 3) _bombChance += 0.04; 
     if (piece_rng_random(1) < _bombChance) {
         return { type: "bomb", color: c_black, dir: 0, id: 888 };
+    }
+
+    // Super Bomb: VERY rare, high level or classic
+    if ((global.level >= 10 || global.gameMode == "CLASSIC") && piece_rng_random(1) < 0.005) {
+        return { type: "super_bomb", color: make_color_rgb(180, 0, 255), dir: 0, id: 666 };
     }
 
     // Drills: restricted to level 3+ AND only AFTER the first 5 turns
@@ -442,9 +448,8 @@ function generate_piece() {
         // Scaled core help (LIVE random)
         _id = _coreId;
     } else {
-        // Fallback to SEEDED random for normal pieces
-        var _nidx = piece_rng_irandom(array_length(global.activeColors) - 1);
-        _id = global.activeColors[_nidx];
+        // Fallback to BAG for normal pieces
+        _id = _colorId;
     }
 
     var _shardRate = 0.10;
@@ -877,8 +882,18 @@ function story_apply_level_layout(_def) {
             continue;
         }
 
-        var _cid = get_random_active_color_id();
         var _type = story_pick_cell_type(_settings);
+        var _cid = get_random_active_color_id();
+        
+        // Match Prevention: Normal blocks shouldn't start in a 4+ cluster.
+        // Arrows are fine as they don't match in clusters anyway.
+        if (_type == "normal") {
+            var _colorGuard = 0;
+            while (check_if_cell_creates_match(_rx, _ry, _cid) && _colorGuard < 10) {
+                _cid = get_random_active_color_id();
+                _colorGuard++;
+            }
+        }
         var _blockDir = 0;
 
         if (_type == "metal") {
@@ -913,4 +928,37 @@ function story_apply_level_layout(_def) {
     }
 
     return true;
+}
+
+
+function check_if_cell_creates_match(_gx, _gy, _cid) {
+    // Simple BFS check for 4+ same-color adjacency
+    var _q = [{x: _gx, y: _gy}];
+    var _visited = ds_map_create();
+    _visited[? string(_gx) + "," + string(_gy)] = true;
+    var _count = 1;
+    var _head = 0;
+    
+    var _dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+    
+    while (_head < array_length(_q)) {
+        var _curr = _q[_head++];
+        for (var i = 0; i < 4; i++) {
+            var _nx = _curr.x + _dirs[i][0];
+            var _ny = _curr.y + _dirs[i][1];
+            var _key = string(_nx) + "," + string(_ny);
+            
+            if (grid_in_bounds(_nx, _ny) && !ds_map_exists(_visited, _key)) {
+                var _cell = global.grid[_ny][_nx];
+                if (_cell != undefined && _cell.id == _cid && _cell.type == "normal") {
+                    _visited[? _key] = true;
+                    array_push(_q, {x: _nx, y: _ny});
+                    _count++;
+                }
+            }
+        }
+    }
+    
+    ds_map_destroy(_visited);
+    return (_count >= 4);
 }

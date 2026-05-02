@@ -130,6 +130,7 @@ global.reserveColors = [];
 for (var i = 0; i < 3; i++) array_push(global.activeColors, _allColors[i]);
 for (var i = 3; i < 6; i++) array_push(global.reserveColors, _allColors[i]);
 
+global.pieceBag = [];
 global.nextQueue = [];
 global.holdPiece = undefined;
 global.canHold = true;
@@ -262,6 +263,11 @@ setup_story_planet = function() {
     while (array_length(global.activeColors) < _planet.colors && array_length(global.reserveColors) > 0) {
         array_push(global.activeColors, array_shift(global.reserveColors));
     }
+    
+    // Hard reset the piece pool to match the NEW planet colors
+    global.pieceBag = [];
+    global.nextQueue = [];
+    array_push(global.nextQueue, generate_piece());
 };
 
 update_staging_ring_cache = function() {
@@ -363,11 +369,13 @@ start_game = function() {
         var _coreInst = _place_block_instance(_cx, _cy, _coreData);
         global.grid[_cy][_cx] = { type: "core", color: _coreCol, dir: 0, id: _coreId, inst: _coreInst, core_arrow: false };
 
-        // Seed 4 blocks around core (N/S = color1, E/W = color2) so the first match
-        // opportunity appears within 2-3 turns — removes the dull empty-board opening.
-        if (array_length(global.activeColors) >= 2) {
-            var _c1   = global.activeColors[0];
-            var _c2   = global.activeColors[1];
+        // Seed 4 blocks around core with colors that DON'T match the core immediately
+        if (array_length(global.activeColors) >= 3) {
+            var _c1 = _coreId;
+            var _c2 = _coreId;
+            while (_c1 == _coreId) _c1 = global.activeColors[irandom(array_length(global.activeColors) - 1)];
+            while (_c2 == _coreId || _c2 == _c1) _c2 = global.activeColors[irandom(array_length(global.activeColors) - 1)];
+            
             var _col1 = get_color_from_id(_c1);
             var _col2 = get_color_from_id(_c2);
             var _seeds = [
@@ -390,10 +398,11 @@ start_game = function() {
     }
 
     update_staging_ring_cache();
-    spawn_piece();
-    recalculate_planet_surface(); // Cache the initial surface depth
-    global.previewData    = undefined; // force recalc on first frame
-    global.tutorialTimer  = 600;       // show controls hint for 10 seconds
+    recalculate_planet_surface(); 
+    settle_matches(); // Auto-clear starting matches and spawn the first piece
+    
+    global.previewData    = undefined;
+    global.tutorialTimer  = 600;
     global.inputDelayTimer = 10;
     global.hint_cells = [];
     global.hint_tick = 0;
@@ -412,6 +421,7 @@ start_game = function() {
     for (var _ry3 = 0; _ry3 < global.TOTAL_ROWS; _ry3++) {
         global.restoredMap[_ry3] = array_create(global.TOTAL_COLS, 0);
     }
+    generate_restored_planet_map();
 
     story_try_start_level_dialogue();
 };
