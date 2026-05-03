@@ -12,13 +12,38 @@ in_settings   = false;
 in_story_select = false;
 in_bonus_select = false;
 in_refabricator = false;
+in_inventory    = false;
+in_shop         = false;
+in_how_to_play  = false;
+in_achievements = false;
 settings_index = 0;
 settings_items = ["Ghost Piece", "Screen Shake"];
+how_to_page = 0;
+how_to_max_pages = 5;
 
 // Title screen
 in_title        = true;
 title_timer     = 0;
 menu_enter_timer = 0; // 0→60: cards slide in on menu entry
+is_loading      = false;
+loading_timer   = 0;
+in_level_transition = false;
+level_transition_timer = 0;
+transition_target_world = 0;
+transition_target_level = 0;
+zoom_lerp = 0; // 0 = galaxy view, 1 = planet focus
+screen_fade     = 1;  // start at 1 so title/menu appear instantly; 0→1 on sub-screen entry
+exit_pending    = ""; // name of the flag to clear on exit anim complete
+
+// Save slot system
+in_save_slots = false;
+save_slot_index = 0;
+save_slots = [
+    { name: "PILOT_01", progress: 0, shards: 0, playtime: "00:00:00" },
+    { name: "PILOT_02", progress: 0, shards: 0, playtime: "00:00:00" },
+    { name: "PILOT_03", progress: 0, shards: 0, playtime: "00:00:00" }
+];
+global.current_save_slot = 1;
 
 if (!variable_global_exists("settings")) {
     global.settings = { ghostEnabled: true, shakeEnabled: true };
@@ -41,11 +66,28 @@ if (!variable_global_exists("isFirstTimeLaunch"))      global.isFirstTimeLaunch 
 var _planetLabel  = "PLANET ENDLESS"  + (global.endlessPlanetUnlocked  ? "" : "  [LOCKED]");
 var _classicLabel = "CLASSIC ENDLESS" + (global.endlessClassicUnlocked ? "" : "  [LOCKED]");
 
-menu_items = ["STORY MODE", _planetLabel, _classicLabel, "SETTINGS"];
+menu_items = [
+    "STORY MODE",
+    _planetLabel,
+    _classicLabel,
+    "SAVE GAME",
+    "SHARDS",
+    "INVENTORY",
+    "SHOP",
+    "ENCYCLOPEDIA",
+    "ACHIEVEMENTS",
+    "SETTINGS"
+];
 menu_hint  = [
     "Clear a chain of corrupted planets, one objective at a time.",
     global.endlessPlanetUnlocked  ? "The Galaxy Experience: Rotating board, Core planet, and Mining gravity." : "Complete TIN MOON in Story Mode to unlock.",
     global.endlessClassicUnlocked ? "The Arcade Classic: Pure matching, No rotation, Clean grid."           : "Complete RUST GARDEN in Story Mode to unlock.",
+    "Persist your current progress to the cluster mainframe.",
+    "Access the Refabricator: Transform raw shards into precious gems.",
+    "Manage your collected equipment and pilot upgrades.",
+    "Spend gems on specialized core-mining tech.",
+    "A pilot's notebook: Basic movement to advanced cluster strategies.",
+    "Track your galactic milestones and parody rewards.",
     "Toggle gameplay options."
 ];
 
@@ -61,11 +103,11 @@ story_level_names = [
     ["Gate Hum", "Six Color Lock", "Solar Teeth", "Final Spiral", "Sun Debt", "Core Door"]
 ];
 story_worlds = [
-    { name: "TIN MOON",     orbit: 0.22, ang: 220, size: 18, color_a: make_color_rgb(120, 205, 230), color_b: make_color_rgb(55, 85, 130),  tilt: 0.34 },
-    { name: "RUST GARDEN",  orbit: 0.34, ang: 310, size: 22, color_a: make_color_rgb(230, 125, 70),  color_b: make_color_rgb(95, 45, 35),   tilt: 0.39 },
-    { name: "CASINO COMET", orbit: 0.46, ang: 25,  size: 20, color_a: make_color_rgb(255, 220, 90),  color_b: make_color_rgb(75, 150, 125), tilt: 0.43 },
-    { name: "DEAD ORBIT",   orbit: 0.58, ang: 105, size: 24, color_a: make_color_rgb(160, 170, 190), color_b: make_color_rgb(55, 55, 80),   tilt: 0.36 },
-    { name: "CLUSTER CORE", orbit: 0.70, ang: 165, size: 28, color_a: make_color_rgb(180, 105, 255), color_b: make_color_rgb(60, 30, 110),  tilt: 0.48 }
+    { name: "TIN MOON",     orbit: 0.22, ang: 220, size: 18, color_a: make_color_rgb(120, 205, 230), color_b: make_color_rgb(55, 85, 130),  tilt: 0.34, sprite: spr_mercury },
+    { name: "RUST GARDEN",  orbit: 0.34, ang: 310, size: 22, color_a: make_color_rgb(230, 125, 70),  color_b: make_color_rgb(95, 45, 35),   tilt: 0.39, sprite: spr_mars    },
+    { name: "CASINO COMET", orbit: 0.46, ang: 25,  size: 20, color_a: make_color_rgb(255, 220, 90),  color_b: make_color_rgb(75, 150, 125), tilt: 0.43, sprite: spr_venus   },
+    { name: "DEAD ORBIT",   orbit: 0.58, ang: 105, size: 24, color_a: make_color_rgb(160, 170, 190), color_b: make_color_rgb(55, 55, 80),   tilt: 0.36, sprite: spr_saturn  },
+    { name: "CLUSTER CORE", orbit: 0.70, ang: 165, size: 28, color_a: make_color_rgb(180, 105, 255), color_b: make_color_rgb(60, 30, 110),  tilt: 0.48, sprite: spr_jupiter }
 ];
 story_solar_spin = 0;
 bonus_select_index = 0;
@@ -75,6 +117,32 @@ bonus_planet_rewards = [18, 26, 34, 48];
 
 gp_prev_menu_stick_y = 0;
 gp_prev_menu_stick_x = 0;
+
+// Achievement data
+if (!variable_global_exists("achievements")) {
+    global.achievements = [
+        { name: "TOUCHDOWN",      desc: "Successfully clear your first planet mission.",       unlocked: true },
+        { name: "CLUSTER LUCK",   desc: "Clear a single cluster of 12+ blocks.",              unlocked: false },
+        { name: "CORE BLIMEY",    desc: "Achieve an S-Rank on any Story level.",              unlocked: false },
+        { name: "ARROW TO KNEE",  desc: "Clear a row using a Piercing Arrow beam.",           unlocked: true },
+        { name: "GRAVITY SUCKS",  desc: "Survive for 5 minutes in Planet Endless mode.",      unlocked: false },
+        { name: "CAGE MATCH",     desc: "Shatter a Locked Cage using two matches.",           unlocked: false },
+        { name: "METEOR SHOWER",  desc: "Survive 3 debris impacts in a single turn.",         unlocked: false },
+        { name: "PRISM POWER",    desc: "Clear a color-shifting Prism block.",                unlocked: false },
+        { name: "SPORE LOSER",    desc: "Lose a planet to Void Spore corruption.",            unlocked: false },
+        { name: "ORBITAL DRIFT",  desc: "Shift gravity sides 10 times in one level.",         unlocked: false },
+        { name: "CHAIN REACTION", desc: "Trigger a massive 5x Combo chain.",                  unlocked: false },
+        { name: "PERFECT ORBIT",  desc: "Clear a mission without using the Hold slot.",       unlocked: false },
+        { name: "MONEY BAGS",     desc: "Earn your first 1,000 Shards.",                     unlocked: false },
+        { name: "DIAMOND HANDS",  desc: "Hold a high-value block for 20+ turns.",             unlocked: false },
+        { name: "SPEED DEMON",    desc: "Clear a mission in under 60 seconds.",               unlocked: false },
+        { name: "ZEN GARDEN",     desc: "Clear all Space Junk on a single planet.",           unlocked: false },
+        { name: "CROSS PURPOSES", desc: "Clear a Cross-Arrow (ULDR) block.",                  unlocked: false },
+        { name: "LOCKSMITH",      desc: "Open 10 cages in a single game session.",            unlocked: false },
+        { name: "ANTIGRAVITY",    desc: "Rotate the board 360 before a piece lands.",         unlocked: false },
+        { name: "THE 1%",         desc: "Reach a galactic score of 1,000,000.",               unlocked: false }
+    ];
+}
 
 // First-time player: trigger backstory intro cinematic
 if (global.isFirstTimeLaunch) {

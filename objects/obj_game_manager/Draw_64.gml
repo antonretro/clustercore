@@ -368,67 +368,112 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     // ── GAME OVER / LEVEL CLEAR PANEL ────────────────────────────────────────
     if (global.gameState == "GAMEOVER" || global.gameState == "FINISHING_LEVEL" || global.gameState == "LEVEL_COMPLETE") {
         var _isComplete = (global.gameState == "FINISHING_LEVEL" || global.gameState == "LEVEL_COMPLETE");
-        
+
         // --- Central Glass Panel ---
-        var _pw = 620;
-        var _ph = 380;
+        var _pw = 660;
+        var _ph = 420;
         var _px1 = _guiW / 2 - _pw / 2;
         var _py1 = _guiH / 2 - _ph / 2;
         var _px2 = _px1 + _pw;
         var _py2 = _py1 + _ph;
-        
-        // Pixelated Shadow
-        draw_set_alpha(0.6);
+
+        // Shadow
+        draw_set_alpha(0.55);
         draw_set_color(c_black);
-        draw_roundrect_ext(_px1 + 8, _py1 + 8, _px2 + 8, _py2 + 8, 16, 16, false);
-        
-        // Vertical Gradient Background
-        var _cTop = make_color_rgb(45, 60, 110);
-        var _cBot = make_color_rgb(15, 20, 45);
-        draw_set_alpha(0.92);
+        draw_roundrect_ext(_px1 + 10, _py1 + 10, _px2 + 10, _py2 + 10, 20, 20, false);
+
+        // Glassmorphism background
+        var _cTop = make_color_rgb(20, 32, 62);
+        var _cBot = make_color_rgb(8, 12, 30);
+        draw_set_alpha(0.93);
         draw_rectangle_colour(_px1, _py1, _px2, _py2, _cTop, _cTop, _cBot, _cBot, false);
-        
-        // Frosted Outline
-        draw_set_alpha(0.4);
-        draw_set_color(make_color_rgb(140, 180, 255));
-        draw_roundrect_ext(_px1, _py1, _px2, _py2, 16, 16, true);
-        
+
+        // Grid texture
+        draw_set_alpha(0.025); draw_set_color(c_white);
+        for (var gx = _px1; gx < _px2; gx += 44) draw_line(gx, _py1, gx, _py2);
+        for (var gy = _py1; gy < _py2; gy += 44) draw_line(_px1, gy, _px2, gy);
+
+        // Panel border
+        draw_set_alpha(0.45);
+        draw_set_color(make_color_rgb(140, 190, 255));
+        draw_roundrect_ext(_px1, _py1, _px2, _py2, 20, 20, true);
+
+        // Inner glow
+        gpu_set_blendmode(bm_add);
+        draw_set_alpha(0.1); draw_set_color(make_color_rgb(100, 200, 255));
+        draw_roundrect_ext(_px1 + 3, _py1 + 3, _px2 - 3, _py2 - 3, 18, 18, true);
+        gpu_set_blendmode(bm_normal);
+
         draw_set_alpha(1.0);
         draw_set_halign(fa_center);
         draw_set_valign(fa_middle);
-        
-        // Header
-        var _title = _isComplete ? "LEVEL CLEAR" : "GAME OVER";
-        var _titleCol = _isComplete ? make_color_rgb(100, 255, 150) : make_color_rgb(255, 80, 80);
-        draw_set_color(_titleCol);
-        draw_text_transformed(_guiW / 2, _py1 + 60, _title, global.TXT_H1, global.TXT_H1, 0);
 
-        // Stats
+        // Title bar
+        var _title = _isComplete ? "MISSION COMPLETE" : "SIGNAL LOST";
+        var _titleCol = _isComplete ? make_color_rgb(100, 255, 150) : make_color_rgb(255, 80, 80);
+
+        // Title background strip
+        draw_set_alpha(0.12);
+        draw_set_color(_isComplete ? make_color_rgb(80, 255, 120) : make_color_rgb(255, 60, 60));
+        draw_roundrect_ext(_px1 + 20, _py1 - 30, _px2 - 20, _py1 + 130, 14, 14, false);
+
+        draw_set_color(_titleCol);
+        draw_text_transformed(_guiW / 2, _py1 + 55, _title, global.TXT_H1, global.TXT_H1, 0);
+
+        // Divider
+        draw_set_alpha(0.2); draw_set_color(make_color_rgb(140, 190, 255));
+        draw_line_width(_px1 + 80, _py1 + 100, _px2 - 80, _py1 + 100, 1);
+
+        // Score
         draw_set_color(c_white);
-        draw_text_transformed(_guiW / 2, _py1 + 130, "FINAL SCORE: " + string(global.score), global.TXT_H2, global.TXT_H2, 0);
+        draw_text_transformed(_guiW / 2, _py1 + 145, "FINAL SCORE: " + string(global.score), global.TXT_H2, global.TXT_H2, 0);
 
         if (_isComplete) {
+            // Turn bonus
             draw_set_color(c_yellow);
-            draw_text_transformed(_guiW / 2, _py1 + 190, "TURN BONUS: +" + string(global.storyBonus), global.TXT_H3, global.TXT_H3, 0);
+            draw_text_transformed(_guiW / 2, _py1 + 200, "TURN BONUS: +" + string(global.storyBonus), global.TXT_H3, global.TXT_H3, 0);
+
+            // Rank display with background glow
             var _rankCol = c_white;
+            var _rankGlow = c_white;
             switch(global.storyRank) {
-                case "S": _rankCol = c_yellow; break;
-                case "A": _rankCol = make_color_rgb(100, 255, 150); break;
-                case "B": _rankCol = make_color_rgb(150, 200, 255); break;
-                case "C": _rankCol = make_color_rgb(255, 200, 100); break;
+                case "S": _rankCol = make_color_rgb(255, 220, 50);  _rankGlow = make_color_rgb(255, 200, 0);   break;
+                case "A": _rankCol = make_color_rgb(100, 255, 150); _rankGlow = make_color_rgb(80, 220, 100);  break;
+                case "B": _rankCol = make_color_rgb(150, 220, 255); _rankGlow = make_color_rgb(100, 180, 255); break;
+                case "C": _rankCol = make_color_rgb(255, 200, 100); _rankGlow = make_color_rgb(255, 160, 50);  break;
+                default:  _rankCol = make_color_rgb(200, 200, 200); _rankGlow = make_color_rgb(150, 150, 150); break;
             }
+
+            // Rank glow
+            gpu_set_blendmode(bm_add);
+            draw_set_alpha(0.18 + abs(sin(current_time * 0.004)) * 0.06);
+            draw_set_color(_rankGlow);
+            draw_circle(_guiW / 2, _py1 + 290, 45, false);
+            gpu_set_blendmode(bm_normal);
+
+            // Rank text
+            draw_set_alpha(1.0);
             draw_set_color(_rankCol);
-            draw_text_transformed(_guiW / 2, _py1 + 250, "RANK: " + global.storyRank, global.TXT_H1, global.TXT_H1, 0);
+            draw_text_transformed(_guiW / 2, _py1 + 260, "RANK: " + global.storyRank, global.TXT_H1, global.TXT_H1, 0);
+
+            // Shard reward for story mode
+            if (global.runShards > 0) {
+                draw_set_alpha(0.7); draw_set_color(make_color_rgb(180, 230, 255));
+                draw_text_transformed(_guiW / 2, _py1 + 310, "+" + string(global.runShards) + " SHARDS COLLECTED", global.TXT_H4, global.TXT_H4, 0);
+            }
         } else {
+            // Game over stats
             draw_set_color(make_color_rgb(180, 200, 255));
-            draw_text_transformed(_guiW / 2, _py1 + 190, "BEST: " + string(global.highScore), global.TXT_H2, global.TXT_H2, 0);
+            draw_text_transformed(_guiW / 2, _py1 + 200, "BEST: " + string(global.highScore), global.TXT_H2, global.TXT_H2, 0);
             draw_set_color(c_white);
-            draw_text_transformed(_guiW / 2, _py1 + 240, "COMBO: x" + string(global.bestCombo), global.TXT_H3, global.TXT_H3, 0);
+            draw_text_transformed(_guiW / 2, _py1 + 250, "COMBO: x" + string(global.bestCombo), global.TXT_H3, global.TXT_H3, 0);
         }
 
+        // Action prompts
         draw_set_color(make_color_rgb(255, 214, 102));
+        var _promptY = _py2 - 30;
         var _prompt = _isComplete ? "SPACE  Continue     ESC  Menu" : "R  Retry     ESC  Menu";
-        draw_text_transformed(_guiW / 2, _guiH / 2 + 170, _prompt, global.TXT_H3, global.TXT_H3, 0);
+        draw_text_transformed(_guiW / 2, _promptY, _prompt, global.TXT_H3, global.TXT_H3, 0);
     }
 }
 

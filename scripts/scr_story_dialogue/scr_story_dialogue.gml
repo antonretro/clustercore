@@ -485,26 +485,34 @@ function dialogue_get_speaker_color(_speaker) {
 function dialogue_draw_box(_x1, _y1, _x2, _y2) {
     var _w = _x2 - _x1;
     var _h = _y2 - _y1;
-    
-    var _gradTop   = make_color_rgb(45, 60, 110); // Frosted blue top
-    var _gradBot   = make_color_rgb(15, 20, 45);  // Deep navy bottom
-    var _edgeCol   = make_color_rgb(140, 180, 255); // Frosted highlight
 
-    // ── Pixelated Shadow ──────────────────────────────────────────────────
-    draw_set_alpha(0.6);
+    var _gradTop   = make_color_rgb(45, 60, 110);
+    var _gradBot   = make_color_rgb(15, 20, 45);
+    var _edgeCol   = make_color_rgb(140, 180, 255);
+
+    // Sprite-based dialogue box background
+    var _dlgSpr = asset_get_index("spr_dialogue_box");
+    var _hasSprite = (_dlgSpr != -1 && sprite_exists(_dlgSpr));
+
+    // Shadow
+    draw_set_alpha(_hasSprite ? 0.4 : 0.6);
     draw_set_color(c_black);
     draw_roundrect_ext(_x1 + 6, _y1 + 6, _x2 + 6, _y2 + 6, 12, 12, false);
 
-    // ── Vertical Gradient Background (Glass) ──────────────────────────────
-    draw_set_alpha(0.85);
-    draw_rectangle_colour(_x1, _y1, _x2, _y2, _gradTop, _gradTop, _gradBot, _gradBot, false);
+    if (_hasSprite) {
+        draw_set_alpha(0.82);
+        draw_sprite_stretched_ext(_dlgSpr, 0, _x1, _y1, _w, _h, c_white, 1.0);
+    } else {
+        draw_set_alpha(0.85);
+        draw_rectangle_colour(_x1, _y1, _x2, _y2, _gradTop, _gradTop, _gradBot, _gradBot, false);
+    }
 
-    // ── Frosted Outline ───────────────────────────────────────────────────
+    // Frosted Outline
     draw_set_alpha(0.35);
     draw_set_color(_edgeCol);
     draw_roundrect_ext(_x1, _y1, _x2, _y2, 12, 12, true);
-    
-    // ── Speaker Accent Bar ───────────────────────────────────────────────
+
+    // Speaker Accent Bar
     var _speaker = global.dialogue_speaker;
     var _accent  = dialogue_get_speaker_color(_speaker);
     draw_set_alpha(0.8);
