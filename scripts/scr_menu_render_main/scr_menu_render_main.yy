@@ -1,9 +1,9 @@
 {
   "$GMScript":"v1",
-  "%Name":"scr_menu_render",
+  "%Name":"scr_menu_render_main",
   "isCompatibility":false,
   "isDnD":false,
-  "name":"scr_menu_render",
+  "name":"scr_menu_render_main",
   "parent":{
     "name":"Scripts",
     "path":"folders/Scripts.yy",

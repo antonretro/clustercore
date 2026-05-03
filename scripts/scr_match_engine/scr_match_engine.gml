@@ -109,7 +109,7 @@ function add_cluster_matches(_grid, _cols, _rows, _clear_grid) {
 
             var _cluster = collect_cluster(_grid, _cols, _rows, _x, _y, _visited);
 
-            if (array_length(_cluster) >= 4) {
+            if (array_length(_cluster) >= 3) {
                 for (var i = 0; i < array_length(_cluster); i++) {
                     var _p = _cluster[i];
                     mark_cell(_clear_grid, _p.x, _p.y);
@@ -215,22 +215,29 @@ function add_line_matches(_grid, _cols, _rows, _clear_grid) {
                 }
             }
             if (_canJoin) {
-                array_push(_line, {x: _x, y: _y});
+                array_push(_line, {x: _x, y: _y, type: _curr.type});
             } else {
-                if (array_length(_line) >= 4) {
-                    for (var i = 0; i < array_length(_line); i++) mark_cell(_clear_grid, _line[i].x, _line[i].y);
+                var _len = array_length(_line);
+                var _req = 3;
+                if (_len > 0 && _line[0].type == "metal") _req = 4;
+                
+                if (_len >= _req) {
+                    for (var i = 0; i < _len; i++) mark_cell(_clear_grid, _line[i].x, _line[i].y);
                 }
                 _line = [];
                 if (_curr != undefined && cell_can_match(_curr)) {
-                    array_push(_line, {x: _x, y: _y});
+                    array_push(_line, {x: _x, y: _y, type: _curr.type});
                     _lineId = _curr.id;
                 } else {
                     _lineId = -1;
                 }
             }
         }
-        if (array_length(_line) >= 4) {
-            for (var i = 0; i < array_length(_line); i++) mark_cell(_clear_grid, _line[i].x, _line[i].y);
+        var _lenFinal = array_length(_line);
+        var _reqFinal = 3;
+        if (_lenFinal > 0 && _line[0].type == "metal") _reqFinal = 4;
+        if (_lenFinal >= _reqFinal) {
+            for (var i = 0; i < _lenFinal; i++) mark_cell(_clear_grid, _line[i].x, _line[i].y);
         }
     }
 
@@ -263,22 +270,29 @@ function add_line_matches(_grid, _cols, _rows, _clear_grid) {
                 }
             }
             if (_canJoinV) {
-                array_push(_lineV, {x: _x, y: _y});
+                array_push(_lineV, {x: _x, y: _y, type: _currV.type});
             } else {
-                if (array_length(_lineV) >= 4) {
-                    for (var j = 0; j < array_length(_lineV); j++) mark_cell(_clear_grid, _lineV[j].x, _lineV[j].y);
+                var _lenV = array_length(_lineV);
+                var _reqV = 3;
+                if (_lenV > 0 && _lineV[0].type == "metal") _reqV = 4;
+                
+                if (_lenV >= _reqV) {
+                    for (var j = 0; j < _lenV; j++) mark_cell(_clear_grid, _lineV[j].x, _lineV[j].y);
                 }
                 _lineV = [];
                 if (_currV != undefined && cell_can_match(_currV)) {
-                    array_push(_lineV, {x: _x, y: _y});
+                    array_push(_lineV, {x: _x, y: _y, type: _currV.type});
                     _lineIdV = _currV.id;
                 } else {
                     _lineIdV = -1;
                 }
             }
         }
-        if (array_length(_lineV) >= 4) {
-            for (var j = 0; j < array_length(_lineV); j++) mark_cell(_clear_grid, _lineV[j].x, _lineV[j].y);
+        var _lenFinalV = array_length(_lineV);
+        var _reqFinalV = 3;
+        if (_lenFinalV > 0 && _lineV[0].type == "metal") _reqFinalV = 4;
+        if (_lenFinalV >= _reqFinalV) {
+            for (var j = 0; j < _lenFinalV; j++) mark_cell(_clear_grid, _lineV[j].x, _lineV[j].y);
         }
     }
 }
@@ -320,12 +334,12 @@ function scan_diagonal(_grid, _cols, _rows, _clear_grid, _sx, _sy, _dx, _dy) {
             }
         }
         if (_canJoin) {
-            array_push(_run, { x: _x, y: _y });
+            array_push(_run, { x: _x, y: _y, type: _cell.type });
         } else {
             mark_diagonal_run_if_valid(_clear_grid, _run);
             _run = [];
             if (_cell != undefined && cell_can_match(_cell)) {
-                array_push(_run, { x: _x, y: _y });
+                array_push(_run, { x: _x, y: _y, type: _cell.type });
                 _lineId = _cell.id;
             } else { _lineId = -1; }
         }
@@ -336,8 +350,14 @@ function scan_diagonal(_grid, _cols, _rows, _clear_grid, _sx, _sy, _dx, _dy) {
 
 
 function mark_diagonal_run_if_valid(_clear_grid, _run) {
-    if (array_length(_run) >= 4) {
-        for (var i = 0; i < array_length(_run); i++) mark_cell(_clear_grid, _run[i].x, _run[i].y);
+    var _len = array_length(_run);
+    if (_len <= 0) return;
+    
+    var _req = 3;
+    if (_run[0].type == "metal") _req = 4;
+    
+    if (_len >= _req) {
+        for (var i = 0; i < _len; i++) mark_cell(_clear_grid, _run[i].x, _run[i].y);
     }
 }
 
