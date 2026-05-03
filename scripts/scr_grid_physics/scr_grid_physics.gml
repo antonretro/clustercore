@@ -555,12 +555,13 @@ function settle_matches() {
                     // But wildcards cannot bridge to a NEW color in this pass.
                     if (_nc.id != _matchId && _nc.id != 999 && _matchId != 999) continue;
                     
-                    // ARROW PROTECTION: Protect both Metal and Core-Arrows from expansion
+                    // ARROW PROTECTION: Protect both Metal and Core-Arrows from expansion.
+                    // (User requested: "not inlcuding other arwos i meant reg blocks")
                     var _ncIsAr = (_nc.type == "metal") || (variable_struct_exists(_nc, "core_arrow") && _nc.core_arrow);
                     if (_ncIsAr && !_seedMask[_ny][_nx]) continue;
                     
-                    // ENDGAME PROTECTION: Don't suck in lone blocks in the final stretch
-                    if (_isEndgame && !_seedMask[_ny][_nx]) continue;
+                    // REQUISITION: "IF THER ARE ANY EXTRA BLOCKS MAKE SURE THEY CLEAR"
+                    // We removed 'Endgame Protection' which was preventing lone blocks from being sucked in during the final stretch.
                     
                     _processed[_ny][_nx] = true;
                     _finalClearMask[_ny][_nx] = true;
