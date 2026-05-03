@@ -345,29 +345,117 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     
     // Overlays
     if (global.gameState == "PAUSED") {
-        draw_set_color(c_black); draw_set_alpha(0.85);
+        // Dark overlay
+        draw_set_color(c_black); draw_set_alpha(0.75);
         draw_rectangle(0, 0, _guiW, _guiH, false);
-        draw_set_alpha(1.0); draw_set_halign(fa_center);
-        
-        draw_set_color(c_white);
-        draw_text_transformed(_guiW/2, _guiH/2 - 120, "PAUSED", global.TXT_H1, global.TXT_H1, 0);
-        
-        draw_set_color(make_color_rgb(180, 200, 255));
-        draw_text_transformed(_guiW/2, _guiH/2 - 20, "ESC / P - Resume", global.TXT_H2, global.TXT_H2, 0);
-        draw_text_transformed(_guiW/2, _guiH/2 + 20, "R - Restart Level", global.TXT_H2, global.TXT_H2, 0);
-        draw_text_transformed(_guiW/2, _guiH/2 + 60, "F11 - Toggle Fullscreen", global.TXT_H2, global.TXT_H2, 0);
-        draw_text_transformed(_guiW/2, _guiH/2 + 100, "M - Return to Main Menu", global.TXT_H2, global.TXT_H2, 0);
-        
-        draw_set_color(make_color_rgb(150, 150, 150));
-        draw_text_transformed(_guiW/2, _guiH/2 + 200, "HOW TO PLAY", global.TXT_H3, global.TXT_H3, 0);
-        draw_text_transformed(_guiW/2, _guiH/2 + 230, "Space: Drop | Arrows: Move | C: Hold", global.TXT_SMALL, global.TXT_SMALL, 0);
-        draw_text_transformed(_guiW/2, _guiH/2 + 260, "Q/E: Orbital Side | Z/Up: Rotate", global.TXT_SMALL, global.TXT_SMALL, 0);
+
+        // Glassmorphism pause panel
+        var _pw = 580; var _ph = 500;
+        var _px1 = _guiW/2 - _pw/2; var _py1 = _guiH/2 - _ph/2;
+
+        draw_set_alpha(0.5); draw_set_color(c_black);
+        draw_roundrect_ext(_px1 + 8, _py1 + 8, _px1 + _pw + 8, _py1 + _ph + 8, 20, 20, false);
+
+        var _pTop = make_color_rgb(20, 35, 70);
+        var _pBot = make_color_rgb(8, 14, 32);
+        draw_set_alpha(0.92);
+        draw_rectangle_colour(_px1, _py1, _px1 + _pw, _py1 + _ph, _pTop, _pTop, _pBot, _pBot, false);
+
+        draw_set_alpha(0.03); draw_set_color(c_white);
+        for (var gx = _px1; gx < _px1 + _pw; gx += 40) draw_line(gx, _py1, gx, _py1 + _ph);
+        for (var gy = _py1; gy < _py1 + _ph; gy += 40) draw_line(_px1, gy, _px1 + _pw, gy);
+
+        draw_set_alpha(0.45); draw_set_color(make_color_rgb(140, 190, 255));
+        draw_roundrect_ext(_px1, _py1, _px1 + _pw, _py1 + _ph, 20, 20, true);
+
+        draw_set_halign(fa_center);
+
+        // Title
+        draw_set_alpha(1); draw_set_color(make_color_rgb(180, 220, 255));
+        draw_text_transformed(_guiW/2, _py1 + 50, "SYSTEM PAUSED", global.TXT_H1, global.TXT_H1, 0);
+
+        // Divider
+        draw_set_alpha(0.25); draw_set_color(make_color_rgb(100, 180, 255));
+        draw_line_width(_px1 + 60, _py1 + 80, _px1 + _pw - 60, _py1 + 80, 1);
+
+        // Current score / info
+        draw_set_alpha(0.7); draw_set_color(c_white);
+        draw_text_transformed(_guiW/2, _py1 + 120, "SCORE: " + string(global.score), global.TXT_H2, global.TXT_H2, 0);
+        if (global.gameMode == "STORY") {
+            draw_set_alpha(0.5); draw_set_color(make_color_rgb(180, 210, 255));
+            draw_text_transformed(_guiW/2, _py1 + 160, "SHARDS: " + string(global.walletShards) + "   GEMS: " + string(global.walletGems), global.TXT_H4, global.TXT_H4, 0);
+        }
+
+        // Controls list
+        var _ctrlY = _py1 + 210;
+        var _ctrls = [
+            ["ESC / P", "RESUME GAME"],
+            ["R", "RESTART LEVEL"],
+            ["M", "RETURN TO MAIN MENU"],
+            ["F11", "TOGGLE FULLSCREEN"]
+        ];
+        for (var c = 0; c < 4; c++) {
+            var _ry = _ctrlY + c * 46;
+            // Key badge
+            draw_set_alpha(0.12); draw_set_color(c_white);
+            draw_roundrect_ext(_px1 + 80, _ry - 4, _px1 + 220, _ry + 28, 6, 6, false);
+            draw_set_alpha(0.9); draw_set_color(make_color_rgb(255, 220, 100));
+            draw_set_halign(fa_center);
+            draw_text_transformed(_px1 + 150, _ry + 12, _ctrls[c][0], 1.0, 1.0, 0);
+            // Action
+            draw_set_alpha(0.6); draw_set_color(make_color_rgb(180, 210, 240));
+            draw_set_halign(fa_left);
+            draw_text_transformed(_px1 + 240, _ry + 12, _ctrls[c][1], 1.0, 1.0, 0);
+            draw_set_halign(fa_center);
+        }
+
+        // Controls hint at bottom
+        draw_set_alpha(0.4); draw_set_color(make_color_rgb(150, 150, 150));
+        draw_text_transformed(_guiW/2, _py1 + _ph - 50, "SPACE: DROP    ARROWS: MOVE    C: HOLD    Z/X: ROTATE    Q/E: ORBIT", global.TXT_SMALL, global.TXT_SMALL, 0);
     }
 
 
     // ── GAME OVER / LEVEL CLEAR PANEL ────────────────────────────────────────
-    if (global.gameState == "GAMEOVER" || global.gameState == "FINISHING_LEVEL" || global.gameState == "LEVEL_COMPLETE") {
-        var _isComplete = (global.gameState == "FINISHING_LEVEL" || global.gameState == "LEVEL_COMPLETE");
+    // ── FINISHING_LEVEL Cinematic Overlay ──────────────────────────────────
+    if (global.gameState == "FINISHING_LEVEL") {
+        var _fProg = 1.0 - (global.finishTimer / 180);
+        var _fAlpha = clamp(_fProg * 2.5, 0, 1);
+        draw_set_halign(fa_center);
+        draw_set_valign(fa_middle);
+
+        // Main title fades in
+        draw_set_alpha(_fAlpha);
+        draw_set_color(global.COLOR_GLOW);
+        draw_text_transformed(_guiW / 2, _guiH * 0.28, "LEVEL COMPLETE", global.TXT_H1 * 1.3, global.TXT_H1 * 1.3, 0);
+
+        // Planet name
+        var _worldNames = ["TIN MOON", "RUST GARDEN", "CASINO COMET", "DEAD ORBIT", "CLUSTER CORE"];
+        var _worldName = "";
+        if (global.storyPlanet >= 0 && global.storyPlanet < array_length(_worldNames)) {
+            _worldName = _worldNames[global.storyPlanet];
+        }
+        if (_worldName != "") {
+            draw_set_alpha(_fAlpha * 0.8);
+            draw_set_color(make_color_rgb(180, 220, 255));
+            draw_text_transformed(_guiW / 2, _guiH * 0.34, _worldName + " PURIFIED", global.TXT_H2, global.TXT_H2, 0);
+        }
+
+        // Rank preview near bottom
+        if (_fProg > 0.3) {
+            var _rankAlpha = clamp((_fProg - 0.3) * 3, 0, 1);
+            draw_set_alpha(_rankAlpha * 0.9);
+            draw_set_color(c_yellow);
+            draw_text_transformed(_guiW / 2, _guiH * 0.72, "RANK: " + global.storyRank, global.TXT_H2, global.TXT_H2, 0);
+        }
+
+        draw_set_alpha(1);
+        draw_set_halign(fa_left);
+        draw_set_valign(fa_top);
+    }
+
+    if (global.gameState == "GAMEOVER" || global.gameState == "LEVEL_COMPLETE") {
+        // FINISHING_LEVEL renders its own cinematic animation in Draw_0 — no panel here
+        var _isComplete = (global.gameState == "LEVEL_COMPLETE");
 
         // --- Central Glass Panel ---
         var _pw = 660;
@@ -469,11 +557,32 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
             draw_text_transformed(_guiW / 2, _py1 + 250, "COMBO: x" + string(global.bestCombo), global.TXT_H3, global.TXT_H3, 0);
         }
 
-        // Action prompts
-        draw_set_color(make_color_rgb(255, 214, 102));
-        var _promptY = _py2 - 30;
-        var _prompt = _isComplete ? "SPACE  Continue     ESC  Menu" : "R  Retry     ESC  Menu";
-        draw_text_transformed(_guiW / 2, _promptY, _prompt, global.TXT_H3, global.TXT_H3, 0);
+        // ── ACTION BUTTONS ────────────────────────────────────────────────
+        var _btnY = _py1 + 340;
+        var _btnW = 200; var _btnH = 44; var _btnGap = 30;
+        var _btnCount = _isComplete ? 2 : 2;
+        var _btnTotalW = _btnCount * _btnW + (_btnCount - 1) * _btnGap;
+        var _btnStartX = _guiW / 2 - _btnTotalW / 2;
+
+        if (_isComplete) {
+            // NEXT LEVEL button
+            var _bx1 = _btnStartX; var _bx2 = _bx1 + _btnW;
+            draw_button_glass(_bx1, _btnY, _bx2, _btnY + _btnH,
+                "NEXT LEVEL", make_color_rgb(100, 255, 150), true, true);
+            // LEVEL SELECT button
+            var _bx1b = _bx2 + _btnGap; var _bx2b = _bx1b + _btnW;
+            draw_button_glass(_bx1b, _btnY, _bx2b, _btnY + _btnH,
+                "LEVEL SELECT", make_color_rgb(140, 190, 255), true, false);
+        } else {
+            // RETRY button
+            var _bx1 = _btnStartX; var _bx2 = _bx1 + _btnW;
+            draw_button_glass(_bx1, _btnY, _bx2, _btnY + _btnH,
+                "RETRY", make_color_rgb(255, 140, 100), true, true);
+            // LEVEL SELECT button
+            var _bx1b = _bx2 + _btnGap; var _bx2b = _bx1b + _btnW;
+            draw_button_glass(_bx1b, _btnY, _bx2b, _btnY + _btnH,
+                "LEVEL SELECT", make_color_rgb(140, 190, 255), true, false);
+        }
     }
 }
 
@@ -505,3 +614,42 @@ for (var i = 0; i < _vigSteps; i++) {
 draw_set_alpha(1.0);
 
 dialogue_draw();
+
+// ── SHARED UI HELPER ──────────────────────────────────────────────────────────
+function draw_button_glass(_x1, _y1, _x2, _y2, _label, _col, _isPrimary, _isLeft) {
+    var _pulse = 0.12 + abs(sin(current_time * 0.004)) * 0.06;
+
+    // Shadow
+    draw_set_alpha(0.4); draw_set_color(c_black);
+    draw_roundrect_ext(_x1 + 4, _y1 + 4, _x2 + 4, _y2 + 4, 10, 10, false);
+
+    // Glass base
+    var _bTop = merge_color(_col, make_color_rgb(20, 30, 60), 0.6);
+    var _bBot = merge_color(_col, c_black, 0.75);
+    draw_set_alpha(_isPrimary ? 0.9 : 0.6);
+    draw_rectangle_colour(_x1, _y1, _x2, _y2, _bTop, _bTop, _bBot, _bBot, false);
+
+    // Border
+    draw_set_alpha(_isPrimary ? 1.0 : 0.5); draw_set_color(_col);
+    draw_roundrect_ext(_x1, _y1, _x2, _y2, 10, 10, true);
+
+    // Pulse glow on primary
+    if (_isPrimary) {
+        gpu_set_blendmode(bm_add);
+        draw_set_alpha(_pulse); draw_set_color(_col);
+        draw_roundrect_ext(_x1 - 2, _y1 - 2, _x2 + 2, _y2 + 2, 12, 12, true);
+        gpu_set_blendmode(bm_normal);
+    }
+
+    // Label
+    draw_set_halign(fa_center); draw_set_valign(fa_middle);
+    draw_set_alpha(1); draw_set_color(c_white);
+    draw_text_transformed((_x1 + _x2) / 2, (_y1 + _y2) / 2, _label, global.TXT_H3, global.TXT_H3, 0);
+
+    // Key hint
+    var _key = _isLeft ? "[SPACE]" : "[M]";
+    draw_set_alpha(0.5); draw_set_color(_col);
+    draw_text_transformed((_x1 + _x2) / 2, (_y1 + _y2) / 2 + 28, _key, global.TXT_SMALL, global.TXT_SMALL, 0);
+
+    draw_set_halign(fa_left); draw_set_valign(fa_top);
+}

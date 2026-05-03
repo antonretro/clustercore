@@ -20,112 +20,181 @@
 function story_plot_catalog() {
     return {
 
-        // ── FIRST LAUNCH BACKSTORY ──────────────────────────────────────────
         backstory_intro: [
-            { speaker: "System",   text: "INITIATING FLIGHT SEQUENCE.", speed: 2 },
-            { speaker: "Operator", text: "Alright, engines are live. We've got a lot of planets clogged up with debris, and it's our job to clear them out.", speed: 1 },
-            { speaker: "Operator", text: "You're piloting the Refabricator. You'll fly to different planets and clear the blocks surrounding their cores.", speed: 1 },
-            { speaker: "Operator", text: "The goal of Story Mode is to travel from planet to planet, clearing boards until we reach the Sun Gate.", speed: 1 },
-            { speaker: "Operator", text: "Let's start at Tin Moon. It's a small board, perfect for learning the controls.", speed: 1 }
+            { speaker: "Operator", text: "Welcome aboard. Your job is to clear blocks from each planet.", speed: 1 },
+            { speaker: "Operator", text: "Match 4 or more blocks of the same color to clear them. Clear every block to finish the level.", speed: 1 },
+            { speaker: "Operator", text: "Travel from planet to planet and clear them all. Let's start at Tin Moon.", speed: 1 }
         ],
 
         intro_0: [
-            { speaker: "Operator", text: "Welcome to Tin Moon. Your goal is simple: CLEAR ALL THE BLOCKS. The level ends when only the red Core remains.", speed: 1 },
-            { speaker: "Operator", text: "Use the Arrow Keys to move, and press SPACE to fire a block from your ship. Match 4 or more of the same color to break them.", speed: 1 },
-            { speaker: "Operator", text: "Lines, clusters, and diagonals all count as matches. But watch out: if the blocks stack up to the outer boundary, you lose.", speed: 1 }
+            { speaker: "Operator", text: "Your job is to clear the board. Match 4 or more blocks of the same color.", speed: 1 },
+            { speaker: "Operator", text: "Arrow keys move. Space launches. Try it now.", speed: 1 },
+            { speaker: "Operator", text: "If blocks reach the outer ring you lose. Keep the board clean.", speed: 1 }
         ],
 
         intro_0_1: [
-            { speaker: "Operator", text: "You'll see a timer under the 'NEXT' box. If that runs out, the piece fires automatically. Don't take too long!", speed: 1 },
-            { speaker: "Operator", text: "Also, keep an eye out for Direction Blocks. They have arrows on them and only break if you match them in the direction they point.", speed: 1 }
+            { speaker: "Operator", text: "Good. A few more things.", speed: 1 },
+            { speaker: "Operator", text: "Q and E (or L and R) rotate the board. C holds a piece for later.", speed: 1 },
+            { speaker: "Operator", text: "Arrow blocks only clear in the direction they point. Match 4 or more in a line.", speed: 1 }
+        ],
+
+        intro_0_3: [
+            { speaker: "Operator", text: "Press C to hold your current piece. Press again to swap it back.", speed: 1 },
+            { speaker: "Operator", text: "Use hold when a piece doesn't fit. Save it for a better spot.", speed: 1 }
+        ],
+
+        intro_0_6: [
+            { speaker: "Operator", text: "Arrow blocks only clear in a straight line of 4 or more.", speed: 1 },
+            { speaker: "Operator", text: "They must match the arrow direction. They won't clear in clusters.", speed: 1 }
         ],
 
         intro_1: [
-            { speaker: "Operator", text: "Welcome to Rust Garden. We've got new hazards here: Locked cages and Spores.", speed: 1 },
-            { speaker: "Operator", text: "Locked blocks take two hits to clear. Spores are the blocks with 3 dots—when you break one, it repaints a neighbor to its color.", speed: 1 }
+            { speaker: "Operator", text: "Rust Garden. Locked cages and spore blocks ahead.", speed: 1 },
+            { speaker: "Operator", text: "Locked cages take two clears to destroy.", speed: 1 },
+            { speaker: "Operator", text: "Spores repaint a neighbor when cleared. Use them to set up matches.", speed: 1 }
+        ],
+
+        intro_1_2: [
+            { speaker: "Operator", text: "Locked cages need two hits. First hit cracks them. Second clears them.", speed: 1 },
+            { speaker: "Operator", text: "Clear cages early. A cracked cage blocks your matches.", speed: 1 }
+        ],
+
+        intro_1_4: [
+            { speaker: "Operator", text: "Spores have 3 dots. When cleared they recolor a nearby block.", speed: 1 },
+            { speaker: "Operator", text: "Use spores to create new matches. But they might ruin a setup too.", speed: 1 }
+        ],
+
+        intro_1_6: [
+            { speaker: "Operator", text: "Locked cages and spores together. Clear cages first.", speed: 1 },
+            { speaker: "Operator", text: "Then use spores to set up bigger combos.", speed: 1 }
         ],
 
         intro_2: [
-            { speaker: "Operator", text: "Casino Comet is next. Watch out for Multiplier blocks and Debt blocks.", speed: 1 },
-            { speaker: "Operator", text: "Multipliers double your score for that match. Debt blocks drain your launch timer while they're on the board, so break them fast!", speed: 1 }
+            { speaker: "Operator", text: "Casino Comet. Multiplier and debt blocks ahead.", speed: 1 },
+            { speaker: "Operator", text: "Multipliers double your score. Debt blocks drain your timer.", speed: 1 },
+            { speaker: "Operator", text: "Clear debt blocks fast. Save multipliers for big matches.", speed: 1 }
+        ],
+
+        intro_2_2: [
+            { speaker: "Operator", text: "Multipliers double your score for that match. Two multipliers make x4.", speed: 1 },
+            { speaker: "Operator", text: "Save them for large clears to max your score.", speed: 1 }
+        ],
+
+        intro_2_4: [
+            { speaker: "Operator", text: "Debt blocks speed up your timer. Clear them first.", speed: 1 },
+            { speaker: "Operator", text: "Even a small match removes them. Don't let them stack up.", speed: 1 }
+        ],
+
+        intro_2_7: [
+            { speaker: "Operator", text: "Everything is active. Clear debt first, then set up multipliers.", speed: 1 }
         ],
 
         intro_3: [
-            { speaker: "Operator", text: "This is Dead Orbit. It features Gravity blocks and Void blocks.", speed: 1 },
-            { speaker: "Operator", text: "Gravity blocks pull nearby pieces toward them when cleared. Void blocks can't be matched; you have to break blocks next to them to destroy them.", speed: 1 }
+            { speaker: "Operator", text: "Dead Orbit. Gravity and void blocks ahead.", speed: 1 },
+            { speaker: "Operator", text: "Gravity blocks pull nearby blocks toward them when cleared.", speed: 1 },
+            { speaker: "Operator", text: "Void blocks can't be matched. Clear blocks next to them to remove them.", speed: 1 }
+        ],
+
+        intro_3_2: [
+            { speaker: "Operator", text: "Gravity blocks pull everything one cell toward them when cleared.", speed: 1 },
+            { speaker: "Operator", text: "This can set off chain reactions. Think before you clear one.", speed: 1 }
+        ],
+
+        intro_3_4: [
+            { speaker: "Operator", text: "Void blocks cannot be matched. Clear next to them twice to break them.", speed: 1 },
+            { speaker: "Operator", text: "Plan your clears around voids. Use them as walls if needed.", speed: 1 }
+        ],
+
+        intro_3_7: [
+            { speaker: "Operator", text: "Gravity and voids together. Use gravity clears to position blocks around voids.", speed: 1 }
         ],
 
         intro_4: [
-            { speaker: "Operator", text: "Final stop: Cluster Core. You'll encounter Prism blocks and Core Keys here.", speed: 1 },
-            { speaker: "Operator", text: "Prisms change their color every time you fire. Core Keys give you bonus gems when broken. Let's finish this!", speed: 1 }
+            { speaker: "Operator", text: "Cluster Core. Prism blocks and core keys ahead.", speed: 1 },
+            { speaker: "Operator", text: "Prisms change color every time you launch. Time your shots.", speed: 1 },
+            { speaker: "Operator", text: "Core keys give bonus gems when cleared.", speed: 1 },
+            { speaker: "Operator", text: "Last planet. Give it everything.", speed: 1 }
+        ],
+
+        intro_4_2: [
+            { speaker: "Operator", text: "Prisms shift color every launch. Watch them closely.", speed: 1 },
+            { speaker: "Operator", text: "Fire when the prism matches your setup. Wait if it's wrong.", speed: 1 }
+        ],
+
+        intro_4_4: [
+            { speaker: "Operator", text: "Core keys give 3 bonus gems each. Prioritize them in your matches.", speed: 1 }
+        ],
+
+        intro_4_7: [
+            { speaker: "Operator", text: "All mechanics active. Prisms first, keys second, arrows third.", speed: 1 }
         ],
 
         select_0: [
-            { speaker: "System", text: "MISSION 0: TIN MOON. Objective: Clear the board of all debris.", speed: 1 }
+            { speaker: "System", text: "Tin Moon. 3 levels. No special blocks.", speed: 1 }
         ],
 
         select_1: [
-            { speaker: "System", text: "MISSION 1: RUST GARDEN. Objective: Manage dead blocks and clear the board.", speed: 1 }
+            { speaker: "System", text: "Rust Garden. 4 levels. Locked cages and spores.", speed: 1 }
         ],
 
         select_2: [
-            { speaker: "System", text: "MISSION 2: CASINO COMET. Objective: High-speed board clearance required.", speed: 1 }
+            { speaker: "System", text: "Casino Comet. 4 levels. Multipliers and debt blocks.", speed: 1 }
         ],
 
         select_3: [
-            { speaker: "System", text: "MISSION 3: DEAD ORBIT. Objective: Survive gravity shifts and clear the board.", speed: 1 }
+            { speaker: "System", text: "Dead Orbit. 4 levels. Gravity and void blocks.", speed: 1 }
         ],
 
         select_4: [
-            { speaker: "System", text: "MISSION 4: CLUSTER CORE. Objective: Final board purification sequence.", speed: 1 }
+            { speaker: "System", text: "Cluster Core. 5 levels. Prisms and core keys.", speed: 1 }
         ],
 
         world_open_0: [
-            { speaker: "Operator", text: "Tin Moon mission active. Goal: Clear the board to stabilize the core.", speed: 1 }
+            { speaker: "Operator", text: "Tin Moon open. 3 missions. Clear them all.", speed: 1 }
         ],
 
         world_open_1: [
-            { speaker: "Operator", text: "Rust Garden active. Watch out for dead blocks while you clear the grid.", speed: 1 }
+            { speaker: "Operator", text: "Rust Garden open. 4 missions. Watch for locked cages.", speed: 1 }
         ],
 
         world_open_2: [
-            { speaker: "Operator", text: "Casino Comet active. Speed is the priority for this board clear.", speed: 1 }
+            { speaker: "Operator", text: "Casino Comet open. 4 missions. Don't let debt stack up.", speed: 1 }
         ],
 
         world_open_3: [
-            { speaker: "Operator", text: "Dead Orbit active. Use drills to keep your lanes open for the final clear.", speed: 1 }
+            { speaker: "Operator", text: "Dead Orbit open. 4 missions. Gravity is tricky.", speed: 1 }
         ],
 
         world_open_4: [
-            { speaker: "Operator", text: "Cluster Core active. This is the final purification. Clear it all!", speed: 1 }
+            { speaker: "Operator", text: "Cluster Core open. 5 missions. Last planet.", speed: 1 }
         ],
 
         between_0: [
-            { speaker: "Operator", text: "Board cleared! Tin Moon is stable. Proceeding to the next sector.", speed: 1 }
+            { speaker: "Operator", text: "Tin Moon clear. On to Rust Garden.", speed: 1 }
         ],
 
         between_1: [
-            { speaker: "Operator", text: "Rust Garden purified. Great job handling those spores.", speed: 1 }
+            { speaker: "Operator", text: "Rust Garden clear. Casino Comet next.", speed: 1 }
         ],
 
         between_2: [
-            { speaker: "Operator", text: "Casino Comet cleared. Nice work on that high-speed clearance.", speed: 1 }
+            { speaker: "Operator", text: "Casino Comet clear. Dead Orbit ahead.", speed: 1 }
         ],
 
         between_3: [
-            { speaker: "Operator", text: "Dead Orbit survived. Only the Cluster Core remains. Let's finish this.", speed: 1 }
+            { speaker: "Operator", text: "Dead Orbit clear. Cluster Core is the last one.", speed: 1 }
         ],
 
         between_4: [
-            { speaker: "Operator", text: "The board is clear. The Sun Gate is open. Let's go!", speed: 1 }
+            { speaker: "Operator", text: "All planets clear. Sun Gate is open.", speed: 1 }
         ],
 
         sun_goal: [
-            { speaker: "Operator", text: "Final objective reached! The Sun Gate is open. Clear the board one more time to ignite the core!", speed: 1 }
+            { speaker: "Operator", text: "Sun Gate is open. Clear this board to finish.", speed: 1 }
         ],
 
         intro_default: [
-            { speaker: "Operator", text: "Mission Objective: Clear every block from the board except for the core.", speed: 1 }
+            { speaker: "Operator", text: "Clear the board. Match 3 or more of the same color.", speed: 1 }
         ]
     };
 }
@@ -381,11 +450,26 @@ function dialogue_get_current_line() {
 function dialogue_get_line_text(_line) {
     if (_line == undefined) return "";
 
+    var _text = "";
     if (variable_struct_exists(_line, "text")) {
-        return _line.text;
+        _text = _line.text;
+    } else {
+        return "";
     }
 
-    return "";
+    // Substitute pilot name if player has set a custom one
+    var _pilotName = "";
+    if (instance_exists(obj_menu_controller)) {
+        var _slotIdx = clamp(global.current_save_slot - 1, 0, 2);
+        _pilotName = obj_menu_controller.save_slots[_slotIdx].name;
+        var _defName = "PILOT_0" + string(_slotIdx + 1);
+        if (_pilotName == _defName || _pilotName == "") _pilotName = "";
+    }
+    if (_pilotName != "") {
+        _text = string_replace_all(_text, "Pilot", _pilotName);
+    }
+
+    return _text;
 }
 
 
@@ -459,7 +543,11 @@ function dialogue_update() {
         global.dialogue_char_index++;
     }
 
+    // Auto-advance disabled per user request to prevent dialogue skipping ahead
+    global.dialogue_auto_timer = 0;
+
     if (dialogue_input_advance_pressed()) {
+        global.dialogue_auto_timer = 0;
         if (global.dialogue_char_index < _len) {
             global.dialogue_char_index = _len;
         } else {
@@ -677,7 +765,7 @@ function dialogue_draw() {
 
     // Typography scales
     var _speakerScale = global.TXT_H3;
-    var _charScale = global.TXT_H4 * 0.95; // Slightly smaller to fit more lines
+    var _charScale = global.TXT_H4 * 1.1; // Larger multiplier for dialogue readability
     // Speaker
     draw_set_color(dialogue_get_speaker_color(_speaker));
     draw_text_transformed(_x1 + 40, _y1 + 20, _speaker + ":", _speakerScale, _speakerScale, 0);

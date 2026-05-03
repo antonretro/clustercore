@@ -13,6 +13,10 @@ function menu_draw_title(_cx, _cy, _sw, _sh) {
     draw_set_color(make_color_rgb(180, 210, 255));
     draw_text_transformed(_cx, _cy + 20, "GALACTIC RESTORATION UNIT", 2.5, 2.5, 0);
 
+    if (in_name_entry) {
+        menu_draw_name_entry(_cx, _cy, _sw, _sh);
+        return;
+    }
     if (in_save_slots && !is_loading) {
         menu_draw_save_slots(_cx, _cy, _sw, _sh);
         return;
@@ -103,6 +107,64 @@ function menu_draw_loading_bar(_cx, _cy) {
     draw_text_transformed(_cx, _cy + 180, _loadText, 1.5, 1.5, 0);
 }
 
+function menu_draw_name_entry(_cx, _cy, _sw, _sh) {
+    // Dark overlay
+    draw_set_alpha(0.9); draw_set_color(make_color_rgb(2, 4, 10));
+    draw_rectangle(0, 0, _sw, _sh, false);
+
+    var _slot = save_slots[name_entry_index];
+
+    // Glass panel
+    var _pw = 700; var _ph = 340;
+    var _px1 = _cx - _pw * 0.5; var _py1 = _cy - _ph * 0.5;
+
+    draw_set_alpha(0.5); draw_set_color(c_black);
+    draw_roundrect_ext(_px1 + 8, _py1 + 8, _px1 + _pw + 8, _py1 + _ph + 8, 20, 20, false);
+
+    var _pTop = make_color_rgb(16, 28, 60);
+    var _pBot = make_color_rgb(6, 10, 28);
+    draw_set_alpha(0.92);
+    draw_rectangle_colour(_px1, _py1, _px1 + _pw, _py1 + _ph, _pTop, _pTop, _pBot, _pBot, false);
+
+    draw_set_alpha(0.03); draw_set_color(c_white);
+    for (var gx = _px1; gx < _px1 + _pw; gx += 40) draw_line(gx, _py1, gx, _py1 + _ph);
+    for (var gy = _py1; gy < _py1 + _ph; gy += 40) draw_line(_px1, gy, _px1 + _pw, gy);
+
+    draw_set_alpha(0.5); draw_set_color(make_color_rgb(140, 190, 255));
+    draw_roundrect_ext(_px1, _py1, _px1 + _pw, _py1 + _ph, 20, 20, true);
+
+    // Title
+    draw_set_halign(fa_center); draw_set_alpha(1); draw_set_color(c_white);
+    draw_text_transformed(_cx, _py1 + 50, "PILOT REGISTRATION", global.TXT_H1, global.TXT_H1, 0);
+    draw_set_alpha(0.5); draw_set_color(make_color_rgb(140, 200, 255));
+    draw_text_transformed(_cx, _py1 + 90, "Enter your callsign, Pilot.", global.TXT_H4, global.TXT_H4, 0);
+
+    // Input field
+    var _fieldW = 440; var _fieldH = 56;
+    var _fx = _cx - _fieldW * 0.5; var _fy = _py1 + 140;
+
+    draw_set_alpha(0.12); draw_set_color(c_white);
+    draw_roundrect_ext(_fx, _fy, _fx + _fieldW, _fy + _fieldH, 10, 10, false);
+    draw_set_alpha(0.6); draw_set_color(make_color_rgb(100, 200, 255));
+    draw_roundrect_ext(_fx, _fy, _fx + _fieldW, _fy + _fieldH, 10, 10, true);
+
+    // Text in field
+    var _displayText = name_entry_text;
+    var _cursor = (floor(current_time / 500) mod 2 == 0);
+    if (_cursor) _displayText += "_";
+
+    draw_set_halign(fa_center); draw_set_alpha(1); draw_set_color(make_color_rgb(255, 220, 100));
+    draw_text_transformed(_cx, _fy + _fieldH * 0.5, _displayText, global.TXT_H2, global.TXT_H2, 0);
+
+    // Slot info
+    draw_set_alpha(0.4); draw_set_color(make_color_rgb(180, 200, 230));
+    draw_text_transformed(_cx, _py1 + 220, "DATA SLOT " + string(name_entry_index + 1) + "   |   PROGRESS " + string(_slot.progress) + "%", global.TXT_H4, global.TXT_H4, 0);
+
+    // Hint
+    draw_set_alpha(0.5); draw_set_color(make_color_rgb(255, 214, 102));
+    draw_text_transformed(_cx, _py1 + 275, "TYPE NAME    [ENTER] CONFIRM    [ESC] CANCEL", global.TXT_H4, global.TXT_H4, 0);
+}
+
 function menu_draw_main_deck(_cx, _cy, _sw, _sh) {
     var _cardW = 380; var _cardH = 480; var _gap = 40;
     var _startX = _cx - ((_cardW * 3 + _gap * 2) * 0.5);
@@ -126,10 +188,16 @@ function menu_draw_main_deck(_cx, _cy, _sw, _sh) {
     draw_set_halign(fa_right);
     draw_text_transformed(_cx + 280, _mainY - 20, "SHARDS " + string(global.walletShards) + "   GEMS " + string(global.walletGems), global.TXT_SMALL, global.TXT_SMALL, 0);
 
+    // Check if endless modes are unlocked (need story progress)
+    var _slotIdx = global.current_save_slot - 1;
+    var _hasStoryProgress = (_slotIdx >= 0 && _slotIdx < 3 && save_slots[_slotIdx].progress > 0);
+    var _endlessLocked = !_hasStoryProgress;
+
     // 3 Mode Cards
     var _cardIcons = [spr_story_icon, spr_planet_endless, spr_classic_endless];
     for (var i = 0; i < 3; i++) {
         var _isSel = (menu_index == i);
+        var _isLocked = (i > 0 && _endlessLocked);
         var _xx = _startX + i * (_cardW + _gap);
         var _off = _isSel ? -20 : 0;
 
@@ -138,21 +206,23 @@ function menu_draw_main_deck(_cx, _cy, _sw, _sh) {
         draw_roundrect_ext(_xx + 8, _mainY + _off + 8, _xx + _cardW + 8, _mainY + _cardH + _off + 8, 16, 16, false);
 
         // Card base
-        draw_set_alpha(_isSel ? 0.95 : 0.7);
-        var _gradCol = _isSel ? make_color_rgb(25, 45, 80) : make_color_rgb(12, 18, 35);
+        draw_set_alpha(_isLocked ? 0.45 : (_isSel ? 0.95 : 0.7));
+        var _gradCol = _isLocked ? make_color_rgb(8, 8, 18) : (_isSel ? make_color_rgb(25, 45, 80) : make_color_rgb(12, 18, 35));
         draw_rectangle_colour(_xx, _mainY + _off, _xx + _cardW, _mainY + _cardH + _off, _gradCol, _gradCol, c_black, c_black, false);
 
         // Grid overlay
-        draw_set_alpha(0.04); draw_set_color(c_white);
+        draw_set_alpha(_isLocked ? 0.01 : 0.04); draw_set_color(c_white);
         for (var gx = _xx; gx < _xx + _cardW; gx += 40) draw_line(gx, _mainY + _off, gx, _mainY + _cardH + _off);
         for (var gy = _mainY + _off; gy < _mainY + _cardH + _off; gy += 40) draw_line(_xx, gy, _xx + _cardW, gy);
 
         // Border
-        draw_set_alpha(1); draw_set_color(_isSel ? make_color_rgb(100, 255, 150) : c_white);
+        draw_set_alpha(1);
+        if (_isLocked) draw_set_color(make_color_rgb(60, 60, 80));
+        else draw_set_color(_isSel ? make_color_rgb(100, 255, 150) : c_white);
         draw_roundrect_ext(_xx, _mainY + _off, _xx + _cardW, _mainY + _cardH + _off, 16, 16, true);
 
         // Selection glow
-        if (_isSel) {
+        if (_isSel && !_isLocked) {
             gpu_set_blendmode(bm_add);
             draw_set_alpha(0.15 + abs(sin(current_time * 0.004)) * 0.06);
             draw_set_color(make_color_rgb(100, 200, 255));
@@ -164,20 +234,34 @@ function menu_draw_main_deck(_cx, _cy, _sw, _sh) {
         var _iconCX = _xx + _cardW * 0.5;
         var _iconCY = _mainY + _off + 160;
         var _iconR = 54;
-        draw_set_alpha(1);
+        draw_set_alpha(_isLocked ? 0.3 : 1);
         if (sprite_exists(_cardIcons[i])) {
-            draw_sprite_ext(_cardIcons[i], 0, _iconCX, _iconCY, 3.0, 3.0, 0, c_white, 1);
+            draw_sprite_ext(_cardIcons[i], 0, _iconCX, _iconCY, 3.0, 3.0, 0,
+                           _isLocked ? c_gray : c_white, 1);
         } else {
-            draw_card_icon(i, _iconCX, _iconCY, _iconR, _isSel, 1.0);
+            draw_card_icon(i, _iconCX, _iconCY, _iconR, _isSel && !_isLocked, _isLocked ? 0.3 : 1.0);
         }
 
         // Label
-        draw_set_halign(fa_center); draw_set_color(_isSel ? make_color_rgb(255, 220, 100) : c_white);
+        draw_set_halign(fa_center);
+        draw_set_color(_isLocked ? make_color_rgb(100, 100, 120) : (_isSel ? make_color_rgb(255, 220, 100) : c_white));
         draw_text_transformed(_xx + _cardW * 0.5, _mainY + 340 + _off, menu_items[i], 2.0, 2.0, 0);
 
-        // Subtitle
-        draw_set_alpha(0.6);
-        draw_text_transformed(_xx + _cardW * 0.5, _mainY + 390 + _off, menu_hint[i], 0.9, 0.9, 0);
+        // Subtitle / Locked text
+        if (_isLocked) {
+            draw_set_alpha(0.5); draw_set_color(make_color_rgb(255, 120, 100));
+            draw_text_transformed(_xx + _cardW * 0.5, _mainY + 390 + _off, "COMPLETE STORY LEVEL 1 TO UNLOCK", 0.75, 0.75, 0);
+        } else {
+            draw_set_alpha(0.6);
+            draw_text_transformed(_xx + _cardW * 0.5, _mainY + 390 + _off, menu_hint[i], 0.9, 0.9, 0);
+        }
+
+        // Lock icon overlay
+        if (_isLocked) {
+            draw_set_alpha(0.7); draw_set_color(make_color_rgb(255, 80, 80));
+            draw_set_halign(fa_center);
+            draw_text_transformed(_iconCX, _iconCY, "[ LOCKED ]", 1.8, 1.8, 0);
+        }
     }
 
     // ── Bottom Toolbar (7 icons) ──

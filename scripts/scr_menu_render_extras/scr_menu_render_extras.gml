@@ -146,89 +146,262 @@ function menu_draw_shop(_cx, _cy, _sw, _sh) {
 }
 
 function menu_draw_how_to_play(_cx, _cy, _sw, _sh) {
-    _menu_draw_sub_screen_base(_cx, _cy, _sw, _sh, "PILOT DATA NOTEBOOK", "Analyzing Galactic Restoration Unit (G.R.U.) Protocols...");
+    _menu_draw_sub_screen_base(_cx, _cy, _sw, _sh, "PILOT DATA NOTEBOOK", "Galactic Restoration Unit — Field Manual v2.4");
 
+    // Main content panel
     var _panelX = _cx - 540; var _panelW = 1080;
-    var _panelY = 200; var _panelH = 640;
-    draw_ui_panel(_panelX, _panelY, _panelX + _panelW, _panelY + _panelH);
+    var _panelY = 210; var _panelH = 620;
 
-    // Sidebar Tabs
+    // Panel shadow
+    draw_set_alpha(0.5); draw_set_color(c_black);
+    draw_roundrect_ext(_panelX + 8, _panelY + 8, _panelX + _panelW + 8, _panelY + _panelH + 8, 20, 20, false);
+
+    // Panel gradient
+    var _pTop = make_color_rgb(14, 24, 52);
+    var _pBot = make_color_rgb(6, 10, 28);
+    draw_set_alpha(0.9);
+    draw_rectangle_colour(_panelX, _panelY, _panelX + _panelW, _panelY + _panelH, _pTop, _pTop, _pBot, _pBot, false);
+
+    // Grid texture
+    draw_set_alpha(0.025); draw_set_color(c_white);
+    for (var gx = _panelX; gx < _panelX + _panelW; gx += 40) draw_line(gx, _panelY, gx, _panelY + _panelH);
+    for (var gy = _panelY; gy < _panelY + _panelH; gy += 40) draw_line(_panelX, gy, _panelX + _panelW, gy);
+
+    // Panel border
+    draw_set_alpha(0.45); draw_set_color(make_color_rgb(140, 190, 255));
+    draw_roundrect_ext(_panelX, _panelY, _panelX + _panelW, _panelY + _panelH, 20, 20, true);
+
+    // ═══ SIDEBAR ═══
+    var _sidebarW = 210;
+    var _sidebarX1 = _panelX + 20;
+    var _sidebarY0 = _panelY + 30;
+
+    // Sidebar divider line
+    draw_set_alpha(0.15); draw_set_color(make_color_rgb(100, 180, 255));
+    draw_line_width(_sidebarX1 + _sidebarW + 10, _sidebarY0, _sidebarX1 + _sidebarW + 10, _panelY + _panelH - 30, 1);
+
+    // Sidebar title
+    draw_set_halign(fa_left); draw_set_alpha(0.4); draw_set_color(make_color_rgb(140, 200, 255));
+    draw_text_transformed(_sidebarX1 + 10, _sidebarY0, "TOPICS", global.TXT_H4, global.TXT_H4, 0);
+
     var _tabs = ["MECHANICS", "BLOCK DATA", "PLANET LOG", "ADVANCED"];
-    var _tabW = 220;
+    var _tabIcons = ["[ >_]", "[ # ]", "[ O ]", "[ >>]"];
+    var _tabH = 52;
+
     for (var i = 0; i < 4; i++) {
-        var _tx = _panelX + 30 + i * (_tabW + 10);
-        var _ty = _panelY - 45;
+        var _ty = _sidebarY0 + 38 + i * (_tabH + 8);
         var _selT = (how_to_page == i);
-        draw_set_alpha(_selT ? 1.0 : 0.4);
-        draw_set_color(_selT ? make_color_rgb(100, 255, 150) : c_white);
-        draw_roundrect_ext(_tx, _ty, _tx + _tabW, _ty + 40, 10, 10, false);
-        draw_set_color(c_black); draw_set_halign(fa_center);
-        draw_text_transformed(_tx + _tabW * 0.5, _ty + 20, _tabs[i], 0.8, 0.8, 0);
+
+        // Tab highlight
+        if (_selT) {
+            draw_set_alpha(0.18); draw_set_color(make_color_rgb(100, 220, 255));
+            draw_roundrect_ext(_sidebarX1 + 4, _ty - 4, _sidebarX1 + _sidebarW - 4, _ty + _tabH + 4, 10, 10, false);
+
+            // Selection accent bar
+            draw_set_alpha(1.0); draw_set_color(make_color_rgb(100, 255, 150));
+            draw_roundrect_ext(_sidebarX1 + 4, _ty + 4, _sidebarX1 + 8, _ty + _tabH - 4, 2, 2, false);
+        }
+
+        // Tab icon
+        draw_set_halign(fa_left);
+        draw_set_alpha(_selT ? 0.8 : 0.35);
+        draw_set_color(_selT ? make_color_rgb(100, 255, 150) : make_color_rgb(160, 180, 210));
+        draw_text_transformed(_sidebarX1 + 18, _ty + 14, _tabIcons[i], 1.1, 1.1, 0);
+
+        // Tab label
+        draw_set_alpha(_selT ? 1.0 : 0.5);
+        draw_set_color(_selT ? c_white : make_color_rgb(160, 180, 210));
+        draw_text_transformed(_sidebarX1 + 54, _ty + 14, _tabs[i], 1.0, 1.0, 0);
+
+        // Hover pulse for selected
+        if (_selT) {
+            gpu_set_blendmode(bm_add);
+            draw_set_alpha(0.06 + abs(sin(current_time * 0.004)) * 0.04);
+            draw_set_color(make_color_rgb(100, 255, 150));
+            draw_roundrect_ext(_sidebarX1 + 4, _ty - 4, _sidebarX1 + _sidebarW - 4, _ty + _tabH + 4, 10, 10, true);
+            gpu_set_blendmode(bm_normal);
+        }
     }
 
-    // Content Area
-    var _contentX = _panelX + 40;
-    var _contentY = _panelY + 50;
-    draw_set_halign(fa_left); draw_set_color(c_white);
+    // ═══ CONTENT AREA ═══
+    var _contentX = _sidebarX1 + _sidebarW + 40;
+    var _contentY = _panelY + 40;
+    var _contentW = _panelW - _sidebarW - 80;
+
+    draw_set_halign(fa_left);
 
     if (how_to_page == 0) { // MECHANICS
-        draw_text_transformed(_contentX, _contentY, "BASIC OPERATIONS", 1.5, 1.5, 0);
-        draw_set_alpha(0.6);
-        draw_text_transformed(_contentX, _contentY + 40, "The G.R.U. operates in an orbital plane. Pieces are launched from the staging ring\ntoward the planet's core. Your goal is to stabilize the core by matching blocks.", 0.9, 0.9, 0);
-        
+        // Section header
+        draw_set_alpha(1.0); draw_set_color(make_color_rgb(255, 220, 100));
+        draw_text_transformed(_contentX, _contentY, "// BASIC OPERATIONS", global.TXT_H2, global.TXT_H2, 0);
+
+        draw_set_alpha(0.55); draw_set_color(make_color_rgb(180, 210, 240));
+        draw_text_ext_transformed(_contentX, _contentY + 50,
+            "The G.R.U. operates in low planetary orbit. Pieces are launched from the staging ring toward the core. Match blocks in clusters or lines to stabilize the planetary core and clear each sector.", -1, _contentW, 0.95, 0.95, 0);
+
+        // Controls section
+        draw_set_alpha(0.35); draw_set_color(make_color_rgb(100, 180, 255));
+        draw_line_width(_contentX, _contentY + 140, _contentX + _contentW, _contentY + 140, 1);
+
+        draw_set_alpha(1.0); draw_set_color(make_color_rgb(100, 220, 255));
+        draw_text_transformed(_contentX, _contentY + 170, "CONTROLS", global.TXT_H3, global.TXT_H3, 0);
+
         var _controls = [
-            "ARROWS / STICK : Move Piece in Staging Ring",
-            "SPACE / A BUTTON : Launch Piece Toward Core",
-            "Z / UP / X : Rotate Piece Orientation",
-            "C / L-BUMPER : Hold Piece for Later Use",
-            "Q/E / L-R BUMPER : Rotate Orbital Perspective"
+            ["ARROWS / LEFT STICK", "Navigate piece in staging ring"],
+            ["SPACE / A BUTTON", "Launch piece toward planetary core"],
+            ["Z / UP / X", "Rotate piece orientation (CW / CCW)"],
+            ["C / L-BUMPER", "Hold piece for later deployment"],
+            ["Q / E / L-R BUMPER", "Rotate orbital perspective"]
         ];
         for (var c = 0; c < 5; c++) {
-            draw_set_alpha(0.8); draw_set_color(make_color_rgb(140, 200, 255));
-            draw_text_transformed(_contentX + 20, _contentY + 140 + c * 40, ">> " + _controls[c], 1.0, 1.0, 0);
+            var _cyCtrl = _contentY + 215 + c * 46;
+            // Keycap-style label
+            draw_set_alpha(0.15); draw_set_color(c_white);
+            draw_roundrect_ext(_contentX, _cyCtrl - 6, _contentX + 220, _cyCtrl + 26, 6, 6, false);
+            draw_set_alpha(0.9); draw_set_color(make_color_rgb(200, 220, 255));
+            draw_text_transformed(_contentX + 12, _cyCtrl + 10, _controls[c][0], 0.85, 0.85, 0);
+            // Description
+            draw_set_alpha(0.5); draw_set_color(make_color_rgb(140, 180, 220));
+            draw_text_transformed(_contentX + 240, _cyCtrl + 10, _controls[c][1], 0.85, 0.85, 0);
         }
-    } 
+
+        // CORE RULES callout box
+        var _boxY = _contentY + 460;
+        draw_set_alpha(0.08); draw_set_color(make_color_rgb(100, 255, 150));
+        draw_roundrect_ext(_contentX, _boxY, _contentX + _contentW, _boxY + 80, 10, 10, false);
+        draw_set_alpha(0.25); draw_set_color(make_color_rgb(100, 255, 150));
+        draw_roundrect_ext(_contentX, _boxY, _contentX + _contentW, _boxY + 80, 10, 10, true);
+        draw_set_alpha(0.9); draw_set_color(make_color_rgb(100, 255, 150));
+        draw_text_transformed(_contentX + 20, _boxY + 16, "CORE RULE", 1.2, 1.2, 0);
+        draw_set_alpha(0.6); draw_set_color(c_white);
+        draw_text_transformed(_contentX + 20, _boxY + 44, "Match 3+ blocks of the same color in a straight line OR connected cluster to clear them. Clearing multiple groups in one launch triggers combo bonuses.", 0.85, 0.85, 0);
+    }
     else if (how_to_page == 1) { // BLOCK DATA
-        draw_text_transformed(_contentX, _contentY, "BLOCK CLASSIFICATION", 1.5, 1.5, 0);
-        
+        draw_set_alpha(1.0); draw_set_color(make_color_rgb(255, 220, 100));
+        draw_text_transformed(_contentX, _contentY, "// BLOCK CLASSIFICATION", global.TXT_H2, global.TXT_H2, 0);
+
         var _blocks = [
-            { name: "CORE BLOCKS", desc: "Standard restoration units. Clear in CLUSTERS of 3+ or LINES of 3+.", col: make_color_rgb(100, 255, 150) },
-            { name: "ARROW METAL", desc: "Reinforced blocks. Only clear in a straight LINE of 4+ along their axis.", col: make_color_rgb(255, 200, 80) },
-            { name: "ASTEROIDS", desc: "Dense mineral obstacles. Requires 2 adjacent clears to break.", col: c_gray },
-            { name: "CORE GEMS", desc: "High-value shards. Extract these to fill your wallet for Refabrication.", col: make_color_rgb(255, 100, 255) },
-            { name: "WILD CORE", desc: "Anomalous blocks that link with any color sequence.", col: c_white }
+            { name: "CORE BLOCKS",     icon: "[O]", desc: "Standard restoration units. Clear in CLUSTERS of 3+ or LINES of 3+.",                           col: make_color_rgb(100, 255, 150), detail: "Most common block type. Appears in all mission types. No special clearing requirements." },
+            { name: "ARROW METAL",     icon: "[>]", desc: "Reinforced directional blocks. Only clear in a straight LINE of 4+ along their arrow axis.", col: make_color_rgb(255, 200, 80),  detail: "Arrows indicate valid clearing direction. Line must be exactly aligned with arrow. Ignores cluster clears." },
+            { name: "ASTEROIDS",       icon: "[*]", desc: "Dense mineral obstacles. Requires 2 adjacent clearing events to fully break.",                  col: c_gray,                        detail: "First clear cracks the asteroid (visual change). Second clear on an adjacent tile removes it. Persists between turns." },
+            { name: "CORE GEMS",       icon: "[<>]",desc: "High-value crystal formations. Extract these for Shards used in Refabrication.",               col: make_color_rgb(255, 100, 255), detail: "Clears like a core block but also rewards +1 Shard per gem cleared. Essential for wallet economy." },
+            { name: "WILD CORES",      icon: "[?]", desc: "Anomalous blocks that link with any color sequence. Universal wildcard.",                       col: c_white,                       detail: "Counts as any color for matching purposes. Cannot be the anchor of a match — must connect to at least one colored block." }
         ];
+
         for (var b = 0; b < 5; b++) {
-            var _by = _contentY + 60 + b * 100;
-            draw_set_alpha(1); draw_set_color(_blocks[b].col);
-            draw_rectangle(_contentX, _by, _contentX + 16, _by + 16, false);
-            draw_text_transformed(_contentX + 30, _by + 8, _blocks[b].name, 1.1, 1.1, 0);
-            draw_set_alpha(0.6); draw_set_color(c_white);
-            draw_text_transformed(_contentX + 30, _by + 34, _blocks[b].desc, 0.85, 0.85, 0);
+            var _by = _contentY + 50 + b * 108;
+            // Color swatch
+            draw_set_alpha(1.0); draw_set_color(_blocks[b].col);
+            draw_roundrect_ext(_contentX, _by, _contentX + 40, _by + 40, 8, 8, false);
+            draw_set_alpha(0.3); draw_set_color(c_black);
+            draw_roundrect_ext(_contentX, _by, _contentX + 40, _by + 40, 8, 8, true);
+
+            // Name
+            draw_set_alpha(1.0); draw_set_color(c_white);
+            draw_text_transformed(_contentX + 56, _by + 4, _blocks[b].name, 1.1, 1.1, 0);
+            // Description
+            draw_set_alpha(0.55); draw_set_color(make_color_rgb(180, 210, 240));
+            draw_text_transformed(_contentX + 56, _by + 26, _blocks[b].desc, 0.82, 0.82, 0);
+            // Detail line
+            draw_set_alpha(0.35); draw_set_color(make_color_rgb(140, 180, 220));
+            draw_text_transformed(_contentX + 56, _by + 48, _blocks[b].detail, 0.75, 0.75, 0);
+
+            // Separator
+            if (b < 4) {
+                draw_set_alpha(0.08); draw_set_color(make_color_rgb(100, 180, 255));
+                draw_line_width(_contentX + 20, _by + 90, _contentX + _contentW - 20, _by + 90, 1);
+            }
         }
     }
     else if (how_to_page == 2) { // PLANET LOG
-        draw_text_transformed(_contentX, _contentY, "SOLAR SYSTEM DATA", 1.5, 1.5, 0);
+        draw_set_alpha(1.0); draw_set_color(make_color_rgb(255, 220, 100));
+        draw_text_transformed(_contentX, _contentY, "// SOLAR SYSTEM SURVEY", global.TXT_H2, global.TXT_H2, 0);
+
+        draw_set_alpha(0.55); draw_set_color(make_color_rgb(180, 210, 240));
+        draw_text_ext_transformed(_contentX, _contentY + 45,
+            "Each world in the system presents unique gravitational conditions and threat profiles. Planetary data is updated in real-time as restoration progresses.", -1, _contentW, 0.9, 0.9, 0);
+
         var _planets = [
-            "MERCURY: Low gravity, high speed. Excellent for training.",
-            "MARS: Industrial decay. Watch out for static defense grids.",
-            "VENUS/EARTH: High block density. Requires precise placement.",
-            "SATURN: Dense ring debris. High frequency of junk blocks.",
-            "JUPITER: Extreme gravity. Color-locked gates and solar teeth."
+            { name: "MERCURY",   threat: "MINIMAL",  grav: "0.38G",  temp: "430C", note: "Low gravity training zone. High orbital velocity. Ideal for new pilots mastering basic piece placement and rotation timing." },
+            { name: "MARS",      threat: "MODERATE", grav: "0.38G",  temp: "-63C",  note: "Abandoned industrial complexes. Static defense grids create blocked columns. Requires strategic hold-piece usage." },
+            { name: "VENUS",     threat: "ELEVATED", grav: "0.91G",  temp: "462C",  note: "Dense atmosphere creates high block density. Acidic corrosion may randomly damage unprotected blocks." },
+            { name: "SATURN",    threat: "HIGH",     grav: "1.07G",  temp: "-178C", note: "Ring debris introduces junk blocks at high frequency. Multi-ring orbital lanes require perspective rotation." },
+            { name: "JUPITER",   threat: "CRITICAL", grav: "2.53G",  temp: "-145C", note: "Extreme gravity accelerates piece descent. Color-locked gates and solar teeth. Only elite pilots survive." }
         ];
+
         for (var p = 0; p < 5; p++) {
-            draw_set_alpha(0.8); draw_set_color(make_color_rgb(180, 210, 255));
-            draw_text_transformed(_contentX + 20, _contentY + 60 + p * 80, _planets[p], 1.0, 1.0, 0);
+            var _pyP = _contentY + 130 + p * 95;
+            // Planet row background
+            draw_set_alpha(0.04); draw_set_color(c_white);
+            draw_roundrect_ext(_contentX, _pyP - 4, _contentX + _contentW, _pyP + 76, 8, 8, false);
+
+            // Planet icon placeholder
+            draw_set_alpha(1.0);
+            var _pCol = make_color_rgb(100 + p * 30, 180 - p * 20, 255 - p * 25);
+            draw_circle_color(_contentX + 22, _pyP + 36, 18, _pCol, merge_color(_pCol, c_black, 0.6), false);
+
+            // Planet name + threat badge
+            draw_set_alpha(1.0); draw_set_color(c_white);
+            draw_text_transformed(_contentX + 56, _pyP + 8, _planets[p].name, 1.15, 1.15, 0);
+
+            // Threat badge
+            var _threatCols = [make_color_rgb(100,255,150), make_color_rgb(255,220,80), make_color_rgb(255,180,60), make_color_rgb(255,120,80), make_color_rgb(255,60,60)];
+            draw_set_alpha(0.8); draw_set_color(_threatCols[p]);
+            draw_text_transformed(_contentX + 170, _pyP + 8, _planets[p].threat, 0.75, 0.75, 0);
+
+            // Stats: gravity + temp
+            draw_set_alpha(0.4); draw_set_color(make_color_rgb(140, 200, 255));
+            draw_text_transformed(_contentX + 56, _pyP + 32, "Gravity: " + _planets[p].grav + "    Surface: " + _planets[p].temp, 0.75, 0.75, 0);
+
+            // Flavor note
+            draw_set_alpha(0.5); draw_set_color(make_color_rgb(160, 190, 220));
+            draw_text_ext_transformed(_contentX + 56, _pyP + 52, _planets[p].note, -1, _contentW - 80, 0.72, 0.72, 0);
         }
     }
     else { // ADVANCED
-        draw_text_transformed(_contentX, _contentY, "ADVANCED PROTOCOLS", 1.5, 1.5, 0);
-        draw_set_alpha(0.6);
-        draw_text_transformed(_contentX, _contentY + 60, "COMBO SYSTEM: Clearing multiple groups in one launch grants Gem bonuses.\n\nREFABRICATION: Visit the Refabricator to condense Shards into Core Gems.\n\nORBITAL DRIFT: Rotating the perspective (Q/E) is vital to find new lanes.", 1.1, 1.1, 0);
+        draw_set_alpha(1.0); draw_set_color(make_color_rgb(255, 220, 100));
+        draw_text_transformed(_contentX, _contentY, "// ADVANCED PROTOCOLS", global.TXT_H2, global.TXT_H2, 0);
+
+        // COMBO SYSTEM
+        var _secY = _contentY + 55;
+        draw_set_alpha(0.15); draw_set_color(c_white);
+        draw_roundrect_ext(_contentX, _secY, _contentX + _contentW, _secY + 150, 10, 10, false);
+
+        draw_set_alpha(1.0); draw_set_color(make_color_rgb(100, 255, 180));
+        draw_text_transformed(_contentX + 20, _secY + 16, "COMBO SYSTEM", global.TXT_H3, global.TXT_H3, 0);
+        draw_set_alpha(0.55); draw_set_color(make_color_rgb(180, 210, 240));
+        draw_text_ext_transformed(_contentX + 20, _secY + 52,
+            "Each additional match group cleared in a single launch increases the combo multiplier. A x2 combo doubles shard rewards; x3 triples them. Chain reactions from cascading clears also count toward the multiplier. Mastering combos is the fastest path to Gem accumulation.",
+            -1, _contentW - 40, 0.88, 0.88, 0);
+
+        // REFABRICATION
+        _secY += 170;
+        draw_set_alpha(0.15); draw_set_color(c_white);
+        draw_roundrect_ext(_contentX, _secY, _contentX + _contentW, _secY + 130, 10, 10, false);
+
+        draw_set_alpha(1.0); draw_set_color(make_color_rgb(180, 200, 255));
+        draw_text_transformed(_contentX + 20, _secY + 16, "REFABRICATION", global.TXT_H3, global.TXT_H3, 0);
+        draw_set_alpha(0.55); draw_set_color(make_color_rgb(180, 210, 240));
+        draw_text_ext_transformed(_contentX + 20, _secY + 52,
+            "Visit the Refabricator (accessible from the Main Deck or Story Map) to condense 25 Shards into 1 Core Gem. Gems unlock permanent upgrades and specialty equipment in the Tech Shop. Shards are earned by clearing blocks, with bonus shards from gems and combos.",
+            -1, _contentW - 40, 0.88, 0.88, 0);
+
+        // ORBITAL DRIFT
+        _secY += 150;
+        draw_set_alpha(0.15); draw_set_color(c_white);
+        draw_roundrect_ext(_contentX, _secY, _contentX + _contentW, _secY + 130, 10, 10, false);
+
+        draw_set_alpha(1.0); draw_set_color(make_color_rgb(255, 210, 140));
+        draw_text_transformed(_contentX + 20, _secY + 16, "ORBITAL PERSPECTIVE", global.TXT_H3, global.TXT_H3, 0);
+        draw_set_alpha(0.55); draw_set_color(make_color_rgb(180, 210, 240));
+        draw_text_ext_transformed(_contentX + 20, _secY + 52,
+            "Rotating the orbital perspective (Q/E or shoulder buttons) reveals new match lanes and hidden opportunities. Some blocks may only be reachable from specific angles. Skilled pilots constantly shift perspective to find optimal placements.",
+            -1, _contentW - 40, 0.88, 0.88, 0);
     }
 
+    // Bottom hint bar
     draw_set_halign(fa_center); draw_set_alpha(0.5); draw_set_color(make_color_rgb(255, 214, 102));
-    draw_text_transformed(_cx, _sh - 80, "[L/R] CHANGE PAGE    [B] EXIT DATA LOG", global.TXT_H4, global.TXT_H4, 0);
+    draw_text_transformed(_cx, _sh - 80, "[L/R] CHANGE TOPIC    [B] CLOSE NOTEBOOK", global.TXT_H4, global.TXT_H4, 0);
 }
 
 function menu_draw_achievements(_cx, _cy, _sw, _sh) {

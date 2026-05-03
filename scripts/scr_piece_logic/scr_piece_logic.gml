@@ -369,17 +369,52 @@ function _generate_raw_candidate(_report) {
     if (array_length(global.pieceBag) == 0) refill_piece_bag();
     var _colorId = array_shift(global.pieceBag);
 
+    // Mercy: when only few blocks of a color remain, guarantee those colors.
+    // We check if total blocks are low (near-clear) and pick from the mercy list.
+    if (_report.total_blocks > 0 && _report.total_blocks <= 10) {
+        var _mList = _report.mercy_colors;
+        if (array_length(_mList) > 0) {
+            // Pick a color from the mercy list that we haven't generated too recently
+            // if there are multiple choices.
+            var _mercyId = _mList[0];
+            if (array_length(_mList) > 1) {
+                // Find which of these mercy colors was generated LEAST recently
+                var _bestScore = -1;
+                for (var _mi = 0; _mi < array_length(_mList); _mi++) {
+                    var _mid = _mList[_mi];
+                    var _lastIdx = -1;
+                    for (var _li = array_length(global.lastGeneratedColors)-1; _li >= 0; _li--) {
+                        if (global.lastGeneratedColors[_li] == _mid) { _lastIdx = _li; break; }
+                    }
+                    // If never generated or generated long ago, pick it
+                    var _age = (_lastIdx == -1) ? 99 : (array_length(global.lastGeneratedColors) - _lastIdx);
+                    if (_age > _bestScore) {
+                        _bestScore = _age;
+                        _mercyId = _mid;
+                    }
+                }
+            }
+            _colorId = _mercyId;
+            // When in mercy mode, do NOT disrupt the "set of 4" with specials.
+            return make_piece_data("normal", _colorId, 0);
+        }
+    }
+
     // Roll for Specials
     var _roll = piece_rng_random(1.0);
     
     // Pity influence on specials
     var _bonus = global.pityBudget * 0.01;
 
-    // Drills / Bombs
+    // Drills (unchanged)
     if (global.level >= 3 && _roll < (0.01 + _bonus + (_report.needs_drill ? 0.05 : 0))) {
         return { type: "drill", color: c_silver, dir: 0, id: 777 };
     }
-    if (_roll < (0.015 + _bonus + (_report.needs_bomb ? 0.06 : 0))) {
+    // Bombs: rare by default, more likely when board is clogged or nearly cleared
+    var _bombChance = 0.004 + _bonus;
+    if (_report.needs_bomb) _bombChance += 0.025;
+    if (_report.total_blocks <= 3 && _report.total_blocks > 0) _bombChance += 0.04;
+    if (_roll < _bombChance) {
         return { type: "bomb", color: c_black, dir: 0, id: 888 };
     }
 
@@ -657,40 +692,65 @@ function hold_piece() {
 
 function story_level_catalog() {
     return [
+        // ── TIN MOON (World 0) ── Tutorial progression ─────────────────────
         { world_id: 0, level_id: 0, seed: 1001, palette_count: 3, turn_limit: 35, objective: { type: "clear_board", value: 1 } },
         { world_id: 0, level_id: 1, seed: 1002, palette_count: 3, turn_limit: 40, objective: { type: "clear_board", value: 1 } },
         { world_id: 0, level_id: 2, seed: 1003, palette_count: 3, turn_limit: 45, objective: { type: "clear_board", value: 1 } },
         { world_id: 0, level_id: 3, seed: 1004, palette_count: 3, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
         { world_id: 0, level_id: 4, seed: 1005, palette_count: 3, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
         { world_id: 0, level_id: 5, seed: 1006, palette_count: 4, objective: { type: "clear_cores", value: 6 } },
+        { world_id: 0, level_id: 6, seed: 1007, palette_count: 4, turn_limit: 45, objective: { type: "clear_board", value: 1 } },
+        { world_id: 0, level_id: 7, seed: 1008, palette_count: 4, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
+        { world_id: 0, level_id: 8, seed: 1009, palette_count: 4, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
+        { world_id: 0, level_id: 9, seed: 1010, palette_count: 5, objective: { type: "clear_cores", value: 10 } },
 
+        // ── RUST GARDEN (World 1) ── Locked cages + spores ──────────────────
         { world_id: 1, level_id: 0, seed: 2001, palette_count: 3, turn_limit: 45, objective: { type: "clear_board", value: 1 } },
         { world_id: 1, level_id: 1, seed: 2002, palette_count: 3, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
         { world_id: 1, level_id: 2, seed: 2003, palette_count: 4, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
         { world_id: 1, level_id: 3, seed: 2004, palette_count: 4, objective: { type: "clear_board", value: 1 } },
         { world_id: 1, level_id: 4, seed: 2005, palette_count: 4, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
         { world_id: 1, level_id: 5, seed: 2006, palette_count: 4, objective: { type: "clear_board", value: 1 } },
+        { world_id: 1, level_id: 6, seed: 2007, palette_count: 4, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
+        { world_id: 1, level_id: 7, seed: 2008, palette_count: 4, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
+        { world_id: 1, level_id: 8, seed: 2009, palette_count: 5, turn_limit: 65, objective: { type: "clear_board", value: 1 } },
+        { world_id: 1, level_id: 9, seed: 2010, palette_count: 5, objective: { type: "clear_cores", value: 14 } },
 
+        // ── CASINO COMET (World 2) ── Multipliers + debt blocks ─────────────
         { world_id: 2, level_id: 0, seed: 3001, palette_count: 4, objective: { type: "clear_board", value: 1 } },
         { world_id: 2, level_id: 1, seed: 3002, palette_count: 4, objective: { type: "clear_board", value: 1 } },
         { world_id: 2, level_id: 2, seed: 3003, palette_count: 4, objective: { type: "clear_board", value: 1 } },
         { world_id: 2, level_id: 3, seed: 3004, palette_count: 4, objective: { type: "clear_board", value: 1 } },
         { world_id: 2, level_id: 4, seed: 3005, palette_count: 5, objective: { type: "clear_board", value: 1 } },
         { world_id: 2, level_id: 5, seed: 3006, palette_count: 5, objective: { type: "clear_cores", value: 12 } },
+        { world_id: 2, level_id: 6, seed: 3007, palette_count: 5, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
+        { world_id: 2, level_id: 7, seed: 3008, palette_count: 5, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
+        { world_id: 2, level_id: 8, seed: 3009, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 2, level_id: 9, seed: 3010, palette_count: 5, full_palette: true, objective: { type: "clear_cores", value: 16 } },
 
+        // ── DEAD ORBIT (World 3) ── Gravity + void blocks ───────────────────
         { world_id: 3, level_id: 0, seed: 4001, palette_count: 4, objective: { type: "clear_board", value: 1 } },
         { world_id: 3, level_id: 1, seed: 4002, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
         { world_id: 3, level_id: 2, seed: 4003, palette_count: 5, objective: { type: "clear_board", value: 1 } },
         { world_id: 3, level_id: 3, seed: 4004, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
         { world_id: 3, level_id: 4, seed: 4005, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
         { world_id: 3, level_id: 5, seed: 4006, palette_count: 5, full_palette: true, objective: { type: "clear_cores", value: 14 } },
+        { world_id: 3, level_id: 6, seed: 4007, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 3, level_id: 7, seed: 4008, palette_count: 5, full_palette: true, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
+        { world_id: 3, level_id: 8, seed: 4009, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 3, level_id: 9, seed: 4010, palette_count: 6, full_palette: true, objective: { type: "clear_cores", value: 18 } },
 
+        // ── CLUSTER CORE (World 4) ── Prism + core keys ─────────────────────
         { world_id: 4, level_id: 0, seed: 5001, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
         { world_id: 4, level_id: 1, seed: 5002, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
         { world_id: 4, level_id: 2, seed: 5003, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
         { world_id: 4, level_id: 3, seed: 5004, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
         { world_id: 4, level_id: 4, seed: 5005, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 4, level_id: 5, seed: 5006, palette_count: 6, full_palette: true, objective: { type: "clear_cores", value: 20 } }
+        { world_id: 4, level_id: 5, seed: 5006, palette_count: 6, full_palette: true, objective: { type: "clear_cores", value: 20 } },
+        { world_id: 4, level_id: 6, seed: 5007, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 4, level_id: 7, seed: 5008, palette_count: 6, full_palette: true, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
+        { world_id: 4, level_id: 8, seed: 5009, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
+        { world_id: 4, level_id: 9, seed: 5010, palette_count: 6, full_palette: true, objective: { type: "clear_cores", value: 24 } }
     ];
 }
 
@@ -963,6 +1023,7 @@ function board_analyze_intent() {
         junk_pressure: 0,
         needs_bomb: false,
         needs_drill: false,
+        mercy_color: -1,
         arrow_opportunities: [],
         total_blocks: 0,
         nearest_match_distance: 99
@@ -1064,5 +1125,16 @@ function board_analyze_intent() {
         else if (_pot >= 8) array_push(_report.warm_colors, _id);
         else array_push(_report.cold_colors, _id);
     }
+
+    // Mercy colors: when only 1-3 blocks of a single color remain, flag them
+    _report.mercy_colors = [];
+    for (var i = 0; i < array_length(global.activeColors); i++) {
+        var _id = global.activeColors[i];
+        var _c = _counts[_id];
+        if (_c >= 1 && _c <= 4) { // Slightly higher threshold to ensure player has enough to work with
+            array_push(_report.mercy_colors, _id);
+        }
+    }
+
     return _report;
 }

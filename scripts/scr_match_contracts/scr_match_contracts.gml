@@ -54,8 +54,8 @@ function match_cells_can_link(_c1, _c2, _axis, _allowMetal = true) {
 
     // If we don't allow directional matching (like in diagonal scans or cluster matching), 
     // fail immediately if either block has an arrow
-    var _c1HasArrow = (_c1.type == "metal") || (variable_struct_exists(_c1, "core_arrow") && _c1.core_arrow);
-    var _c2HasArrow = (_c2.type == "metal") || (variable_struct_exists(_c2, "core_arrow") && _c2.core_arrow);
+    var _c1HasArrow = (_c1.type == "metal"); // Core arrows now allowed in clusters to prevent stalemates
+    var _c2HasArrow = (_c2.type == "metal");
 
     if (!_allowMetal && (_c1HasArrow || _c2HasArrow)) return false;
     if (_axis == "d" && (_c1HasArrow || _c2HasArrow)) return false;

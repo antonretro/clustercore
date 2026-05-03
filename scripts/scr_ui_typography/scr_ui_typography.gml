@@ -17,11 +17,11 @@
 // =============================================================================
 
 function ui_typography_init() {
-    global.TXT_H1    = 2.8;   // Page titles — largest
-    global.TXT_H2    = 1.9;   // Card/section headers
-    global.TXT_H3    = 1.4;   // Panel labels, stat values
-    global.TXT_H4    = 1.0;   // Body / description text
-    global.TXT_SMALL = 0.8;   // Hints, prompts, footnotes
+    global.TXT_H1    = 4.0;   // Large titles
+    global.TXT_H2    = 3.0;   // Headers
+    global.TXT_H3    = 2.2;   // Stats
+    global.TXT_H4    = 2.4;   // Dialogue / Body (Larger)
+    global.TXT_SMALL = 1.8;   // Prompts (Larger)
 }
 
 // Helper: draw text at a typography level with optional color + alpha pre-set

@@ -261,6 +261,7 @@ global.DROP_INTERVAL_START = 60;
 global.LEVEL_SPEED_SCALE = 2;
 global.payoutFlash = 0;
 global.finishTimer = 0;
+global.boardOffsetY = 0;
 
 global.settings = {
     ghostEnabled: true,
@@ -278,6 +279,7 @@ if (!variable_global_exists("useSteam")) global.useSteam = false;
 
 steam_ach_init();
 dialogue_init();
+ui_typography_init();
 
 setup_story_planet = function() {
     var _last = array_length(global.storyPlanets) - 1;
@@ -449,7 +451,8 @@ start_game = function() {
     
     global.previewData    = undefined;
     global.tutorialTimer  = 600;
-    global.inputDelayTimer = 10;
+    global.inputDelayTimer = 45;
+    global.level_transition_cooldown = 0;
     global.hint_cells = [];
     global.hint_tick = 0;
     global.hint_pulse_timer = 0;
@@ -462,7 +465,11 @@ start_game = function() {
     
     // Reset Restoration State
     global.restoredTilesAlpha = 0;
+    global.victoryPlanetAlpha = 0;
+    global.victoryPlanetScale = 0.5;
+    global.victoryRevealActive = false;
     global.boardRotation = 0;
+    global.boardOffsetY = 0;
     global.shakeAmount = 0;
     for (var _ry3 = 0; _ry3 < global.TOTAL_ROWS; _ry3++) {
         global.restoredMap[_ry3] = array_create(global.TOTAL_COLS, 0);

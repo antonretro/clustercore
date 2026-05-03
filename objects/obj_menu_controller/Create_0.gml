@@ -45,6 +45,11 @@ save_slots = [
 ];
 global.current_save_slot = 1;
 
+// Name entry
+in_name_entry = false;
+name_entry_index = 0;
+name_entry_text = "";
+
 if (!variable_global_exists("settings")) {
     global.settings = { ghostEnabled: true, shakeEnabled: true };
 }
@@ -94,13 +99,13 @@ menu_hint  = [
 story_select_index = clamp(global.storyPlanet, 0, 4);
 in_story_level_select = false;
 story_level_index = 0;
-story_world_level_counts = [6, 6, 6, 6, 6];
+story_world_level_counts = [10, 10, 10, 10, 10];
 story_level_names = [
-    ["Wake Signal", "First Anchor", "Tin Run", "Core Loop", "Quiet Storm", "Moon Lock"],
-    ["Rust Bloom", "Broken Lane", "Iron Rain", "Garden Wall", "Dead Roots", "Red Signal"],
-    ["Ante Up", "Lucky Spiral", "House Edge", "Wild Orbit", "Payout Burn", "Comet Vault"],
-    ["Cold Entry", "Low Oxygen", "Last Lane", "Grave Spin", "Black Relay", "Orbit Break"],
-    ["Gate Hum", "Six Color Lock", "Solar Teeth", "Final Spiral", "Sun Debt", "Core Door"]
+    ["Wake Signal", "First Anchor", "Tin Run", "Core Loop", "Quiet Storm", "Moon Lock", "Shard Sweep", "Tidal Shift", "Low Orbit", "Tin Purge"],
+    ["Rust Bloom", "Broken Lane", "Iron Rain", "Garden Wall", "Dead Roots", "Red Signal", "Cage Break", "Spore Flood", "Thorn Path", "Rust Purge"],
+    ["Ante Up", "Lucky Spiral", "House Edge", "Wild Orbit", "Payout Burn", "Comet Vault", "Debt Run", "High Roller", "Jackpot Spin", "Comet Purge"],
+    ["Cold Entry", "Low Oxygen", "Last Lane", "Grave Spin", "Black Relay", "Orbit Break", "Void Pull", "Zero Drift", "Silent Core", "Orbit Purge"],
+    ["Gate Hum", "Six Color Lock", "Solar Teeth", "Final Spiral", "Sun Debt", "Core Door", "Prism Fire", "Key Run", "Last Stand", "Solar Purge"]
 ];
 story_worlds = [
     { name: "TIN MOON",     orbit: 0.22, ang: 220, size: 18, color_a: make_color_rgb(120, 205, 230), color_b: make_color_rgb(55, 85, 130),  tilt: 0.34, sprite: spr_mercury },

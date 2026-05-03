@@ -320,15 +320,24 @@ function menu_draw_story_select(_cx, _cy, _sw, _sh) {
             var _orbPX = _sunX + lengthdir_x(_rx * _zoomScale, _ang);
             var _orbPY = _sunY + lengthdir_y(_ry * _zoomScale, _ang);
             var _sel = (i == story_select_index);
+
+            // Selected planet moves to focus; others fan out to prevent clumping
             var _focusX = _spaceCX + 100;
             var _focusY = _cy + 20;
-            var _px = lerp(_orbPX, _focusX, zoom_lerp * (1 + i * 0.02));
-            var _py = lerp(_orbPY, _focusY, zoom_lerp * (1 + i * 0.02));
+
+            var _spreadAngle = (i - story_select_index) * 55 + 90;
+            var _spreadDist = 180 + abs(i - story_select_index) * 70;
+            var _spreadX = _focusX + lengthdir_x(_spreadDist, _spreadAngle);
+            var _spreadY = _focusY + lengthdir_y(_spreadDist * 0.4, _spreadAngle);
+
+            var _px = lerp(_orbPX, _spreadX, zoom_lerp);
+            var _py = lerp(_orbPY, _spreadY, zoom_lerp);
 
             var _scaleP = 0.72 + (_depth * 0.58);
-            if (_sel) _scaleP += 0.22 + zoom_lerp * 0.3;
-            var _rad = _w.size * _scaleP * _zoomScale * (1.0 + zoom_lerp * 0.3);
-            var _alphaMul = _sel ? 1.0 : (1.0 - zoom_lerp * 0.55);
+            if (_sel) _scaleP += 0.22 + zoom_lerp * 0.55;
+            var _rad = _w.size * _scaleP * _zoomScale * (1.0 + zoom_lerp * 0.5);
+            // Non-selected planets fade out much more during zoom
+            var _alphaMul = _sel ? 1.0 : max(0.08, 1.0 - zoom_lerp * 1.15);
 
             // Shadow
             draw_set_alpha((0.20 + _depth * 0.18) * _alphaMul); draw_set_color(c_black);

@@ -42,12 +42,51 @@ if (in_title) {
         }
         exit;
     }
+    if (in_name_entry) {
+        // Handle text input via keyboard_string
+        var _kb = keyboard_string;
+        // Filter to reasonable pilot name characters
+        name_entry_text = "";
+        for (var _ci = 1; _ci <= string_length(_kb); _ci++) {
+            var _ch = string_char_at(_kb, _ci);
+            if (_ci > 16) break; // max 16 chars
+            name_entry_text += _ch;
+        }
+        if (keyboard_check_pressed(vk_enter) && name_entry_text != "") {
+            save_slots[name_entry_index].name = name_entry_text;
+            in_name_entry = false;
+            is_loading = true; loading_timer = 0;
+            keyboard_string = "";
+            if (_sndConf != -1) audio_play_sound(_sndConf, 1, false);
+        }
+        if (_back) {
+            in_name_entry = false;
+            keyboard_string = "";
+        }
+        exit;
+    }
     if (in_save_slots) {
         if (_leftPress || _upPress) { save_slot_index = (save_slot_index - 1 + 3) mod 3; if (_sndMove != -1) audio_play_sound(_sndMove, 1, false); }
         if (_rightPress || _downPress) { save_slot_index = (save_slot_index + 1) mod 3; if (_sndMove != -1) audio_play_sound(_sndMove, 1, false); }
         if (_confirm) {
-            is_loading = true; loading_timer = 0;
-            if (_sndConf != -1) audio_play_sound(_sndConf, 1, false);
+            // Check if slot has default name — if so, show name entry first
+            var _defName = "PILOT_0" + string(save_slot_index + 1);
+            if (save_slots[save_slot_index].name == _defName || keyboard_check_pressed(ord("X"))) {
+                in_name_entry = true;
+                name_entry_index = save_slot_index;
+                keyboard_string = "";
+                name_entry_text = "";
+            } else {
+                is_loading = true; loading_timer = 0;
+                if (_sndConf != -1) audio_play_sound(_sndConf, 1, false);
+            }
+        }
+        if (keyboard_check_pressed(ord("X"))) {
+            // Rename: enter name entry for current slot even if already named
+            in_name_entry = true;
+            name_entry_index = save_slot_index;
+            keyboard_string = save_slots[save_slot_index].name;
+            name_entry_text = save_slots[save_slot_index].name;
         }
         if (_back) in_save_slots = false;
     } else {
@@ -75,7 +114,8 @@ if (in_level_transition) {
 // Global visual updates
 menu_enter_timer = min(menu_enter_timer + 2, 60);
 screen_fade = clamp(screen_fade + 0.08, 0, 1);
-zoom_lerp = clamp(zoom_lerp + (in_story_level_select ? 0.06 : -0.06), 0, 1);
+var _zoomTarget = in_story_level_select ? 1 : 0;
+zoom_lerp += (_zoomTarget - zoom_lerp) * 0.12;
 
 // Exit animation: when fade reaches 0, clear the pending state
 if (exit_pending != "") {
@@ -207,7 +247,12 @@ if (in_settings) {
 
 if (in_inventory)  { if (_back) exit_pending = "inventory"; exit; }
 if (in_shop)       { if (_back) exit_pending = "shop"; exit; }
-if (in_how_to_play){ if (_back) exit_pending = "how_to_play"; exit; }
+if (in_how_to_play){
+    if (_leftPress)  how_to_page = (how_to_page - 1 + 4) mod 4;
+    if (_rightPress) how_to_page = (how_to_page + 1) mod 4;
+    if (_back) exit_pending = "how_to_play";
+    exit;
+}
 if (in_achievements){ if (_back) exit_pending = "achievements"; exit; }
 
 // --- MAIN MENU NAVIGATION (CARDS + TOOLBAR) ---
@@ -266,6 +311,14 @@ for (var i = 0; i < 7; i++) {
 // --- CONFIRMATION ---
 if (_confirm) {
     if (_sndConf != -1) audio_play_sound(_sndConf, 1, false);
+    // Block locked endless modes
+    var _slotIdx = global.current_save_slot - 1;
+    var _hasStoryProgress = (_slotIdx >= 0 && _slotIdx < 3 && save_slots[_slotIdx].progress > 0);
+    if ((menu_index == 1 || menu_index == 2) && !_hasStoryProgress) {
+        create_floating_text_ext(1920/2, 1080/2, "COMPLETE STORY LEVEL 1 FIRST", make_color_rgb(255, 100, 100), 1.0);
+        exit;
+    }
+
     switch (menu_index) {
         case 0: screen_fade = 0; in_story_select = true; break;
         case 1: global.gameMode = "PLANET";  room_goto(room_game); break;

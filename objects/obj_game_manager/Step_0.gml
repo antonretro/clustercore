@@ -23,6 +23,10 @@ for (var i = array_length(global.beams) - 1; i >= 0; i--) {
 if (global.payoutFlash  > 0) global.payoutFlash--;
 if (global.jackpotFlash > 0) global.jackpotFlash--;
 if (global.feverTimer   > 0) global.feverTimer--;
+if (global.chainTimer > 0) {
+    global.chainTimer--;
+    if (global.chainTimer == 1) settle_matches();
+}
 for (var i = array_length(global.particles) - 1; i >= 0; i--) {
     var _p = global.particles[i];
     _p.x += _p.vx; _p.y += _p.vy; _p.life--;
@@ -137,10 +141,10 @@ if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
                     };
                     with (_nInst) {
                         grid_x = _bgx; grid_y = _bgy;
+                        // World position must be relative to grid center for the matrix draw
                         x = (grid_x - global.HIDDEN_SIDES) * 16;
                         y = (grid_y - global.HIDDEN_ROWS)  * 16;
-                        type = _newType;
-                        color_id = _m.color;
+                        type = _newType; color_id = _m.color;
                         if (_m.type == "dirt") sprite_index = asset_get_index("spr_dirt_block");
                         update_sprite();
                     }
@@ -236,25 +240,34 @@ if (global.gameState == "GAMEOVER" || global.gameState == "LEVEL_COMPLETE" || gl
             global.flashAlpha = 1.0; // TRIGGER FLASH AT START
         }
         
-        global.finishTimer--;
+        if (global.finishTimer > 0) {
+            global.finishTimer--;
+            global.victoryPlanetAlpha = min(1.0, global.victoryPlanetAlpha + 0.02);
+            global.victoryPlanetScale = min(5.0, global.victoryPlanetScale + 0.08);
+            global.flashAlpha = max(global.flashAlpha, 0.5);
+        }
         
         // FADE IN REVEAL PLANET, FADE OUT GRID
-        // We wait a few frames for the spin to pick up before the "POP"
         if (global.finishTimer < 85) {
             global.victoryPlanetAlpha = min(1.0, global.victoryPlanetAlpha + 0.04);
             global.victoryPlanetScale = min(5.0, global.victoryPlanetScale + 0.08);
             global.restoredTilesAlpha = max(0.0, global.restoredTilesAlpha - 0.05);
         }
         
-        // ACCELERATING VICTORY SPIN + SHAKE
-        var _spinSpeed = (100 - global.finishTimer) * 0.22;
+        // ACCELERATING VICTORY SPIN + SHAKE + SLIDE OFF
+        var _spinSpeed = (100 - global.finishTimer) * 0.35;
         global.boardRotation += _spinSpeed;
-        global.shakeAmount = (100 - global.finishTimer) * 0.45;
+        global.shakeAmount = (100 - global.finishTimer) * 0.65;
+        
+        // Slide the board down to 'reveal' the planet behind it
+        if (global.finishTimer < 60) {
+            global.boardOffsetY = lerp(global.boardOffsetY, 1500, 0.08); 
+        }
         
         // SUSTAINED EXPLOSIONS
-        if (global.finishTimer % 6 == 0) {
-            var _rx = random_range(global.GAME_W * 0.2, global.GAME_W * 0.8);
-            var _ry = random_range(global.GAME_H * 0.2, global.GAME_H * 0.8);
+        if (global.finishTimer % 4 == 0) {
+            var _rx = random_range(global.GAME_W * 0.1, global.GAME_W * 0.9);
+            var _ry = random_range(global.GAME_H * 0.1, global.GAME_H * 0.9);
             create_particles(_rx, _ry, c_white);
         }
         

@@ -93,8 +93,13 @@ function story_advance_planet() {
 
     global.storyLevel++;
 
-    if (global.storyLevel < 6) {
+    var _maxLevels = 10;
+    if (instance_exists(obj_menu_controller)) {
+        _maxLevels = obj_menu_controller.story_world_level_counts[global.storyPlanet];
+    }
+    if (global.storyLevel < _maxLevels) {
         global.gameState = "LEVEL_COMPLETE";
+        global.level_transition_cooldown = 40;
         return;
     }
 
@@ -102,6 +107,11 @@ function story_advance_planet() {
     global.storyPlanet++;
 
     story_start_between_level_dialogue(_prevPlanet);
+
+    // Set gameState so we don't re-enter the FINISHING_LEVEL cinematic loop.
+    // Dialogue will play first (blocking input), then the LEVEL_COMPLETE screen appears.
+    global.gameState = "LEVEL_COMPLETE";
+    global.level_transition_cooldown = 40;
 
     if (_prevPlanet == 0 && global.storyPlanet >= 1) {
         steam_ach_unlock("ACH_STORY_WORLD_1");
@@ -119,7 +129,7 @@ function story_trigger_level_complete() {
     if (global.gameState == "LEVEL_COMPLETE" || global.gameState == "FINISHING_LEVEL") return;
     
     global.gameState = "FINISHING_LEVEL";
-    global.finishTimer = 100; // Delay for animations
+    global.finishTimer = 180; // ~3 seconds of cinematic animation
     
     // Calculate Rank and Bonus
     global.storyBonus = 0;
@@ -156,6 +166,12 @@ function story_trigger_level_complete() {
         }
         instance_destroy();
     }
+    // Clear grid references so nothing touches dead instances during the cinematic
+    for (var _gy = 0; _gy < global.TOTAL_ROWS; _gy++) {
+        for (var _gx = 0; _gx < global.TOTAL_COLS; _gx++) {
+            global.grid[_gy][_gx] = undefined;
+        }
+    }
     
     create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.34, "PLANET PURIFIED", global.COLOR_GLOW, 2.5);
 }
@@ -177,8 +193,8 @@ function story_objective_is_met() {
         return global.storyShardsCollected >= _value;
     }
 
-    if (global.storyObjectiveType == "clear_board") {
-        // Precise grid check: ensure no non-core blocks remain in the 11x11 play area
+    if (global.storyObjectiveType == "clear_board" || global.storyObjectiveType == "clear_cores") {
+        // Precise grid check: ensure no debris remains
         var _count = 0;
         for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
             for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
@@ -188,10 +204,15 @@ function story_objective_is_met() {
                 }
             }
         }
-        return (_count == 0);
+        
+        if (_count == 0) {
+            // Objective met ONLY when the board is completely empty of non-core blocks
+            return true;
+        }
+        return false;
     }
 
-    // Default to comparing storyCleared (blocks or cores depending on resolve_clears) to storyTarget
+    // Default for score/time/waves
     return global.storyCleared >= max(1, global.storyTarget);
 }
 
@@ -852,10 +873,45 @@ function enforce_single_core_in_grid() {
 }
 
 // =============================================================================
+// =============================================================================
+// CHAIN REACTION SYSTEM
+// =============================================================================
+function chain_ensure_globals() {
+    if (!variable_global_exists("chainActive")) global.chainActive = false;
+    if (!variable_global_exists("chainTimer")) global.chainTimer = 0;
+    if (!variable_global_exists("chainWave")) global.chainWave = 0;
+    if (!variable_global_exists("chainStoredMatches")) global.chainStoredMatches = [];
+}
+
+function chain_get_rating_text(_wave) {
+    switch (_wave) {
+        case 1:  return "GOOD";
+        case 2:  return "GREAT";
+        case 3:  return "AMAZING";
+        case 4:  return "FANTASTIC";
+        case 5:  return "AWESOME";
+        default: return "CLUSTER!!";
+    }
+}
+
+function chain_get_rating_color(_wave) {
+    switch (_wave) {
+        case 1:  return make_color_rgb(180, 255, 180);
+        case 2:  return make_color_rgb(100, 255, 100);
+        case 3:  return make_color_rgb(255, 220, 80);
+        case 4:  return make_color_rgb(255, 160, 40);
+        case 5:  return make_color_rgb(255, 100, 180);
+        case 6:  return make_color_rgb(180, 100, 255);
+        default: return make_color_rgb(255, 80, 80);
+    }
+}
+
+// =============================================================================
 // MATCH ENGINE INTEGRATION
 // =============================================================================
 
 function settle_matches() {
+    chain_ensure_globals();
     enforce_single_core_in_grid();
 
     // Stabilize matching IDs: repair in-flight cells whose id drifted from visuals.
@@ -901,72 +957,80 @@ function settle_matches() {
     }
 
     var _matches = find_matches_in_grid(global.grid, { cols: global.TOTAL_COLS }, global.TOTAL_ROWS);
-    
-    // HARD GUARD: Only proceed if we found a valid 4+ match
-    if (array_length(_matches) < 4) {
-        _matches = []; // Reject anything smaller than 4
-    }
 
-    if (array_length(_matches) > 0) {
-        // Final clear guarantee: expand from all matched seeds to the full
-        // orthogonally connected same-id component. This prevents L-shape
-        // corner leftovers when overlapping patterns resolve in one tick.
-        var _clearMask = array_create(global.TOTAL_ROWS);
-        var _visit = array_create(global.TOTAL_ROWS);
-        for (var _ey = 0; _ey < global.TOTAL_ROWS; _ey++) {
-            _clearMask[_ey] = array_create(global.TOTAL_COLS, false);
-            _visit[_ey] = array_create(global.TOTAL_COLS, false);
-        }
-        var _q = [];
-        for (var _si = 0; _si < array_length(_matches); _si++) {
-            var _sm = _matches[_si];
-            if (_sm.x < 0 || _sm.x >= global.TOTAL_COLS || _sm.y < 0 || _sm.y >= global.TOTAL_ROWS) continue;
-            var _sc = global.grid[_sm.y][_sm.x];
-            if (_sc == undefined) continue;
-            _clearMask[_sm.y][_sm.x] = true;
-            if (!_visit[_sm.y][_sm.x]) {
-                _visit[_sm.y][_sm.x] = true;
-                array_push(_q, {x:_sm.x, y:_sm.y, id:_sc.id});
+    if (array_length(_matches) >= 4) {
+        // --- ENDGAME PROTECTION ---
+        // Count total non-core blocks to detect the final "Satisfying" finish
+        var _totalDebris = 0;
+        for (var _ty = 0; _ty < global.TOTAL_ROWS; _ty++) {
+            for (var _tx = 0; _tx < global.TOTAL_COLS; _tx++) {
+                var _tc = global.grid[_ty][_tx];
+                if (_tc != undefined && _tc.type != "core") _totalDebris++;
             }
         }
+        var _isEndgame = (_totalDebris <= 16); // Increased threshold to catch more 'lone block' cases
+        
+        // --- ROOT CAUSE FIX: COLOR-STRICT EXPANSION ---
+        // We run a separate expansion for each matched component to prevent 
+        // wildcards from 'bridging' two different colored matches together.
+        var _finalClearMask = array_create(global.TOTAL_ROWS);
+        for (var _myM = 0; _myM < global.TOTAL_ROWS; _myM++) _finalClearMask[_myM] = array_create(global.TOTAL_COLS, false);
+        
         var _seedMask = array_create(global.TOTAL_ROWS);
         for (var _syE = 0; _syE < global.TOTAL_ROWS; _syE++) _seedMask[_syE] = array_create(global.TOTAL_COLS, false);
         for (var _ss = 0; _ss < array_length(_matches); _ss++) {
-            var _sm2 = _matches[_ss];
-            if (_sm2.x >= 0 && _sm2.x < global.TOTAL_COLS && _sm2.y >= 0 && _sm2.y < global.TOTAL_ROWS) {
-                _seedMask[_sm2.y][_sm2.x] = true;
+            _seedMask[_matches[_ss].y][_matches[_ss].x] = true;
+            _finalClearMask[_matches[_ss].y][_matches[_ss].x] = true;
+        }
+
+        var _processed = array_create(global.TOTAL_ROWS);
+        for (var _py = 0; _py < global.TOTAL_ROWS; _py++) _processed[_py] = array_create(global.TOTAL_COLS, false);
+
+        for (var _si = 0; _si < array_length(_matches); _si++) {
+            var _sm = _matches[_si];
+            if (_processed[_sm.y][_sm.x]) continue;
+            
+            var _sc = global.grid[_sm.y][_sm.x];
+            if (_sc == undefined) continue;
+            var _matchId = _sc.id;
+            
+            // Start BFS from this seed
+            var _q = [{x: _sm.x, y: _sm.y}];
+            _processed[_sm.y][_sm.x] = true;
+            var _head = 0;
+            var _dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+            
+            while (_head < array_length(_q)) {
+                var _n = _q[_head++];
+                for (var _di = 0; _di < 4; _di++) {
+                    var _nx = _n.x + _dirs[_di][0];
+                    var _ny = _n.y + _dirs[_di][1];
+                    if (!grid_in_bounds(_nx, _ny) || _processed[_ny][_nx]) continue;
+                    
+                    var _nc = global.grid[_ny][_nx];
+                    if (_nc == undefined || match_cell_is_excluded(_nc)) continue;
+                    
+                    // COLOR RULE: Neighbor must match the SEED color or be a wildcard.
+                    // But wildcards cannot bridge to a NEW color in this pass.
+                    if (_nc.id != _matchId && _nc.id != 999 && _matchId != 999) continue;
+                    
+                    // ARROW PROTECTION
+                    if (_nc.type == "metal" && !_seedMask[_ny][_nx]) continue;
+                    
+                    // ENDGAME PROTECTION: Don't suck in lone blocks in the final stretch
+                    if (_isEndgame && !_seedMask[_ny][_nx]) continue;
+                    
+                    _processed[_ny][_nx] = true;
+                    _finalClearMask[_ny][_nx] = true;
+                    array_push(_q, {x: _nx, y: _ny});
+                }
             }
         }
-        var _head = 0;
-        var _dirsE = [[1,0],[-1,0],[0,1],[0,-1]];
-        while (_head < array_length(_q)) {
-            var _n = _q[_head++];
-            var _fromCell = global.grid[_n.y][_n.x];
-            if (_fromCell == undefined) continue;
-            for (var _diE = 0; _diE < 4; _diE++) {
-                var _nxE = _n.x + _dirsE[_diE][0];
-                var _nyE = _n.y + _dirsE[_diE][1];
-                if (_nxE < 0 || _nxE >= global.TOTAL_COLS || _nyE < 0 || _nyE >= global.TOTAL_ROWS) continue;
-                if (_visit[_nyE][_nxE]) continue;
-                var _ncE = global.grid[_nyE][_nxE];
-                if (_ncE == undefined) continue;
-                if (_ncE.type == "bomb" || _ncE.type == "dead") continue;
-                var _axisE = (_dirsE[_diE][0] != 0) ? "h" : "v";
-                if (!match_cells_can_link(_fromCell, _ncE, _axisE, false)) continue;
-                
-                // Color Lock: Prevent wildcards from bridging different colors during expansion
-                if (_n.id != 999 && _ncE.id != 999 && _ncE.id != _n.id) continue;
-                var _ncHasArrow = (_ncE.type == "metal") || (variable_struct_exists(_ncE, "core_arrow") && _ncE.core_arrow);
-                if (_ncHasArrow && !_seedMask[_nyE][_nxE]) continue;
-                _visit[_nyE][_nxE] = true;
-                _clearMask[_nyE][_nxE] = true;
-                array_push(_q, {x:_nxE, y:_nyE, id:_n.id});
-            }
-        }
+        
         _matches = [];
-        for (var _ryE = 0; _ryE < global.TOTAL_ROWS; _ryE++) {
-            for (var _rxE = 0; _rxE < global.TOTAL_COLS; _rxE++) {
-                if (_clearMask[_ryE][_rxE]) array_push(_matches, {x:_rxE, y:_ryE});
+        for (var _ry = 0; _ry < global.TOTAL_ROWS; _ry++) {
+            for (var _rx = 0; _rx < global.TOTAL_COLS; _rx++) {
+                if (_finalClearMask[_ry][_rx]) array_push(_matches, {x: _rx, y: _ry});
             }
         }
 
@@ -1007,35 +1071,6 @@ function settle_matches() {
         }
         _matches = _filteredMatches;
         var _adjDirs = [[-1,0],[1,0],[0,-1],[0,1]];
-        
-        // --- SMART CLUSTER COLLECTION PASS ---
-        // If ANY block is adjacent to a cleared cell and shares its color, collect it.
-        // This allows LINE + ADDITIONS (L-shapes, T-shapes, clusters) to clear together.
-        var _extraBlocks = [];
-        for (var _am = 0; _am < array_length(_matches); _am++) {
-            var _pma = _matches[_am];
-            var _pca = global.grid[_pma.y][_pma.x];
-            if (_pca == undefined) continue;
-            
-            for (var _ad = 0; _ad < 4; _ad++) {
-                var _ax = _pma.x + _adjDirs[_ad][0];
-                var _ay = _pma.y + _adjDirs[_ad][1];
-                if (!grid_in_bounds(_ax, _ay)) continue;
-                if (_activeClearMask[_ay][_ax]) continue; // already clearing
-                
-                var _ac = global.grid[_ay][_ax];
-                if (_ac != undefined) {
-                    // Check if color matches
-                    if (match_cells_share_color(_pca, _ac)) {
-                        _activeClearMask[_ay][_ax] = true;
-                        array_push(_extraBlocks, {x: _ax, y: _ay});
-                    }
-                }
-            }
-        }
-        for (var _eb = 0; _eb < array_length(_extraBlocks); _eb++) {
-            array_push(_matches, _extraBlocks[_eb]);
-        }
 
         if (array_length(_matches) <= 0) {
             global.locking = false;
@@ -1260,6 +1295,32 @@ function settle_matches() {
             global.locking = false;
             return;
         }
+
+        // ── CHAIN REACTION DETECTION ────────────────────────────────────────
+        // After gravity settles, check if any new matches cascaded into place.
+        // If so, pause and let the player see each wave with a rating callout.
+        var _chainMatches = find_matches_in_grid(global.grid, { cols: global.TOTAL_COLS }, global.TOTAL_ROWS);
+        if (array_length(_chainMatches) >= 4) {
+            if (!global.chainActive) { global.chainActive = true; global.chainWave = 1; }
+            else { global.chainWave++; }
+            global.chainTimer = 45; // Increased delay for satisfying chain feel
+
+            var _rating = chain_get_rating_text(global.chainWave);
+            var _rCol = chain_get_rating_color(global.chainWave);
+            var _rScale = 1.0 + global.chainWave * 0.12;
+            create_floating_text_ext(global.GAME_W * 0.5, global.GAME_H * 0.38, _rating, _rCol, _rScale);
+
+            global.locking = false;
+            return;
+        }
+        // No chain: business as usual
+        global.chainActive = false;
+        global.chainWave = 0;
+
+        if (story_objective_is_met()) {
+            story_trigger_level_complete();
+            return;
+        }
         alarm[0] = 15;
     } else {
         // No clear happened: remove one-tick landing protection now.
@@ -1272,6 +1333,8 @@ function settle_matches() {
             }
         }
 
+        global.chainActive = false;
+        global.chainWave = 0;
         global.bestCombo = max(global.bestCombo, global.comboChain);
         global.locking = false;
         global.comboChain = 0;

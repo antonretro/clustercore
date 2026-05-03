@@ -60,7 +60,7 @@ matrix_stack_push(_matRot);
 matrix_set(matrix_world, matrix_stack_top());
 
 var _bx = -_bw / 2 + _shakeX;
-var _by = -_bh / 2 + _shakeY;
+var _by = -_bh / 2 + _shakeY + global.boardOffsetY;
 
 // --- Staging Ring (Planet/Story) ---
 if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
@@ -97,8 +97,8 @@ draw_roundrect_ext(_bx - 12, _by - 12, _bx + _bw + 12, _by + _bh + 12, 20, 20, f
 
 // --- Victory Planet (In-Board Reveal) ---
 if (global.victoryPlanetAlpha > 0) {
-    var _vps = global.victoryPlanetScale * 0.4; // Scale it to fit the board
-    draw_sprite_ext(global.victoryPlanetSprite, 0, _bx + _bw/2, _by + _bh/2, _vps, _vps, 0, c_white, global.victoryPlanetAlpha);
+    var _vps = global.victoryPlanetScale; 
+    draw_sprite_ext(global.victoryPlanetSprite, 0, _bx + _bw/2, _by + _bh/2 - global.boardOffsetY, _vps, _vps, current_time * 0.015, c_white, global.victoryPlanetAlpha);
 }
 
 draw_set_alpha(0.07); draw_set_color(c_white);
@@ -455,10 +455,13 @@ with (obj_block) {
 }
 
 // ── Grid Overlay (Drawn ABOVE blocks for structure) ──────────────────────────
-draw_set_color(c_black); draw_set_alpha(0.18); // Subtle dark lines over blocks
-for (var i = 0; i <= global.COLS; i++) draw_line(_bx + i * _cw, _by, _bx + i * _cw, _by + _bh);
-for (var i = 0; i <= global.ROWS; i++) draw_line(_bx, _by + i * _cw, _bx + _bw, _by + i * _cw);
-draw_set_alpha(1.0);
+var _gridAlpha = 0.18 * (1.0 - global.victoryPlanetAlpha);
+if (_gridAlpha > 0) {
+    draw_set_color(c_black); draw_set_alpha(_gridAlpha); // Subtle dark lines over blocks
+    for (var i = 0; i <= global.COLS; i++) draw_line(_bx + i * _cw, _by, _bx + i * _cw, _by + _bh);
+    for (var i = 0; i <= global.ROWS; i++) draw_line(_bx, _by + i * _cw, _bx + _bw, _by + i * _cw);
+    draw_set_alpha(1.0);
+}
 
 if (global.settings.hintPulseEnabled) {
     hint_draw_overlay(_bx, _by, _cw, _scale);
@@ -512,7 +515,7 @@ if (global.gameState == "PLAYING" && global.tutorialTimer > 0) {
     draw_set_alpha(_hintAlpha * 0.85); draw_set_color(make_color_rgb(200, 210, 255));
     if (_isPlanet) {
         draw_text_transformed(global.GAME_W/2, _hintY,
-            "← →  Move     SPACE  Fire     Q / E  Change Side     C  Hold", 0.75, 0.75, 0);
+            "← →  Move     SPACE  Fire     Q / E (L / R)  Rotate Board     C  Hold", 0.75, 0.75, 0);
     } else {
         draw_text_transformed(global.GAME_W/2, _hintY,
             "← →  Move     ↓  Soft Drop     SPACE  Hard Drop     C  Hold", 0.75, 0.75, 0);
@@ -530,6 +533,18 @@ if (global.gameState == "GAMEOVER") {
     draw_text_transformed(global.GAME_W/2, global.GAME_H*0.60, "Best: "  + string(global.highScore), 1.1, 1.1, 0);
     draw_set_color(make_color_rgb(255,214,102));
     draw_text_transformed(global.GAME_W/2, global.GAME_H*0.72, "R  Retry     Esc  Menu", 1.0, 1.0, 0);
+}
+
+if (global.gameState == "LEVEL_COMPLETE" || (global.gameState == "FINISHING_LEVEL" && global.finishTimer < 35)) {
+    var _fade = (global.gameState == "LEVEL_COMPLETE") ? 1.0 : (1.0 - global.finishTimer / 35);
+    draw_set_alpha(0.6 * _fade); draw_set_color(c_black); draw_rectangle(0, 0, global.GAME_W, global.GAME_H, false);
+    draw_set_alpha(_fade); draw_set_font(main_font); draw_set_halign(fa_center);
+    draw_set_color(c_yellow);
+    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.38, "LEVEL COMPLETE!", 3.0, 3.0, 0);
+    draw_set_color(c_white);
+    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.52, "Score: " + string(global.score), 1.5, 1.5, 0);
+    draw_set_color(make_color_rgb(255,214,102));
+    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.72, "SPACE to Continue", 1.2, 1.2, 0);
 }
 
 // --- Meteor Storm Draw ---
