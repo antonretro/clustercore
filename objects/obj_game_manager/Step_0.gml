@@ -177,7 +177,8 @@ if (global.gameState == "PLAYING" && global.gameMode == "STORY") {
 // --- Board rotation smooth lerp (Planet visual only) ---
 var _isRotating = (abs(global.targetRotation - global.boardRotation) > 0.5);
 if (global.gameState != "FINISHING_LEVEL") {
-    global.boardRotation += (global.targetRotation - global.boardRotation) * 0.2;
+    // Toned to 0.16 (between original 0.2 and previous 0.12)
+    global.boardRotation += (global.targetRotation - global.boardRotation) * 0.16;
 }
 
 // Classic: physically transpose grid once rotation animation completes
@@ -226,18 +227,17 @@ if (global.gameState == "PLAYING" && global.gameMode == "STORY" && global.turnLi
 }
 
 if (global.gameState == "GAMEOVER" || global.gameState == "LEVEL_COMPLETE" || global.gameState == "FINISHING_LEVEL") {
-    var _proceed = (keyboard_check_pressed(vk_space) || keyboard_check_pressed(vk_enter) || (_gp && gamepad_button_check_pressed(0, gp_face1)));
+    var _retry = (keyboard_check_pressed(vk_space) || keyboard_check_pressed(vk_enter) || keyboard_check_pressed(ord("R")) || (_gp && gamepad_button_check_pressed(0, gp_face1)));
+    var _menu  = (keyboard_check_pressed(ord("M")) || keyboard_check_pressed(vk_escape) || (_gp && gamepad_button_check_pressed(0, gp_start)));
     
-    if (global.gameState == "LEVEL_COMPLETE") {
-        if (_proceed) start_game();
-    } else if (global.gameState == "FINISHING_LEVEL") {
+    if (global.gameState == "FINISHING_LEVEL") {
         if (!global.victoryRevealActive) {
             global.victoryRevealActive = true;
             var _plts = [spr_mercury, spr_venus, spr_earth, spr_mars, spr_jupiter, spr_saturn, spr_neptune];
             global.victoryPlanetSprite = _plts[irandom(array_length(_plts)-1)];
             global.victoryPlanetAlpha = 0;
             global.victoryPlanetScale = 0.2;
-            global.flashAlpha = 1.0; // TRIGGER FLASH AT START
+            global.flashAlpha = 1.0; 
         }
         
         if (global.finishTimer > 0) {
@@ -247,24 +247,20 @@ if (global.gameState == "GAMEOVER" || global.gameState == "LEVEL_COMPLETE" || gl
             global.flashAlpha = max(global.flashAlpha, 0.5);
         }
         
-        // FADE IN REVEAL PLANET, FADE OUT GRID
         if (global.finishTimer < 85) {
             global.victoryPlanetAlpha = min(1.0, global.victoryPlanetAlpha + 0.04);
             global.victoryPlanetScale = min(5.0, global.victoryPlanetScale + 0.08);
             global.restoredTilesAlpha = max(0.0, global.restoredTilesAlpha - 0.05);
         }
         
-        // ACCELERATING VICTORY SPIN + SHAKE + SLIDE OFF
-        var _spinSpeed = (100 - global.finishTimer) * 0.35;
+        var _spinSpeed = (100 - global.finishTimer) * 0.08;
         global.boardRotation += _spinSpeed;
         global.shakeAmount = (100 - global.finishTimer) * 0.65;
         
-        // Slide the board down to 'reveal' the planet behind it
         if (global.finishTimer < 60) {
             global.boardOffsetY = lerp(global.boardOffsetY, 1500, 0.08); 
         }
         
-        // SUSTAINED EXPLOSIONS
         if (global.finishTimer % 4 == 0) {
             var _rx = random_range(global.GAME_W * 0.1, global.GAME_W * 0.9);
             var _ry = random_range(global.GAME_H * 0.1, global.GAME_H * 0.9);
@@ -272,12 +268,22 @@ if (global.gameState == "GAMEOVER" || global.gameState == "LEVEL_COMPLETE" || gl
         }
         
         if (global.finishTimer <= 0) {
-            story_advance_planet();
+            global.gameState = "LEVEL_COMPLETE";
             global.victoryRevealActive = false;
         }
     } else {
-        if (keyboard_check_pressed(ord("R")) || (_gp && gamepad_button_check_pressed(0, gp_face1))) room_goto(room_game);
-        if (keyboard_check_pressed(vk_escape)  || (_gp && gamepad_button_check_pressed(0, gp_start))) room_goto(room_menu);
+        if (_retry) {
+            wallet_save();
+            if (global.gameState == "LEVEL_COMPLETE") {
+                story_advance_planet();
+                start_game();
+            } else {
+                room_goto(room_game);
+            }
+        } else if (_menu) {
+            wallet_save();
+            room_goto(room_menu);
+        }
     }
     exit;
 }

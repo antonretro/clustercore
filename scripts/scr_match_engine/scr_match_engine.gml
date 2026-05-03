@@ -1,43 +1,71 @@
 // =============================================================================
-// MATCH SYSTEM — Clean rewrite
-// =============================================================================
+// scr_match_engine_rewrite
+// Cleaner deterministic match engine for Cluster Core
 //
-// Rules (no exceptions, no edge-case leakage):
-// - 3+ connected orthogonal cluster clears (normal blocks only)
-// - 3+ horizontal / vertical line clears (normal blocks); 4+ if any arrow block present
-// - 4+ diagonal line clears (normal blocks only)
-// - Metal / arrow blocks: only clear in LINES of 4+ along their arrow axis
-// - Wilds (id=999): universal color, can bridge clusters and lines
-// - Excluded types (bomb/dead/drill/void/asteroid): never match
-// - Cells with id <= 0: never participate in matching
+// RULES THIS ENGINE ENFORCES
+// -----------------------------------------------------------------------------
+// 1. A match is always 4+ cells.
+// 2. Normal color blocks can match in any 4-way connected shape.
+//    That means squares, blobs, L-shapes, T-shapes, zigzags, etc.
+// 3. Arrow blocks are special:
+//    - They do NOT count inside blob/cluster matches.
+//    - They only clear when they are part of a straight horizontal or vertical
+//      line of 4+ valid same-color cells.
+//    - A horizontal arrow only works in horizontal lines.
+//    - A vertical arrow only works in vertical lines.
+// 4. Diagonal matches are optional straight-line matches of 4+ normal blocks.
+//    Arrows do not count in diagonals.
+// 5. Wildcards can join any color match.
+// 6. Results are deterministic: same grid in = same cells out.
 // =============================================================================
+
+#macro MATCH_MIN 4
+#macro WILDCARD_ID 999
 
 
 // -----------------------------------------------------------------------------
 // MAIN ENTRY
+// Returns an array of { x, y } cells to clear.
 // -----------------------------------------------------------------------------
 function find_matches_in_grid(_grid, _config, _totalRows) {
     var _cols = _config.cols;
-    var _clear_grid = make_bool_grid(_cols, _totalRows, false);
+    var _rows = _totalRows;
 
-    add_cluster_matches(_grid, _cols, _totalRows, _clear_grid);
-    add_line_matches(_grid, _cols, _totalRows, _clear_grid);
-    add_diagonal_matches(_grid, _cols, _totalRows, _clear_grid);
+    var _clear = match_make_bool_grid(_cols, _rows, false);
 
-    var _matches = [];
-    for (var _y = 0; _y < _totalRows; _y++) {
-        for (var _x = 0; _x < _cols; _x++) {
-            if (_clear_grid[_y][_x]) array_push(_matches, { x: _x, y: _y });
-        }
-    }
-    return _matches;
+    // Normal blocks: any connected shape of 4+.
+    match_add_blob_matches(_grid, _cols, _rows, _clear);
+
+    // Arrow blocks: only valid in straight lines.
+    match_add_line_matches(_grid, _cols, _rows, _clear);
+
+    // Optional diagonal rule. Remove this call if diagonals are no longer part
+    // of the game.
+    match_add_diagonal_matches(_grid, _cols, _rows, _clear);
+
+    return match_clear_grid_to_array(_clear, _cols, _rows);
 }
 
 
 // -----------------------------------------------------------------------------
-// GRID + CELL HELPERS
+// GAME RULE SUMMARY
+// Call this from debug UI if you want the game to explain itself.
 // -----------------------------------------------------------------------------
-function make_bool_grid(_cols, _rows, _value) {
+function match_get_rules_text() {
+    return
+        "Match 4 or more blocks of the same color. " +
+        "Normal blocks can match in any connected shape: lines, blobs, L-shapes, T-shapes, and zigzags. " +
+        "Arrow blocks are stricter: they only clear inside a straight line of 4 or more blocks, and the arrow must point along that line. " +
+        "Wild blocks can connect to any color. " +
+        "All matches clear immediately after a block locks.";
+}
+
+
+// =============================================================================
+// BASIC HELPERS
+// =============================================================================
+
+function match_make_bool_grid(_cols, _rows, _value) {
     var _grid = array_create(_rows);
     for (var _y = 0; _y < _rows; _y++) {
         _grid[_y] = array_create(_cols, _value);
@@ -45,379 +73,363 @@ function make_bool_grid(_cols, _rows, _value) {
     return _grid;
 }
 
-function cell_exists(_grid, _cols, _rows, _x, _y) {
-    if (_x < 0 || _x >= _cols) return false;
-    if (_y < 0 || _y >= _rows) return false;
-    return _grid[_y][_x] != undefined;
+function match_in_bounds(_cols, _rows, _x, _y) {
+    return (_x >= 0 && _x < _cols && _y >= 0 && _y < _rows);
 }
 
-function cell_can_match(_cell) {
+function match_get_cell(_grid, _cols, _rows, _x, _y) {
+    if (!match_in_bounds(_cols, _rows, _x, _y)) return undefined;
+    return _grid[_y][_x];
+}
+
+function match_cell_can_match(_cell) {
     if (_cell == undefined) return false;
+    if (!variable_struct_exists(_cell, "id") || _cell.id <= 0) return false;
     return !match_cell_is_excluded(_cell);
 }
 
-function cell_has_arrow(_cell) {
-    if (_cell == undefined) return false;
-    // Metal blocks are always arrows. 
-    // Core blocks can have arrows, but they should still match in clusters to avoid stalemates.
-    if (_cell.type == "metal") return true;
+function match_cell_has_arrow(_cell) {
+    if (!match_cell_can_match(_cell)) return false;
+
+    // Support multiple possible data formats.
+    if (variable_struct_exists(_cell, "is_arrow") && _cell.is_arrow) return true;
+    if (variable_struct_exists(_cell, "has_arrow") && _cell.has_arrow) return true;
+    if (variable_struct_exists(_cell, "arrow_axis") && _cell.arrow_axis != undefined) return true;
+    if (variable_struct_exists(_cell, "arrowDir") && _cell.arrowDir != undefined) return true;
+
+    // Your older code treated metal as arrow blocks.
+    if (variable_struct_exists(_cell, "type") && _cell.type == "metal") return true;
+
     return false;
 }
 
-function mark_cell(_clear_grid, _x, _y) {
-    _clear_grid[_y][_x] = true;
+function match_arrow_allows(_cell, _axis) {
+    if (!match_cell_has_arrow(_cell)) return true;
+
+    // Call the arrow axis check from contracts.
+    return match_arrow_allows_axis(_cell, _axis);
+
+    // Fallback support for common fields.
+    if (variable_struct_exists(_cell, "arrow_axis")) {
+        return (_cell.arrow_axis == _axis || _cell.arrow_axis == "both");
+    }
+
+    if (variable_struct_exists(_cell, "axis")) {
+        return (_cell.axis == _axis || _cell.axis == "both");
+    }
+
+    if (variable_struct_exists(_cell, "arrowDir")) {
+        var _d = _cell.arrowDir;
+        if (_axis == "h") return (_d == "left" || _d == "right" || _d == "h");
+        if (_axis == "v") return (_d == "up" || _d == "down" || _d == "v");
+    }
+
+    // If no direction data exists, allow it rather than softlocking the board.
+    return true;
 }
 
+function match_same_color_or_wild(_cell, _colorId) {
+    if (!match_cell_can_match(_cell)) return false;
+    if (_cell.id == WILDCARD_ID) return true;
+    return (_cell.id == _colorId);
+}
 
-// -----------------------------------------------------------------------------
-// CLUSTER MATCHES — 3+ orthogonally connected, no arrows
-// -----------------------------------------------------------------------------
-function add_cluster_matches(_grid, _cols, _rows, _clear_grid) {
-    var _visited = make_bool_grid(_cols, _rows, false);
+function match_mark(_clear, _x, _y) {
+    _clear[_y][_x] = true;
+}
 
+function match_clear_grid_to_array(_clear, _cols, _rows) {
+    var _out = [];
     for (var _y = 0; _y < _rows; _y++) {
         for (var _x = 0; _x < _cols; _x++) {
-            if (_visited[_y][_x]) continue;
-
-            var _cell = _grid[_y][_x];
-            if (!cell_can_match(_cell)) {
-                _visited[_y][_x] = true;
-                continue;
-            }
-
-            // Arrows never participate in clusters
-            if (cell_has_arrow(_cell)) {
-                _visited[_y][_x] = true;
-                continue;
-            }
-
-            var _cluster = collect_cluster(_grid, _cols, _rows, _x, _y, _visited);
-            if (array_length(_cluster) >= 4) {
-                for (var i = 0; i < array_length(_cluster); i++) {
-                    mark_cell(_clear_grid, _cluster[i].x, _cluster[i].y);
-                }
-            }
-
-            // Unmark wildcards so they can bridge multiple clusters
-            for (var i = 0; i < array_length(_cluster); i++) {
-                var _p = _cluster[i];
-                if (_grid[_p.y][_p.x].id == 999) {
-                    _visited[_p.y][_p.x] = false;
-                }
-            }
+            if (_clear[_y][_x]) array_push(_out, { x: _x, y: _y });
         }
     }
-}
-
-function collect_cluster(_grid, _cols, _rows, _startX, _startY, _visited) {
-    var _cluster = [];
-    var _queue = [];
-    var _startCell = _grid[_startY][_startX];
-
-    var _node = { x: _startX, y: _startY };
-    array_push(_queue, _node);
-    array_push(_cluster, _node);
-    _visited[_startY][_startX] = true;
-
-    var _head = 0;
-    var _state = { colorId: _startCell.id };
-
-    while (_head < array_length(_queue)) {
-        var _cur = _queue[_head++];
-        var _curCell = _grid[_cur.y][_cur.x];
-
-        var _dirs = [[1,0,"h"], [-1,0,"h"], [0,1,"v"], [0,-1,"v"]];
-        for (var d = 0; d < 4; d++) {
-            try_add_cluster_neighbor(_grid, _cols, _rows, _visited, _queue, _cluster,
-                                     _curCell, _cur.x + _dirs[d][0], _cur.y + _dirs[d][1],
-                                     _dirs[d][2], _state);
-        }
-    }
-    return _cluster;
-}
-
-function try_add_cluster_neighbor(_grid, _cols, _rows, _visited, _queue, _cluster,
-                                   _cell, _nx, _ny, _axis, _state) {
-    if (_nx < 0 || _nx >= _cols || _ny < 0 || _ny >= _rows) return;
-    if (_visited[_ny][_nx]) return;
-
-    var _nb = _grid[_ny][_nx];
-    if (_nb == undefined) return;
-
-    // Arrows are excluded from clusters entirely
-    if (cell_has_arrow(_nb)) {
-        _visited[_ny][_nx] = true;
-        return;
-    }
-    if (!cell_can_match(_nb)) {
-        _visited[_ny][_nx] = true;
-        return;
-    }
-
-    // Color matching (wildcards bridge anything)
-    // Cells with invalid IDs never participate
-    if (_nb.id <= 0) { _visited[_ny][_nx] = true; return; }
-    if (_state.colorId == 999 && _nb.id != 999) {
-        _state.colorId = _nb.id;
-    }
-    if (_state.colorId != 999 && _nb.id != 999 && _nb.id != _state.colorId) {
-        return;
-    }
-
-    _visited[_ny][_nx] = true;
-    var _node = { x: _nx, y: _ny };
-    array_push(_queue, _node);
-    array_push(_cluster, _node);
+    return _out;
 }
 
 
-// -----------------------------------------------------------------------------
-// LINE MATCHES — 4+ in a straight horizontal or vertical line
-// Arrow/metal blocks ONLY match in lines, and require 4+ total
-// -----------------------------------------------------------------------------
-function add_line_matches(_grid, _cols, _rows, _clear_grid) {
-    // Horizontal
-    for (var _y = 0; _y < _rows; _y++) {
-        var _run = [];
-        var _runColor = -1;
-        var _runHasArrow = false;
+// =============================================================================
+// BLOB MATCHES
+// Normal blocks match in any connected 4-way shape.
+// Arrows are ignored here because arrows only clear in lines.
+//
+// Important wildcard choice:
+// Instead of letting a wildcard pick a color during BFS, we scan once per real
+// color. This avoids weird order-dependent wildcard behavior.
+// =============================================================================
 
-        for (var _x = 0; _x < _cols; _x++) {
-            var _cell = _grid[_y][_x];
-            var _canAdd = line_cell_can_join(_grid, _cols, _rows, _run, _runColor, _runHasArrow,
-                                              _cell, _x, _y, "h");
+function match_add_blob_matches(_grid, _cols, _rows, _clear) {
+    var _colors = match_collect_normal_colors(_grid, _cols, _rows);
 
-            if (_canAdd) {
-                if (cell_has_arrow(_cell)) _runHasArrow = true;
-                if (_runColor == -1 && _cell.id != 999) _runColor = _cell.id;
-                array_push(_run, { x: _x, y: _y, hasArrow: cell_has_arrow(_cell) });
-            } else {
-                flush_line_run(_clear_grid, _run);
-                // Start new run
-                _run = [];
-                _runColor = -1;
-                _runHasArrow = false;
-                if (_cell != undefined && cell_can_match(_cell) && _cell.id > 0) {
-                    if (cell_has_arrow(_cell)) {
-                        // Arrow can only START a line if its axis allows horizontal
-                        if (match_arrow_allows_axis(_cell, "h")) {
-                            _runHasArrow = true;
-                            _runColor = _cell.id;
-                            array_push(_run, { x: _x, y: _y, hasArrow: true });
-                        }
-                    } else {
-                        _runColor = _cell.id;
-                        array_push(_run, { x: _x, y: _y, hasArrow: false });
-                    }
-                }
-            }
-        }
-        flush_line_run(_clear_grid, _run);
-    }
-
-    // Vertical
-    for (var _x = 0; _x < _cols; _x++) {
-        var _runV = [];
-        var _runColorV = -1;
-        var _runHasArrowV = false;
+    for (var _c = 0; _c < array_length(_colors); _c++) {
+        var _colorId = _colors[_c];
+        var _visited = match_make_bool_grid(_cols, _rows, false);
 
         for (var _y = 0; _y < _rows; _y++) {
-            var _cellV = _grid[_y][_x];
-            var _canAddV = line_cell_can_join(_grid, _cols, _rows, _runV, _runColorV, _runHasArrowV,
-                                               _cellV, _x, _y, "v");
+            for (var _x = 0; _x < _cols; _x++) {
+                if (_visited[_y][_x]) continue;
 
-            if (_canAddV) {
-                if (cell_has_arrow(_cellV)) _runHasArrowV = true;
-                if (_runColorV == -1 && _cellV.id != 999) _runColorV = _cellV.id;
-                array_push(_runV, { x: _x, y: _y, hasArrow: cell_has_arrow(_cellV) });
-            } else {
-                flush_line_run(_clear_grid, _runV);
-                _runV = [];
-                _runColorV = -1;
-                _runHasArrowV = false;
-                if (_cellV != undefined && cell_can_match(_cellV) && _cellV.id > 0) {
-                    if (cell_has_arrow(_cellV)) {
-                        if (match_arrow_allows_axis(_cellV, "v")) {
-                            _runHasArrowV = true;
-                            _runColorV = _cellV.id;
-                            array_push(_runV, { x: _x, y: _y, hasArrow: true });
-                        }
-                    } else {
-                        _runColorV = _cellV.id;
-                        array_push(_runV, { x: _x, y: _y, hasArrow: false });
+                var _cell = _grid[_y][_x];
+
+                if (!match_blob_cell_valid_for_color(_cell, _colorId)) {
+                    _visited[_y][_x] = true;
+                    continue;
+                }
+
+                var _blob = match_collect_blob_for_color(_grid, _cols, _rows, _x, _y, _colorId, _visited);
+
+                if (array_length(_blob) >= MATCH_MIN) {
+                    for (var i = 0; i < array_length(_blob); i++) {
+                        match_mark(_clear, _blob[i].x, _blob[i].y);
                     }
                 }
             }
         }
-        flush_line_run(_clear_grid, _runV);
     }
 }
 
-function line_cell_can_join(_grid, _cols, _rows, _run, _runColor, _runHasArrow,
-                             _cell, _x, _y, _axis) {
-    if (_cell == undefined) return false;
-    if (!cell_can_match(_cell)) return false;
-    if (_cell.id <= 0) return false;
+function match_collect_normal_colors(_grid, _cols, _rows) {
+    var _colors = [];
 
-    // Empty run: can start with anything matchable
-    if (array_length(_run) == 0) {
-        if (cell_has_arrow(_cell)) {
-            // Arrow can only START if its axis matches
-            return match_arrow_allows_axis(_cell, _axis);
-        }
-        return true;
-    }
+    for (var _y = 0; _y < _rows; _y++) {
+        for (var _x = 0; _x < _cols; _x++) {
+            var _cell = _grid[_y][_x];
+            if (!match_cell_can_match(_cell)) continue;
+            if (match_cell_has_arrow(_cell)) continue;
+            if (_cell.id == WILDCARD_ID) continue;
 
-    // Arrow check: arrows only join lines, not clusters
-    // Both cells must allow the axis
-    var _prev = _run[array_length(_run) - 1];
-    var _prevCell = _grid[_prev.y][_prev.x];
+            var _found = false;
+            for (var i = 0; i < array_length(_colors); i++) {
+                if (_colors[i] == _cell.id) {
+                    _found = true;
+                    break;
+                }
+            }
 
-    if (cell_has_arrow(_prevCell) && !match_arrow_allows_axis(_prevCell, _axis)) return false;
-    if (cell_has_arrow(_cell) && !match_arrow_allows_axis(_cell, _axis)) return false;
-
-    // Color check
-    if (_runColor == 999) return true; // wild leading run, anything joins
-    if (_cell.id == 999) return true;  // wild always joins
-    if (_cell.id == _runColor) return true;
-    if (_runColor == -1 && _cell.id != 999) return true; // first non-wild sets color
-
-    return false;
-}
-
-function flush_line_run(_clear_grid, _run) {
-    var _len = array_length(_run);
-    if (_len <= 0) return;
-
-    // If run contains ANY arrow/metal block, minimum is 4
-    var _minLen = 4;
-    for (var i = 0; i < _len; i++) {
-        if (_run[i].hasArrow) { _minLen = 4; break; }
-    }
-
-    if (_len >= _minLen) {
-        for (var i = 0; i < _len; i++) {
-            mark_cell(_clear_grid, _run[i].x, _run[i].y);
+            if (!_found) array_push(_colors, _cell.id);
         }
     }
+
+    return _colors;
+}
+
+function match_blob_cell_valid_for_color(_cell, _colorId) {
+    if (!match_cell_can_match(_cell)) return false;
+    if (match_cell_has_arrow(_cell)) return false;
+    return match_same_color_or_wild(_cell, _colorId);
+}
+
+function match_collect_blob_for_color(_grid, _cols, _rows, _sx, _sy, _colorId, _visited) {
+    var _blob = [];
+    var _queue = [];
+    var _head = 0;
+
+    _visited[_sy][_sx] = true;
+    array_push(_queue, { x: _sx, y: _sy });
+    array_push(_blob,  { x: _sx, y: _sy });
+
+    static _dx = [ 1, -1,  0,  0 ];
+    static _dy = [ 0,  0,  1, -1 ];
+
+    while (_head < array_length(_queue)) {
+        var _n = _queue[_head++];
+
+        for (var d = 0; d < 4; d++) {
+            var _nx = _n.x + _dx[d];
+            var _ny = _n.y + _dy[d];
+
+            if (!match_in_bounds(_cols, _rows, _nx, _ny)) continue;
+            if (_visited[_ny][_nx]) continue;
+
+            var _cell = _grid[_ny][_nx];
+            if (!match_blob_cell_valid_for_color(_cell, _colorId)) {
+                _visited[_ny][_nx] = true;
+                continue;
+            }
+
+            _visited[_ny][_nx] = true;
+            var _node = { x: _nx, y: _ny };
+            array_push(_queue, _node);
+            array_push(_blob, _node);
+        }
+    }
+
+    return _blob;
 }
 
 
-// -----------------------------------------------------------------------------
-// DIAGONAL MATCHES — 4+ in a diagonal line, no arrows
-// -----------------------------------------------------------------------------
-function add_diagonal_matches(_grid, _cols, _rows, _clear_grid) {
-    // Down-right diagonals
-    for (var _sy = 0; _sy < _rows; _sy++) scan_diag(_grid, _cols, _rows, _clear_grid, 0, _sy, 1, 1);
-    for (var _sx = 1; _sx < _cols; _sx++) scan_diag(_grid, _cols, _rows, _clear_grid, _sx, 0, 1, 1);
-    // Up-right diagonals
-    for (var _sy2 = 0; _sy2 < _rows; _sy2++) scan_diag(_grid, _cols, _rows, _clear_grid, 0, _sy2, 1, -1);
-    for (var _sx2 = 1; _sx2 < _cols; _sx2++) scan_diag(_grid, _cols, _rows, _clear_grid, _sx2, _rows - 1, 1, -1);
+// =============================================================================
+// LINE MATCHES
+// Lines are straight horizontal or vertical runs of 4+.
+// Arrows are allowed only when their axis matches the line direction.
+// Normal blocks and wildcards can help form the line.
+// =============================================================================
+
+function match_add_line_matches(_grid, _cols, _rows, _clear) {
+    // Horizontal rows.
+    for (var _y = 0; _y < _rows; _y++) {
+        match_scan_line(_grid, _cols, _rows, _clear, 0, _y, 1, 0, _cols, "h");
+    }
+
+    // Vertical columns.
+    for (var _x = 0; _x < _cols; _x++) {
+        match_scan_line(_grid, _cols, _rows, _clear, _x, 0, 0, 1, _rows, "v");
+    }
 }
 
-function scan_diag(_grid, _cols, _rows, _clear_grid, _sx, _sy, _dx, _dy) {
+function match_scan_line(_grid, _cols, _rows, _clear, _sx, _sy, _dx, _dy, _length, _axis) {
+    var _run = [];
+    var _runColor = -1;
+
+    for (var i = 0; i < _length; i++) {
+        var _x = _sx + _dx * i;
+        var _y = _sy + _dy * i;
+        var _cell = _grid[_y][_x];
+
+        if (match_line_cell_can_join(_cell, _runColor, _axis)) {
+            if (_runColor == -1 && _cell.id != WILDCARD_ID) {
+                _runColor = _cell.id;
+            }
+            array_push(_run, { x: _x, y: _y });
+        } else {
+            match_flush_line(_clear, _run);
+            _run = [];
+            _runColor = -1;
+
+            if (match_line_cell_can_start(_cell, _axis)) {
+                if (_cell.id != WILDCARD_ID) _runColor = _cell.id;
+                array_push(_run, { x: _x, y: _y });
+            }
+        }
+    }
+
+    match_flush_line(_clear, _run);
+}
+
+function match_line_cell_can_start(_cell, _axis) {
+    if (!match_cell_can_match(_cell)) return false;
+    if (match_cell_has_arrow(_cell) && !match_arrow_allows(_cell, _axis)) return false;
+    return true;
+}
+
+function match_line_cell_can_join(_cell, _runColor, _axis) {
+    if (!match_line_cell_can_start(_cell, _axis)) return false;
+
+    if (_runColor == -1) return true;
+    if (_cell.id == WILDCARD_ID) return true;
+    return (_cell.id == _runColor);
+}
+
+function match_flush_line(_clear, _run) {
+    if (array_length(_run) < MATCH_MIN) return;
+
+    for (var i = 0; i < array_length(_run); i++) {
+        match_mark(_clear, _run[i].x, _run[i].y);
+    }
+}
+
+
+// =============================================================================
+// DIAGONAL MATCHES
+// Optional rule: straight diagonals of 4+ normal blocks.
+// Arrows are blocked from diagonals.
+// =============================================================================
+
+function match_add_diagonal_matches(_grid, _cols, _rows, _clear) {
+    // Down-right.
+    for (var _sy = 0; _sy < _rows; _sy++) {
+        match_scan_diagonal(_grid, _cols, _rows, _clear, 0, _sy, 1, 1);
+    }
+    for (var _sx = 1; _sx < _cols; _sx++) {
+        match_scan_diagonal(_grid, _cols, _rows, _clear, _sx, 0, 1, 1);
+    }
+
+    // Up-right.
+    for (var _sy2 = 0; _sy2 < _rows; _sy2++) {
+        match_scan_diagonal(_grid, _cols, _rows, _clear, 0, _sy2, 1, -1);
+    }
+    for (var _sx2 = 1; _sx2 < _cols; _sx2++) {
+        match_scan_diagonal(_grid, _cols, _rows, _clear, _sx2, _rows - 1, 1, -1);
+    }
+}
+
+function match_scan_diagonal(_grid, _cols, _rows, _clear, _sx, _sy, _dx, _dy) {
     var _run = [];
     var _runColor = -1;
     var _x = _sx;
     var _y = _sy;
 
-    while (_x >= 0 && _x < _cols && _y >= 0 && _y < _rows) {
+    while (match_in_bounds(_cols, _rows, _x, _y)) {
         var _cell = _grid[_y][_x];
-        var _ok = false;
 
-        if (_cell != undefined && cell_can_match(_cell) && !cell_has_arrow(_cell)) {
-            if (array_length(_run) == 0) {
-                _ok = true;
+        if (match_diag_cell_can_join(_cell, _runColor)) {
+            if (_runColor == -1 && _cell.id != WILDCARD_ID) {
                 _runColor = _cell.id;
-            } else {
-                if (_runColor == 999 && _cell.id != 999) _runColor = _cell.id;
-                if (_runColor == 999 || _cell.id == 999 || _cell.id == _runColor) {
-                    _ok = true;
-                }
             }
-        }
-
-        if (_ok) {
             array_push(_run, { x: _x, y: _y });
         } else {
-            if (array_length(_run) >= 4) {
-                for (var i = 0; i < array_length(_run); i++) {
-                    mark_cell(_clear_grid, _run[i].x, _run[i].y);
-                }
-            }
+            match_flush_line(_clear, _run);
             _run = [];
             _runColor = -1;
-    if (_cell != undefined && cell_can_match(_cell) && !cell_has_arrow(_cell) && _cell.id > 0) {
+
+            if (match_diag_cell_can_start(_cell)) {
+                if (_cell.id != WILDCARD_ID) _runColor = _cell.id;
                 array_push(_run, { x: _x, y: _y });
-                _runColor = _cell.id;
             }
         }
+
         _x += _dx;
         _y += _dy;
     }
-    if (array_length(_run) >= 4) {
-        for (var i = 0; i < array_length(_run); i++) {
-            mark_cell(_clear_grid, _run[i].x, _run[i].y);
-        }
-    }
+
+    match_flush_line(_clear, _run);
+}
+
+function match_diag_cell_can_start(_cell) {
+    if (!match_cell_can_match(_cell)) return false;
+    if (match_cell_has_arrow(_cell)) return false;
+    return true;
+}
+
+function match_diag_cell_can_join(_cell, _runColor) {
+    if (!match_diag_cell_can_start(_cell)) return false;
+
+    if (_runColor == -1) return true;
+    if (_cell.id == WILDCARD_ID) return true;
+    return (_cell.id == _runColor);
 }
 
 
-// -----------------------------------------------------------------------------
-// OPTIONAL: SPILL CLEAR INTO SAME-COLOR ADJACENT BLOCKS
-// (Only used for specialty block chaining, not default behavior)
-// -----------------------------------------------------------------------------
-function expand_clear_to_same_color_blobs(_grid, _cols, _rows, _clear_grid) {
-    var _visited = make_bool_grid(_cols, _rows, false);
-    var _queue = [];
-    for (var _y = 0; _y < _rows; _y++) {
-        for (var _x = 0; _x < _cols; _x++) {
-            if (!_clear_grid[_y][_x]) continue;
-            var _cell = _grid[_y][_x];
-            if (!cell_can_match(_cell)) continue;
-            if (cell_has_arrow(_cell)) continue; // never spill from arrows
-            _visited[_y][_x] = true;
-            array_push(_queue, { x: _x, y: _y, id: _cell.id });
-        }
-    }
-    var _head = 0;
-    while (_head < array_length(_queue)) {
-        var _n = _queue[_head++];
-        var _dirs = [[1,0,"h"], [-1,0,"h"], [0,1,"v"], [0,-1,"v"]];
-        for (var d = 0; d < 4; d++) {
-            var _nx = _n.x + _dirs[d][0];
-            var _ny = _n.y + _dirs[d][1];
-            if (_nx < 0 || _nx >= _cols || _ny < 0 || _ny >= _rows) continue;
-            if (_visited[_ny][_nx]) continue;
-            var _cell = _grid[_ny][_nx];
-            if (!cell_can_match(_cell)) continue;
-            if (cell_has_arrow(_cell)) continue; // never spill into arrows
-            if (_cell.id != _n.id) continue;
-            _visited[_ny][_nx] = true;
-            _clear_grid[_ny][_nx] = true;
-            array_push(_queue, { x: _nx, y: _ny, id: _n.id });
-        }
-    }
-}
+// =============================================================================
+// DEBUG HELPERS
+// =============================================================================
 
-
-// -----------------------------------------------------------------------------
-// DEBUG
-// -----------------------------------------------------------------------------
-function debug_largest_cluster_size() {
-    var _visited = make_bool_grid(global.TOTAL_COLS, global.TOTAL_ROWS, false);
+function debug_largest_blob_size() {
+    var _cols = global.TOTAL_COLS;
+    var _rows = global.TOTAL_ROWS;
+    var _colors = match_collect_normal_colors(global.grid, _cols, _rows);
     var _best = 0;
-    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
-        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
-            if (_visited[_y][_x]) continue;
-            var _cell = global.grid[_y][_x];
-            if (!cell_can_match(_cell) || cell_has_arrow(_cell)) {
-                _visited[_y][_x] = true;
-                continue;
+
+    for (var _c = 0; _c < array_length(_colors); _c++) {
+        var _colorId = _colors[_c];
+        var _visited = match_make_bool_grid(_cols, _rows, false);
+
+        for (var _y = 0; _y < _rows; _y++) {
+            for (var _x = 0; _x < _cols; _x++) {
+                if (_visited[_y][_x]) continue;
+
+                var _cell = global.grid[_y][_x];
+                if (!match_blob_cell_valid_for_color(_cell, _colorId)) {
+                    _visited[_y][_x] = true;
+                    continue;
+                }
+
+                var _blob = match_collect_blob_for_color(global.grid, _cols, _rows, _x, _y, _colorId, _visited);
+                _best = max(_best, array_length(_blob));
             }
-            var _cluster = collect_cluster(global.grid, global.TOTAL_COLS, global.TOTAL_ROWS, _x, _y, _visited);
-            _best = max(_best, array_length(_cluster));
         }
     }
+
     return _best;
 }

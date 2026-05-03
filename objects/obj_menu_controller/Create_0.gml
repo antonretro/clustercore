@@ -23,6 +23,19 @@ how_to_max_pages = 5;
 
 // Title screen
 in_title        = true;
+
+// Restore menu state from previous session
+if (variable_global_exists("last_menu_state") && global.last_menu_state != "") {
+    in_title = false;
+    if (global.last_menu_state == "STORY_SELECT") { in_story_select = true; menu_index = 0; }
+    if (global.last_menu_state == "STORY_LEVEL_SELECT") { in_story_select = true; in_story_level_select = true; menu_index = 0; }
+    if (global.last_menu_state == "BONUS_SELECT") { in_bonus_select = true; menu_index = 0; }
+    if (global.last_menu_state == "PLANET_ENDLESS") { in_title = false; menu_index = 1; }
+    if (global.last_menu_state == "CLASSIC_ENDLESS") { in_title = false; menu_index = 2; }
+    
+    // Clear the state so it doesn't persist forever across hard launches
+    global.last_menu_state = "";
+}
 title_timer     = 0;
 menu_enter_timer = 0; // 0→60: cards slide in on menu entry
 is_loading      = false;

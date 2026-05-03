@@ -698,11 +698,11 @@ function story_level_catalog() {
         { world_id: 0, level_id: 2, seed: 1003, palette_count: 3, turn_limit: 45, objective: { type: "clear_board", value: 1 } },
         { world_id: 0, level_id: 3, seed: 1004, palette_count: 3, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
         { world_id: 0, level_id: 4, seed: 1005, palette_count: 3, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
-        { world_id: 0, level_id: 5, seed: 1006, palette_count: 4, objective: { type: "clear_cores", value: 6 } },
+        { world_id: 0, level_id: 5, seed: 1006, palette_count: 4, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
         { world_id: 0, level_id: 6, seed: 1007, palette_count: 4, turn_limit: 45, objective: { type: "clear_board", value: 1 } },
         { world_id: 0, level_id: 7, seed: 1008, palette_count: 4, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
         { world_id: 0, level_id: 8, seed: 1009, palette_count: 4, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
-        { world_id: 0, level_id: 9, seed: 1010, palette_count: 5, objective: { type: "clear_cores", value: 10 } },
+        { world_id: 0, level_id: 9, seed: 1010, palette_count: 5, turn_limit: 65, objective: { type: "clear_board", value: 1 } },
 
         // ── RUST GARDEN (World 1) ── Locked cages + spores ──────────────────
         { world_id: 1, level_id: 0, seed: 2001, palette_count: 3, turn_limit: 45, objective: { type: "clear_board", value: 1 } },
@@ -714,7 +714,7 @@ function story_level_catalog() {
         { world_id: 1, level_id: 6, seed: 2007, palette_count: 4, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
         { world_id: 1, level_id: 7, seed: 2008, palette_count: 4, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
         { world_id: 1, level_id: 8, seed: 2009, palette_count: 5, turn_limit: 65, objective: { type: "clear_board", value: 1 } },
-        { world_id: 1, level_id: 9, seed: 2010, palette_count: 5, objective: { type: "clear_cores", value: 14 } },
+        { world_id: 1, level_id: 9, seed: 2010, palette_count: 5, turn_limit: 75, objective: { type: "clear_board", value: 1 } },
 
         // ── CASINO COMET (World 2) ── Multipliers + debt blocks ─────────────
         { world_id: 2, level_id: 0, seed: 3001, palette_count: 4, objective: { type: "clear_board", value: 1 } },
@@ -722,11 +722,11 @@ function story_level_catalog() {
         { world_id: 2, level_id: 2, seed: 3003, palette_count: 4, objective: { type: "clear_board", value: 1 } },
         { world_id: 2, level_id: 3, seed: 3004, palette_count: 4, objective: { type: "clear_board", value: 1 } },
         { world_id: 2, level_id: 4, seed: 3005, palette_count: 5, objective: { type: "clear_board", value: 1 } },
-        { world_id: 2, level_id: 5, seed: 3006, palette_count: 5, objective: { type: "clear_cores", value: 12 } },
+        { world_id: 2, level_id: 5, seed: 3006, palette_count: 5, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
         { world_id: 2, level_id: 6, seed: 3007, palette_count: 5, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
         { world_id: 2, level_id: 7, seed: 3008, palette_count: 5, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
         { world_id: 2, level_id: 8, seed: 3009, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 2, level_id: 9, seed: 3010, palette_count: 5, full_palette: true, objective: { type: "clear_cores", value: 16 } },
+        { world_id: 2, level_id: 9, seed: 3010, palette_count: 5, full_palette: true, turn_limit: 80, objective: { type: "clear_board", value: 1 } },
 
         // ── DEAD ORBIT (World 3) ── Gravity + void blocks ───────────────────
         { world_id: 3, level_id: 0, seed: 4001, palette_count: 4, objective: { type: "clear_board", value: 1 } },
@@ -734,11 +734,11 @@ function story_level_catalog() {
         { world_id: 3, level_id: 2, seed: 4003, palette_count: 5, objective: { type: "clear_board", value: 1 } },
         { world_id: 3, level_id: 3, seed: 4004, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
         { world_id: 3, level_id: 4, seed: 4005, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 3, level_id: 5, seed: 4006, palette_count: 5, full_palette: true, objective: { type: "clear_cores", value: 14 } },
+        { world_id: 3, level_id: 5, seed: 4006, palette_count: 5, full_palette: true, turn_limit: 65, objective: { type: "clear_board", value: 1 } },
         { world_id: 3, level_id: 6, seed: 4007, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
         { world_id: 3, level_id: 7, seed: 4008, palette_count: 5, full_palette: true, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
         { world_id: 3, level_id: 8, seed: 4009, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 3, level_id: 9, seed: 4010, palette_count: 6, full_palette: true, objective: { type: "clear_cores", value: 18 } },
+        { world_id: 3, level_id: 9, seed: 4010, palette_count: 6, full_palette: true, turn_limit: 85, objective: { type: "clear_board", value: 1 } },
 
         // ── CLUSTER CORE (World 4) ── Prism + core keys ─────────────────────
         { world_id: 4, level_id: 0, seed: 5001, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
@@ -746,11 +746,11 @@ function story_level_catalog() {
         { world_id: 4, level_id: 2, seed: 5003, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
         { world_id: 4, level_id: 3, seed: 5004, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
         { world_id: 4, level_id: 4, seed: 5005, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 4, level_id: 5, seed: 5006, palette_count: 6, full_palette: true, objective: { type: "clear_cores", value: 20 } },
+        { world_id: 4, level_id: 5, seed: 5006, palette_count: 6, full_palette: true, turn_limit: 70, objective: { type: "clear_board", value: 1 } },
         { world_id: 4, level_id: 6, seed: 5007, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
         { world_id: 4, level_id: 7, seed: 5008, palette_count: 6, full_palette: true, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
         { world_id: 4, level_id: 8, seed: 5009, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 4, level_id: 9, seed: 5010, palette_count: 6, full_palette: true, objective: { type: "clear_cores", value: 24 } }
+        { world_id: 4, level_id: 9, seed: 5010, palette_count: 6, full_palette: true, turn_limit: 100, objective: { type: "clear_board", value: 1 } }
     ];
 }
 
@@ -947,6 +947,8 @@ function story_apply_level_layout(_def) {
 
             if (_def.objective.type == "clear_cores") {
                 global.storyTarget = _def.objective.value;
+            } else if (_def.objective.type == "clear_board") {
+                global.storyTarget = 1; // Used as a sentinel, specific logic in story_objective_is_met
             }
         }
     }

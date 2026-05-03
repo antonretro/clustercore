@@ -2,16 +2,71 @@
 // scr_match_contracts - single source of truth for matching legality
 // =============================================================================
 
+#macro MATCH_WILD_ID 999
+
+function match_cell_id(_cell) {
+    if (_cell == undefined) return 0;
+    if (!variable_struct_exists(_cell, "id")) return 0;
+    return _cell.id;
+}
+
+function match_cell_type(_cell) {
+    if (_cell == undefined) return "";
+    if (!variable_struct_exists(_cell, "type")) return "";
+    return _cell.type;
+}
+
+function match_cell_is_excluded(_cell) {
+    if (_cell == undefined) return true;
+
+    var _type = match_cell_type(_cell);
+
+    return (
+        _type == "bomb" ||
+        _type == "dead" ||
+        _type == "drill" ||
+        _type == "void" ||
+        _type == "asteroid"
+    );
+}
+
+function match_cell_is_wild(_cell) {
+    return match_cell_id(_cell) == MATCH_WILD_ID;
+}
+
+function match_cell_is_metal_arrow(_cell) {
+    return match_cell_type(_cell) == "metal";
+}
+
+function match_cell_is_core_arrow(_cell) {
+    return (
+        _cell != undefined &&
+        variable_struct_exists(_cell, "core_arrow") &&
+        _cell.core_arrow
+    );
+}
+
+function match_cell_is_directional(_cell) {
+    return match_cell_is_metal_arrow(_cell) || match_cell_is_core_arrow(_cell);
+}
+
+// This is the important split.
+// Metal arrows are special line-only blocks.
+// Core arrows are allowed in blobs so the core does not create stalemates.
+function match_cell_blocks_blob_matching(_cell) {
+    return match_cell_is_metal_arrow(_cell);
+}
+
 function match_cells_share_color(_c1, _c2) {
     if (_c1 == undefined || _c2 == undefined) return false;
-    
-    var _id1 = variable_struct_exists(_c1, "id") ? _c1.id : 0;
-    var _id2 = variable_struct_exists(_c2, "id") ? _c2.id : 0;
+    if (match_cell_is_excluded(_c1) || match_cell_is_excluded(_c2)) return false;
+
+    var _id1 = match_cell_id(_c1);
+    var _id2 = match_cell_id(_c2);
 
     if (_id1 <= 0 || _id2 <= 0) return false;
 
-    // Wilds share color with everything except void/dead (already excluded)
-    if (_id1 == 999 || _id2 == 999) return true;
+    if (_id1 == MATCH_WILD_ID || _id2 == MATCH_WILD_ID) return true;
 
     return _id1 == _id2;
 }
@@ -19,53 +74,51 @@ function match_cells_share_color(_c1, _c2) {
 function match_arrow_allows_axis(_cell, _axis) {
     if (_cell == undefined) return false;
 
-    var _isDirectional = (_cell.type == "metal") || (variable_struct_exists(_cell, "core_arrow") && _cell.core_arrow);
-    if (!_isDirectional) return true;
+    if (!match_cell_is_directional(_cell)) return true;
 
-    // metal dir:
+    // dir:
     // 0 = horizontal
     // 1 = vertical
-    // 2 = cross (ULDR)
-    if (_axis == "h") return (_cell.dir == 0 || _cell.dir == 2);
-    if (_axis == "v") return (_cell.dir == 1 || _cell.dir == 2);
+    // 2 = cross
+    var _dir = variable_struct_exists(_cell, "dir") ? _cell.dir : 2;
 
-    // Metal does not count for diagonals.
+    if (_axis == "h") return (_dir == 0 || _dir == 2);
+    if (_axis == "v") return (_dir == 1 || _dir == 2);
+
+    // Directional blocks do not count for diagonals.
     return false;
 }
 
-function match_cell_is_excluded(_cell) {
-    if (_cell == undefined) return true;
-
-    return (
-        _cell.type == "bomb" ||
-        _cell.type == "dead" ||
-        _cell.type == "drill" ||
-        _cell.type == "void" ||
-        _cell.type == "asteroid"
-    );
-}
-
-function match_cells_can_link(_c1, _c2, _axis, _allowMetal = true) {
+function match_cells_can_link(_c1, _c2, _axis, _mode) {
     if (_c1 == undefined || _c2 == undefined) return false;
     if (match_cell_is_excluded(_c1) || match_cell_is_excluded(_c2)) return false;
-
-    // 1. Basic Color Match (including wildcards)
     if (!match_cells_share_color(_c1, _c2)) return false;
 
-    // If we don't allow directional matching (like in diagonal scans or cluster matching), 
-    // fail immediately if either block has an arrow
-    var _c1HasArrow = (_c1.type == "metal"); // Core arrows now allowed in clusters to prevent stalemates
-    var _c2HasArrow = (_c2.type == "metal");
+    // _mode should be:
+    // "blob"     = any connected normal-block shape
+    // "line"     = horizontal/vertical line
+    // "diagonal" = diagonal line
 
-    if (!_allowMetal && (_c1HasArrow || _c2HasArrow)) return false;
-    if (_axis == "d" && (_c1HasArrow || _c2HasArrow)) return false;
+    if (_mode == "blob") {
+        if (match_cell_blocks_blob_matching(_c1)) return false;
+        if (match_cell_blocks_blob_matching(_c2)) return false;
 
-    // If the cell has an arrow (Metal or Core-Arrow), it must allow the specific axis
-    var _isC1Dir = (_c1.type == "metal") || (variable_struct_exists(_c1, "core_arrow") && _c1.core_arrow);
-    var _isC2Dir = (_c2.type == "metal") || (variable_struct_exists(_c2, "core_arrow") && _c2.core_arrow);
+        // Core arrows are allowed in blobs.
+        // Metal arrows are not.
+        return true;
+    }
 
-    if (_isC1Dir && !match_arrow_allows_axis(_c1, _axis)) return false;
-    if (_isC2Dir && !match_arrow_allows_axis(_c2, _axis)) return false;
+    if (_mode == "line") {
+        if (match_cell_is_directional(_c1) && !match_arrow_allows_axis(_c1, _axis)) return false;
+        if (match_cell_is_directional(_c2) && !match_arrow_allows_axis(_c2, _axis)) return false;
+        return true;
+    }
 
-    return true;
+    if (_mode == "diagonal") {
+        if (match_cell_is_directional(_c1)) return false;
+        if (match_cell_is_directional(_c2)) return false;
+        return true;
+    }
+
+    return false;
 }

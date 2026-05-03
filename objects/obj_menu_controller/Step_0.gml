@@ -199,6 +199,7 @@ if (in_story_select) {
 
         if (_confirm) {
             if (story_progress_is_unlocked(story_select_index, story_level_index)) {
+                global.last_menu_state = "STORY_LEVEL_SELECT";
                 in_level_transition = true; level_transition_timer = 0;
                 transition_target_world = story_select_index;
                 transition_target_level = story_level_index;
@@ -224,6 +225,7 @@ if (in_bonus_select) {
     if (_rightPress || _downPress) bonus_select_index = (bonus_select_index + 1) mod array_length(bonus_planet_names);
     if (_confirm) {
         if (_sndConf != -1) audio_play_sound(_sndConf, 1, false);
+        global.last_menu_state = "BONUS_SELECT";
         global.gameMode = "BONUS";
         global.bonusPlanet = bonus_select_index;
         room_goto(room_game);
@@ -382,8 +384,8 @@ if (_confirm) {
     } else {
         switch (menu_index) {
             case 0: in_story_select = true; break;
-            case 1: if (global.endlessPlanetUnlocked) { global.gameMode = "PLANET"; room_goto(room_game); } else { create_floating_text_ext(_cx, _cy, "COMPLETE STORY LEVEL 1", global.COLOR_DANGER, 1); } break;
-            case 2: if (global.endlessClassicUnlocked) { global.gameMode = "CLASSIC"; room_goto(room_game); } else { create_floating_text_ext(_cx, _cy, "COMPLETE STORY LEVEL 2", global.COLOR_DANGER, 1); } break;
+            case 1: if (global.endlessPlanetUnlocked) { global.last_menu_state = "PLANET_ENDLESS"; global.gameMode = "PLANET"; room_goto(room_game); } else { create_floating_text_ext(_cx, _cy, "COMPLETE STORY LEVEL 1", global.COLOR_DANGER, 1); } break;
+            case 2: if (global.endlessClassicUnlocked) { global.last_menu_state = "CLASSIC_ENDLESS"; global.gameMode = "CLASSIC"; room_goto(room_game); } else { create_floating_text_ext(_cx, _cy, "COMPLETE STORY LEVEL 2", global.COLOR_DANGER, 1); } break;
             case 3: wallet_save(); create_floating_text_ext(_cx, _cy, "SYSTEM SYNC COMPLETE", make_color_rgb(100, 255, 150), 1.2); break;
             case 4: in_refabricator = true; break;
             case 5: in_inventory = true; break;
