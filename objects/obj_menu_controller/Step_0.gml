@@ -277,59 +277,133 @@ if (_downPress && !_inToolbar) {
     if (_sndMove != -1) audio_play_sound(_sndMove, 1, false);
 }
 
-// Mouse click support
+// --- MOUSE INTERACTION (Cards/Sub-menus) ---
+var _guiW = 1920; var _guiH = 1080; 
 var _mx = device_mouse_x_to_gui(0);
 var _my = device_mouse_y_to_gui(0);
 var _mClick = mouse_check_button_pressed(mb_left);
+var _cx = _guiW * 0.5;
+var _cy = _guiH * 0.5;
 
-// Card hit-test
-var _cardW = 380; var _cardH = 480; var _gap = 40;
-var _startX = (1920 * 0.5) - ((_cardW * 3 + _gap * 2) * 0.5);
-var _mainY = (1080 * 0.5) - 80 - _cardH * 0.5;
-for (var i = 0; i < 3; i++) {
-    var _tx = _startX + i * (_cardW + _gap);
-    if (_mx > _tx && _mx < _tx + _cardW && _my > _mainY && _my < _mainY + _cardH) {
-        if (menu_index != i) { menu_index = i; if (_sndMove != -1) audio_play_sound(_sndMove, 1, false); }
+// Back Button hit-test for sub-screens
+if (!in_title && (in_settings || in_story_select || in_inventory || in_shop || in_how_to_play || in_achievements || in_refabricator)) {
+    if (_mx > 20 && _mx < 180 && _my > 20 && _my < 90) {
+        if (_mClick) _back = true;
+    }
+}
+
+if (in_save_slots && !is_loading) {
+    var _cardW = 480; var _cardH = 650; var _gap = 50;
+    var _startX = _cx - (_cardW * 1.5 + _gap);
+    for (var i = 0; i < 3; i++) {
+        var _sx = _startX + i * (_cardW + _gap);
+        var _sy = _cy - 200;
+        if (_mx > _sx && _mx < _sx + _cardW && _my > _sy && _my < _sy + _cardH) {
+            if (save_slot_index != i) { save_slot_index = i; if (_sndMove != -1) audio_play_sound(_sndMove, 1, false); }
+            if (_mClick) _confirm = true;
+        }
+    }
+} else if (in_settings) {
+    var _startY = 360; var _panelW = 800; var _panelH = 120;
+    for (var i = 0; i < 2; i++) {
+        var _py = _startY + i * 170;
+        if (_mx > _cx - _panelW*0.5 && _mx < _cx + _panelW*0.5 && _my > _py - _panelH*0.5 && _my < _py + _panelH*0.5) {
+            if (settings_index != i) { settings_index = i; if (_sndMove != -1) audio_play_sound(_sndMove, 1, false); }
+            if (_mClick) _confirm = true;
+        }
+    }
+} else if (in_story_level_select) {
+    var _lvlCount = story_world_level_counts[story_select_index];
+    var _cellW = 114; var _cellH = 90; var _cellGap = 14;
+    var _gridStartX = 20 + (440 - (_cellW * 3 + _cellGap * 2)) * 0.5;
+    var _gridStartY = (80 + 90 + 120) + 40;
+    for (var i = 0; i < _lvlCount; i++) {
+        var _col = i mod 3; var _row = i div 3;
+        var _cxCell = _gridStartX + _col * (_cellW + _cellGap) + _cellW * 0.5;
+        var _cyCell = _gridStartY + _row * (_cellH + _cellGap) + _cellH * 0.5;
+        if (_mx > _cxCell - _cellW*0.5 && _mx < _cxCell + _cellW*0.5 && _my > _cyCell - _cellH*0.5 && _my < _cyCell + _cellH*0.5) {
+            if (story_level_index != i) { story_level_index = i; if (_sndMove != -1) audio_play_sound(_sndMove, 1, false); }
+            if (_mClick) _confirm = true;
+        }
+    }
+} else if (in_how_to_play) {
+    var _sidebarX1 = _cx - 540 + 20; 
+    var _sidebarY0 = 210 + 30;
+    var _tabH = 52; var _sidebarW = 210;
+    for (var i = 0; i < 4; i++) {
+        var _ty = _sidebarY0 + 38 + i * (_tabH + 8);
+        if (_mx > _sidebarX1 && _mx < _sidebarX1 + _sidebarW && _my > _ty && _my < _ty + _tabH) {
+            if (how_to_page != i) { how_to_page = i; if (_sndMove != -1) audio_play_sound(_sndMove, 1, false); }
+        }
+    }
+} else if (in_refabricator) {
+    var _pw = 800; var _ph = 320;
+    if (_mx > _cx - _pw*0.5 && _mx < _cx + _pw*0.5 && _my > _cy - _ph*0.5 && _my < _cy + _ph*0.5) {
+        if (_mClick) _confirm = true;
+    }
+} else if (!in_story_select && !in_bonus_select && !in_level_transition && !in_title) {
+    // Main Deck - Cards
+    var _cardW = 380; var _cardH = 480; var _gap = 40;
+    var _startX = _cx - ((_cardW * 3 + _gap * 2) * 0.5);
+    var _mainY = _cy - 80 - _cardH * 0.5;
+    for (var i = 0; i < 3; i++) {
+        var _xx = _startX + i * (_cardW + _gap);
+        if (_mx > _xx && _mx < _xx + _cardW && _my > _mainY && _my < _mainY + _cardH) {
+            if (menu_index != i) { menu_index = i; if (_sndMove != -1) audio_play_sound(_sndMove, 1, false); }
+            if (_mClick) _confirm = true;
+        }
+    }
+    // Main Deck - Toolbar
+    var _iconSize = 100; var _barGap = 40;
+    var _totalBarW = (_iconSize * 7) + (_barGap * 6);
+    var _barX = _cx - _totalBarW * 0.5;
+    var _barY = _guiH - 150;
+    if (_mx > _barX - 30 && _mx < _barX + _totalBarW + 30 && _my > _barY - 70 && _my < _barY + _iconSize + 30) {
+        var _idxInBar = floor((_mx - (_barX - 30)) / (_totalBarW + 60) * 7);
+        _idxInBar = clamp(_idxInBar, 0, 6);
+        var _targetIdx = 3 + _idxInBar;
+        if (menu_index != _targetIdx) { menu_index = _targetIdx; if (_sndMove != -1) audio_play_sound(_sndMove, 1, false); }
         if (_mClick) _confirm = true;
     }
 }
 
-// Toolbar hit-test
-var _iconSize = 100; var _barGap = 40;
-var _totalBarW = (_iconSize * 7) + (_barGap * 6);
-var _barX = (1920 * 0.5) - _totalBarW * 0.5;
-var _barY = 1080 - 150;
-for (var i = 0; i < 7; i++) {
-    var _idx = 3 + i;
-    var _exX = _barX + i * (_iconSize + _barGap);
-    if (_mx > _exX && _mx < _exX + _iconSize && _my > _barY && _my < _barY + _iconSize) {
-        if (menu_index != _idx) { menu_index = _idx; if (_sndMove != -1) audio_play_sound(_sndMove, 1, false); }
-        if (_mClick) _confirm = true;
-    }
-}
+if (_sndMove != -1 && (_upPress || _downPress || _leftPress || _rightPress)) audio_play_sound(_sndMove, 1, false);
 
 // --- CONFIRMATION ---
 if (_confirm) {
-    if (_sndConf != -1) audio_play_sound(_sndConf, 1, false);
-    // Block locked endless modes
-    var _slotIdx = global.current_save_slot - 1;
-    var _hasStoryProgress = (_slotIdx >= 0 && _slotIdx < 3 && save_slots[_slotIdx].progress > 0);
-    if ((menu_index == 1 || menu_index == 2) && !_hasStoryProgress) {
-        create_floating_text_ext(1920/2, 1080/2, "COMPLETE STORY LEVEL 1 FIRST", make_color_rgb(255, 100, 100), 1.0);
-        exit;
+    if (in_title) {
+        in_title = false; in_save_slots = true;
+        if (_sndConf != -1) audio_play_sound(_sndConf, 1, false);
+    } else if (in_save_slots) {
+        // Load selected slot
+        is_loading = true; loading_timer = 0;
+        global.current_save_slot = save_slot_index + 1;
+        if (_sndConf != -1) audio_play_sound(_sndConf, 1, false);
+    } else {
+        switch (menu_index) {
+            case 0: in_story_select = true; break;
+            case 1: if (global.endlessPlanetUnlocked) { global.gameMode = "PLANET"; room_goto(room_game); } else { create_floating_text_ext(_cx, _cy, "COMPLETE STORY LEVEL 1", global.COLOR_DANGER, 1); } break;
+            case 2: if (global.endlessClassicUnlocked) { global.gameMode = "CLASSIC"; room_goto(room_game); } else { create_floating_text_ext(_cx, _cy, "COMPLETE STORY LEVEL 2", global.COLOR_DANGER, 1); } break;
+            case 3: wallet_save(); create_floating_text_ext(_cx, _cy, "SYSTEM SYNC COMPLETE", make_color_rgb(100, 255, 150), 1.2); break;
+            case 4: in_refabricator = true; break;
+            case 5: in_inventory = true; break;
+            case 6: in_shop = true; break;
+            case 7: in_how_to_play = true; break;
+            case 8: in_achievements = true; break;
+            case 9: in_settings = true; break;
+        }
     }
-
-    switch (menu_index) {
-        case 0: screen_fade = 0; in_story_select = true; break;
-        case 1: global.gameMode = "PLANET";  room_goto(room_game); break;
-        case 2: global.gameMode = "CLASSIC"; room_goto(room_game); break;
-        case 3: wallet_save(); create_floating_text_ext(1920/2, 1080/2, "GAME SAVED", make_color_rgb(100, 255, 150), 1.0); break;
-        case 4: screen_fade = 0; in_refabricator = true; break;
-        case 5: screen_fade = 0; in_inventory = true; break;
-        case 6: screen_fade = 0; in_shop = true; break;
-        case 7: screen_fade = 0; in_how_to_play = true; break;
-        case 8: screen_fade = 0; in_achievements = true; break;
-        case 9: screen_fade = 0; in_settings = true; break;
-    }
-    io_clear();
 }
+
+// --- BACK LOGIC ---
+if (_back) {
+    if (in_save_slots) { in_save_slots = false; in_title = true; }
+    else if (in_story_select) in_story_select = false;
+    else if (in_settings) in_settings = false;
+    else if (in_inventory) in_inventory = false;
+    else if (in_shop) in_shop = false;
+    else if (in_how_to_play) in_how_to_play = false;
+    else if (in_achievements) in_achievements = false;
+    else if (in_refabricator) in_refabricator = false;
+}
+io_clear();
