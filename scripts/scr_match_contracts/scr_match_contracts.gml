@@ -2,7 +2,7 @@
 // scr_match_contracts - single source of truth for matching legality
 // =============================================================================
 
-#macro MATCH_WILD_ID 999
+// WILDCARD_ID is defined in scr_match_engine — use that macro everywhere
 
 function match_cell_id(_cell) {
     if (_cell == undefined) return 0;
@@ -31,7 +31,7 @@ function match_cell_is_excluded(_cell) {
 }
 
 function match_cell_is_wild(_cell) {
-    return match_cell_id(_cell) == MATCH_WILD_ID;
+    return match_cell_id(_cell) == WILDCARD_ID;
 }
 
 function match_cell_is_metal_arrow(_cell) {
@@ -66,7 +66,7 @@ function match_cells_share_color(_c1, _c2) {
 
     if (_id1 <= 0 || _id2 <= 0) return false;
 
-    if (_id1 == MATCH_WILD_ID || _id2 == MATCH_WILD_ID) return true;
+    if (_id1 == WILDCARD_ID || _id2 == WILDCARD_ID) return true;
 
     return _id1 == _id2;
 }

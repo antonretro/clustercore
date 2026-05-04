@@ -50,6 +50,8 @@ global.runShards = 0;
 // Combo celebration state
 combo_pop_t     = 0;   // 0→1 burst scale when label first appears
 combo_pop_label = "";  // last shown label — change triggers pop
+ui_score_prev   = 0;   // last known score — triggers panel flash on change
+ui_score_pulse  = 0;   // 0→1 flash progress
 
 wallet_load();
 

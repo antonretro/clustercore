@@ -298,7 +298,7 @@ function make_piece_data(_type, _id, _dir = 0) {
         _data.shard_value = 2;
     }
     if (_type == "wild") {
-        _data.id = 999;
+        _data.id = WILDCARD_ID;
         _data.color = c_white;
     }
 
@@ -311,6 +311,91 @@ function story_specialty_type_for_piece() {
     return "normal";
 }
 
+
+// Scans the live grid and returns a board-state report used by generate_piece().
+function board_analyze_intent() {
+    var _cx = floor(global.TOTAL_COLS / 2);
+    var _cy = floor(global.TOTAL_ROWS / 2);
+
+    // Per-color tallies
+    var _colorCount = {};      // id → block count
+    var _colorNeighbors = {};  // id → max connected-neighbor count (proxy for near-match)
+    var _junkCount  = 0;
+    var _coreDist   = 999;     // min distance of any block to center
+    var _outerDist  = 0;
+    var _totalBlocks = 0;
+    var _deadCells  = 0;
+    var _asteroidCount = 0;
+
+    for (var _gy = global.HIDDEN_ROWS; _gy < global.TOTAL_ROWS - global.HIDDEN_ROWS; _gy++) {
+        for (var _gx = global.HIDDEN_SIDES; _gx < global.TOTAL_COLS - global.HIDDEN_SIDES; _gx++) {
+            var _cell = global.grid[_gy][_gx];
+            if (_cell == undefined) continue;
+            _totalBlocks++;
+            var _dist = max(abs(_gx - _cx), abs(_gy - _cy));
+            if (_dist < _coreDist) _coreDist = _dist;
+            if (_dist > _outerDist) _outerDist = _dist;
+
+            if (_cell.type == "dead" || _cell.type == "void") { _deadCells++; continue; }
+            if (_cell.type == "asteroid") { _asteroidCount++; _junkCount++; continue; }
+            if (_cell.type == "bomb" || _cell.type == "drill") { _junkCount++; continue; }
+            if (_cell.type == "core") continue;
+
+            var _id = _cell.id;
+            if (_id <= 0 || _id == WILDCARD_ID) continue;
+
+            _colorCount[$ string(_id)] = (variable_struct_exists(_colorCount, string(_id)) ? _colorCount[$ string(_id)] : 0) + 1;
+
+            // Count same-color orthogonal neighbors
+            var _nbCount = 0;
+            var _dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+            for (var _d = 0; _d < 4; _d++) {
+                var _nx = _gx + _dirs[_d][0];
+                var _ny = _gy + _dirs[_d][1];
+                if (_nx < 0 || _nx >= global.TOTAL_COLS || _ny < 0 || _ny >= global.TOTAL_ROWS) continue;
+                var _nb = global.grid[_ny][_nx];
+                if (_nb != undefined && _nb.id == _id) _nbCount++;
+            }
+            var _key = string(_id);
+            if (!variable_struct_exists(_colorNeighbors, _key) || _colorNeighbors[$ _key] < _nbCount) {
+                _colorNeighbors[$ _key] = _nbCount;
+            }
+        }
+    }
+
+    // Categorize colors
+    var _hot    = [];  // ≥3 neighbors (one more finishes a match)
+    var _warm   = [];  // ≥2 neighbors
+    var _dead   = [];  // only 1-2 blocks total (can't ever match alone)
+    var _mercy  = [];  // ≤3 blocks remaining on the board
+    var _keys = variable_struct_get_names(_colorCount);
+    for (var _ki = 0; _ki < array_length(_keys); _ki++) {
+        var _k   = _keys[_ki];
+        var _cnt = _colorCount[$ _k];
+        var _nb  = variable_struct_exists(_colorNeighbors, _k) ? _colorNeighbors[$ _k] : 0;
+        var _numId = real(_k);
+        if (_nb >= 3) array_push(_hot, _numId);
+        else if (_nb >= 2) array_push(_warm, _numId);
+        if (_cnt <= 2) array_push(_dead, _numId);
+        if (_cnt > 0 && _cnt <= 3) array_push(_mercy, _numId);
+    }
+
+    // Pressure scores (0–1 scale)
+    var _corePressure = (_coreDist <= 3) ? clamp((4 - _coreDist) / 3, 0, 1) : 0;
+    var _junkPressure = clamp(_junkCount / max(1, _totalBlocks), 0, 1);
+
+    return {
+        total_blocks:   _totalBlocks,
+        core_pressure:  _corePressure,
+        junk_pressure:  _junkPressure,
+        hot_colors:     _hot,
+        warm_colors:    _warm,
+        dead_colors:    _dead,
+        mercy_colors:   _mercy,
+        needs_bomb:     (_junkCount >= 4 || _asteroidCount >= 2),
+        needs_drill:    (_coreDist <= 2 && _totalBlocks >= 6)
+    };
+}
 
 function refill_piece_bag() {
     var _temp = [];
@@ -686,457 +771,7 @@ function hold_piece() {
 }
 
 
-// =============================================================================
-// STORY LEVEL DATA
-// =============================================================================
-
-function story_level_catalog() {
-    return [
-        // ── TIN MOON (World 0) ── Tutorial progression ─────────────────────
-        { world_id: 0, level_id: 0, seed: 1001, palette_count: 3, turn_limit: 35, objective: { type: "clear_board", value: 1 } },
-        { world_id: 0, level_id: 1, seed: 1002, palette_count: 3, turn_limit: 40, objective: { type: "clear_board", value: 1 } },
-        { world_id: 0, level_id: 2, seed: 1003, palette_count: 3, turn_limit: 45, objective: { type: "clear_board", value: 1 } },
-        { world_id: 0, level_id: 3, seed: 1004, palette_count: 3, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
-        { world_id: 0, level_id: 4, seed: 1005, palette_count: 3, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
-        { world_id: 0, level_id: 5, seed: 1006, palette_count: 4, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
-        { world_id: 0, level_id: 6, seed: 1007, palette_count: 4, turn_limit: 45, objective: { type: "clear_board", value: 1 } },
-        { world_id: 0, level_id: 7, seed: 1008, palette_count: 4, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
-        { world_id: 0, level_id: 8, seed: 1009, palette_count: 4, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
-        { world_id: 0, level_id: 9, seed: 1010, palette_count: 5, turn_limit: 65, objective: { type: "clear_board", value: 1 } },
-
-        // ── RUST GARDEN (World 1) ── Locked cages + spores ──────────────────
-        { world_id: 1, level_id: 0, seed: 2001, palette_count: 3, turn_limit: 45, objective: { type: "clear_board", value: 1 } },
-        { world_id: 1, level_id: 1, seed: 2002, palette_count: 3, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
-        { world_id: 1, level_id: 2, seed: 2003, palette_count: 4, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
-        { world_id: 1, level_id: 3, seed: 2004, palette_count: 4, objective: { type: "clear_board", value: 1 } },
-        { world_id: 1, level_id: 4, seed: 2005, palette_count: 4, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
-        { world_id: 1, level_id: 5, seed: 2006, palette_count: 4, objective: { type: "clear_board", value: 1 } },
-        { world_id: 1, level_id: 6, seed: 2007, palette_count: 4, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
-        { world_id: 1, level_id: 7, seed: 2008, palette_count: 4, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
-        { world_id: 1, level_id: 8, seed: 2009, palette_count: 5, turn_limit: 65, objective: { type: "clear_board", value: 1 } },
-        { world_id: 1, level_id: 9, seed: 2010, palette_count: 5, turn_limit: 75, objective: { type: "clear_board", value: 1 } },
-
-        // ── CASINO COMET (World 2) ── Multipliers + debt blocks ─────────────
-        { world_id: 2, level_id: 0, seed: 3001, palette_count: 4, objective: { type: "clear_board", value: 1 } },
-        { world_id: 2, level_id: 1, seed: 3002, palette_count: 4, objective: { type: "clear_board", value: 1 } },
-        { world_id: 2, level_id: 2, seed: 3003, palette_count: 4, objective: { type: "clear_board", value: 1 } },
-        { world_id: 2, level_id: 3, seed: 3004, palette_count: 4, objective: { type: "clear_board", value: 1 } },
-        { world_id: 2, level_id: 4, seed: 3005, palette_count: 5, objective: { type: "clear_board", value: 1 } },
-        { world_id: 2, level_id: 5, seed: 3006, palette_count: 5, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
-        { world_id: 2, level_id: 6, seed: 3007, palette_count: 5, turn_limit: 50, objective: { type: "clear_board", value: 1 } },
-        { world_id: 2, level_id: 7, seed: 3008, palette_count: 5, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
-        { world_id: 2, level_id: 8, seed: 3009, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 2, level_id: 9, seed: 3010, palette_count: 5, full_palette: true, turn_limit: 80, objective: { type: "clear_board", value: 1 } },
-
-        // ── DEAD ORBIT (World 3) ── Gravity + void blocks ───────────────────
-        { world_id: 3, level_id: 0, seed: 4001, palette_count: 4, objective: { type: "clear_board", value: 1 } },
-        { world_id: 3, level_id: 1, seed: 4002, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 3, level_id: 2, seed: 4003, palette_count: 5, objective: { type: "clear_board", value: 1 } },
-        { world_id: 3, level_id: 3, seed: 4004, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 3, level_id: 4, seed: 4005, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 3, level_id: 5, seed: 4006, palette_count: 5, full_palette: true, turn_limit: 65, objective: { type: "clear_board", value: 1 } },
-        { world_id: 3, level_id: 6, seed: 4007, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 3, level_id: 7, seed: 4008, palette_count: 5, full_palette: true, turn_limit: 60, objective: { type: "clear_board", value: 1 } },
-        { world_id: 3, level_id: 8, seed: 4009, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 3, level_id: 9, seed: 4010, palette_count: 6, full_palette: true, turn_limit: 85, objective: { type: "clear_board", value: 1 } },
-
-        // ── CLUSTER CORE (World 4) ── Prism + core keys ─────────────────────
-        { world_id: 4, level_id: 0, seed: 5001, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 4, level_id: 1, seed: 5002, palette_count: 5, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 4, level_id: 2, seed: 5003, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 4, level_id: 3, seed: 5004, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 4, level_id: 4, seed: 5005, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 4, level_id: 5, seed: 5006, palette_count: 6, full_palette: true, turn_limit: 70, objective: { type: "clear_board", value: 1 } },
-        { world_id: 4, level_id: 6, seed: 5007, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 4, level_id: 7, seed: 5008, palette_count: 6, full_palette: true, turn_limit: 55, objective: { type: "clear_board", value: 1 } },
-        { world_id: 4, level_id: 8, seed: 5009, palette_count: 6, full_palette: true, objective: { type: "clear_board", value: 1 } },
-        { world_id: 4, level_id: 9, seed: 5010, palette_count: 6, full_palette: true, turn_limit: 100, objective: { type: "clear_board", value: 1 } }
-    ];
-}
-
-
-function story_get_level_def(_worldId, _levelId) {
-    var _cat = story_level_catalog();
-
-    for (var i = 0; i < array_length(_cat); i++) {
-        var _def = _cat[i];
-
-        if (_def.world_id == _worldId && _def.level_id == _levelId) {
-            return _def;
-        }
-    }
-
-    return undefined;
-}
-
-
-function story_get_level_seed(_worldId, _levelId) {
-    var _def = story_get_level_def(_worldId, _levelId);
-
-    if (_def != undefined && variable_struct_exists(_def, "seed")) {
-        return _def.seed;
-    }
-
-    return 100000 + (_worldId * 1000) + (_levelId * 37);
-}
-
-
-// =============================================================================
-// STORY PALETTE / LAYOUT
-// =============================================================================
-
-function story_apply_level_palette(_def, _seed) {
-    var _oldSeed = random_get_seed();
-    random_set_seed(_seed + 7919);
-
-    var _pool = [1, 2, 3, 4, 5, 6];
-
-    for (var i = array_length(_pool) - 1; i > 0; i--) {
-        var j = irandom(i);
-        var t = _pool[i];
-        _pool[i] = _pool[j];
-        _pool[j] = t;
-    }
-
-    var _count = 3;
-
-    if (_def != undefined && variable_struct_exists(_def, "palette_count")) {
-        _count = _def.palette_count;
-    }
-
-    if (_def != undefined
-    && variable_struct_exists(_def, "full_palette")
-    && _def.full_palette) {
-        _count = array_length(_pool);
-    }
-
-    _count = clamp(_count, 3, array_length(_pool));
-
-    global.activeColors = [];
-    global.reserveColors = [];
-
-    for (var c = 0; c < array_length(_pool); c++) {
-        if (c < _count) {
-            array_push(global.activeColors, _pool[c]);
-        } else {
-            array_push(global.reserveColors, _pool[c]);
-        }
-    }
-
-    random_set_seed(_oldSeed);
-}
-
-
-function story_place_cell(_gx, _gy, _type, _cid, _dir = 0) {
-    if (!grid_in_bounds(_gx, _gy)) return undefined;
-    if (!grid_is_playable(_gx, _gy)) return undefined;
-    if (global.grid[_gy][_gx] != undefined) return undefined;
-
-    var _data = make_piece_data(_type, _cid, _dir);
-
-    return place_grid_cell(_gx, _gy, _data);
-}
-
-
-function story_get_layout_settings(_def) {
-    var _rank = (_def.world_id * 6) + _def.level_id;
-
-    return {
-        rank: _rank,
-        target_count: clamp(7 + _rank, 7, 30),
-        radius: clamp(2 + floor(_rank / 8), 2, 4),
-        metal_rate: clamp(0.03 + (_rank * 0.0035), 0.03, 0.16),
-        asteroid_rate: clamp(0.02 + (_rank * 0.0045), 0.02, 0.18)
-    };
-}
-
-
-function story_pick_cell_type(_settings) {
-    var _roll = random(1);
-
-    if (_roll < _settings.metal_rate) {
-        return "metal";
-    }
-
-    if (_roll < _settings.metal_rate + _settings.asteroid_rate) {
-        return "asteroid";
-    }
-
-    return "normal";
-}
-
-
-function story_apply_level_layout(_def) {
-    if (_def == undefined) return false;
-
-    var _oldSeed = random_get_seed();
-    var _seed = story_get_level_seed(_def.world_id, _def.level_id);
-
-    random_set_seed(_seed);
-    story_apply_level_palette(_def, _seed);
-
-    var _cx = floor(global.TOTAL_COLS / 2);
-    var _cy = floor(global.TOTAL_ROWS / 2);
-
-    // Place deterministic core first.
-    var _coreCid = get_random_active_color_id();
-    story_place_cell(_cx, _cy, "core", _coreCid, 0);
-
-    var _settings = story_get_layout_settings(_def);
-    var _placed = [];
-    var _dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-
-    array_push(_placed, { x: _cx, y: _cy });
-
-    var _guard = 0;
-
-    while (array_length(_placed) - 1 < _settings.target_count && _guard < 900) {
-        _guard++;
-
-        var _base = _placed[irandom(array_length(_placed) - 1)];
-        var _dir = _dirs[irandom(3)];
-
-        var _rx = _base.x + _dir[0];
-        var _ry = _base.y + _dir[1];
-
-        if (!grid_is_playable(_rx, _ry)) continue;
-        if (global.grid[_ry][_rx] != undefined) continue;
-
-        if (max(abs(_rx - _cx), abs(_ry - _cy)) > _settings.radius) {
-            continue;
-        }
-
-        var _type = story_pick_cell_type(_settings);
-        var _cid = get_random_active_color_id();
-        
-        // Match Prevention: Normal blocks shouldn't start in a 4+ cluster.
-        // Arrows are fine as they don't match in clusters anyway.
-        if (_type == "normal") {
-            var _colorGuard = 0;
-            while (check_if_cell_creates_match(_rx, _ry, _cid) && _colorGuard < 10) {
-                _cid = get_random_active_color_id();
-                _colorGuard++;
-            }
-        }
-        var _blockDir = 0;
-
-        if (_type == "metal") {
-            _blockDir = (random(1) > 0.5 ? 1 : 0);
-        }
-
-        story_place_cell(_rx, _ry, _type, _cid, _blockDir);
-
-        array_push(_placed, { x: _rx, y: _ry });
-    }
-
-    random_set_seed(_oldSeed);
-
-    global.storyLevelSeed = _seed;
-    global.storyLevelDef = _def;
-
-    if (_def != undefined) {
-        if (variable_struct_exists(_def, "turn_limit")) {
-            global.turnLimit = _def.turn_limit;
-        } else {
-            global.turnLimit = 0;
-        }
-
-        if (variable_struct_exists(_def, "objective")) {
-            global.storyObjectiveType = _def.objective.type;
-            global.storyObjectiveValue = _def.objective.value;
-
-            if (_def.objective.type == "clear_cores") {
-                global.storyTarget = _def.objective.value;
-            } else if (_def.objective.type == "clear_board") {
-                global.storyTarget = 1; // Used as a sentinel, specific logic in story_objective_is_met
-            }
-        }
-    }
-
-    return true;
-}
-
-
-function check_if_cell_creates_match(_gx, _gy, _cid) {
-    // Simple BFS check for 4+ same-color adjacency
-    var _q = [{x: _gx, y: _gy}];
-    var _visited = ds_map_create();
-    _visited[? string(_gx) + "," + string(_gy)] = true;
-    var _count = 1;
-    var _head = 0;
-    
-    var _dirs = [[1,0],[-1,0],[0,1],[0,-1]];
-    
-    while (_head < array_length(_q)) {
-        var _curr = _q[_head++];
-        for (var i = 0; i < 4; i++) {
-            var _nx = _curr.x + _dirs[i][0];
-            var _ny = _curr.y + _dirs[i][1];
-            var _key = string(_nx) + "," + string(_ny);
-            
-            if (grid_in_bounds(_nx, _ny) && !ds_map_exists(_visited, _key)) {
-                var _cell = global.grid[_ny][_nx];
-                if (_cell != undefined && _cell.id == _cid && _cell.type == "normal") {
-                    _visited[? _key] = true;
-                    array_push(_q, {x: _nx, y: _ny});
-                    _count++;
-                }
-            }
-        }
-    }
-    
-    ds_map_destroy(_visited);
-    return (_count >= 4);
-}
-
-// =============================================================================
-// Board Intent Analyzer helper functions
-// =============================================================================
-
-function board_cell_can_color_match(_c) {
-    if (_c == undefined) return false;
-    if (_c.id <= 0 || _c.id >= 10) return false;
-    if (_c.type == "metal" || _c.type == "core_arrow") return false;
-    if (_c.type == "bomb" || _c.type == "drill" || _c.type == "dead") return false;
-    if (_c.type == "void" || _c.type == "asteroid" || _c.type == "locked" || _c.type == "spore") return false;
-    return true;
-}
-
-function board_count_open_extensions(_x, _y, _dx, _dy) {
-    var _open = 0;
-    var _bx = _x - _dx;
-    var _by = _y - _dy;
-    if (grid_in_bounds(_bx, _by) && global.grid[_by][_bx] == undefined) _open++;
-    var _ax = _x + _dx;
-    var _ay = _y + _dy;
-    if (grid_in_bounds(_ax, _ay) && global.grid[_ay][_ax] == undefined) _open++;
-    return _open;
-}
-
-function board_analyze_intent() {
-    var _report = {
-        color_potential: array_create(10, 0),
-        hot_colors: [],
-        warm_colors: [],
-        cold_colors: [],
-        dead_colors: [],
-        core_pressure: 0,
-        core_access_distance: 0,
-        junk_pressure: 0,
-        needs_bomb: false,
-        needs_drill: false,
-        mercy_color: -1,
-        arrow_opportunities: [],
-        total_blocks: 0,
-        nearest_match_distance: 99
-    };
-    var _counts = array_create(10, 0);
-    var _coreId = -1;
-    var _cx = -1, _cy = -1;
-    var _junkBlocks = 0;
-    var _buriedCore = 0;
-    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
-        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
-            var _c = global.grid[_y][_x];
-            if (_c == undefined) continue;
-            _report.total_blocks++;
-            if (_c.id > 0 && _c.id < 10) _counts[_c.id]++;
-            if (_c.type == "core") { _coreId = _c.id; _cx = _x; _cy = _y; }
-            if (_c.type == "asteroid" || _c.type == "locked" || _c.type == "spore") _junkBlocks++;
-        }
-    }
-    for (var _y = 0; _y < global.TOTAL_ROWS; _y++) {
-        for (var _x = 0; _x < global.TOTAL_COLS; _x++) {
-            var _c = global.grid[_y][_x];
-            if (_c == undefined) continue;
-            if (board_cell_can_color_match(_c)) {
-                var _dirs = [[1,0], [0,1], [1,1], [1,-1]];
-                for (var i = 0; i < 4; i++) {
-                    var _dx = _dirs[i][0];
-                    var _dy = _dirs[i][1];
-                    var _nx = _x + _dx;
-                    var _ny = _y + _dy;
-                    if (!grid_in_bounds(_nx, _ny)) continue;
-                    var _nc = global.grid[_ny][_nx];
-                    if (_nc != undefined && _nc.id == _c.id) {
-                        var _open = board_count_open_extensions(_x, _y, -_dx, -_dy) + board_count_open_extensions(_nx, _ny, _dx, _dy);
-                        if (_open > 0) {
-                            _report.color_potential[_c.id] += 8;
-                            _report.nearest_match_distance = min(_report.nearest_match_distance, 2);
-                            var _nnx = _nx + _dx;
-                            var _nny = _ny + _dy;
-                            if (grid_in_bounds(_nnx, _nny)) {
-                                var _nnc = global.grid[_nny][_nnx];
-                                if (_nnc != undefined && _nnc.id == _c.id) {
-                                    _report.color_potential[_c.id] += 15;
-                                    _report.nearest_match_distance = min(_report.nearest_match_distance, 1);
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            if (_c.type == "metal") {
-                var _axis = (_c.dir == 0) ? "h" : "v";
-                var _aDir = (_c.dir == 0) ? {x:1, y:0} : {x:0, y:1};
-                var _matchCount = 1;
-                var _openSlots = 0;
-                var _scanDirs = [1, -1];
-                for (var _sd = 0; _sd < 2; _sd++) {
-                    var _dMult = _scanDirs[_sd];
-                    for (var _step = 1; _step < 4; _step++) {
-                        var _ax = _x + (_aDir.x * _step * _dMult);
-                        var _ay = _y + (_aDir.y * _step * _dMult);
-                        if (!grid_in_bounds(_ax, _ay)) break;
-                        var _ac = global.grid[_ay][_ax];
-                        if (_ac == undefined) _openSlots++;
-                        else if (_ac.id == _c.id) _matchCount++;
-                        else break;
-                    }
-                }
-                if (_matchCount >= 2 && _openSlots > 0) {
-                    _report.color_potential[_c.id] += 12;
-                    array_push(_report.arrow_opportunities, { color: _c.id, axis: _axis, size: _matchCount, open: _openSlots });
-                }
-            }
-            if (_coreId != -1) {
-                var _dist = abs(_x - _cx) + abs(_y - _cy);
-                if (_dist <= 2) _report.color_potential[_c.id] += 4;
-            }
-        }
-    }
-    if (_coreId != -1) {
-        var _adj = [[-1,0],[1,0],[0,-1],[0,1]];
-        for (var i = 0; i < 4; i++) {
-            var _nx = _cx + _adj[i][0];
-            var _ny = _cy + _adj[i][1];
-            if (grid_in_bounds(_nx, _ny) && global.grid[_ny][_nx] != undefined) _buriedCore++;
-        }
-        _report.core_access_distance = _buriedCore;
-        _report.core_pressure = _buriedCore / 4.0;
-    }
-    _report.junk_pressure = clamp(_junkBlocks / 15.0, 0, 1.0);
-    _report.needs_bomb = (_report.junk_pressure > 0.4 || _report.core_access_distance >= 3);
-    _report.needs_drill = (_report.core_pressure > 0.5 && _report.total_blocks > 25);
-    if (_coreId != -1 && _report.core_pressure > 0.7) _report.color_potential[_coreId] += 12;
-    for (var i = 0; i < array_length(global.activeColors); i++) {
-        var _id = global.activeColors[i];
-        var _pot = _report.color_potential[_id];
-        if (_counts[_id] == 0) array_push(_report.dead_colors, _id);
-        else if (_pot >= 22) array_push(_report.hot_colors, _id);
-        else if (_pot >= 8) array_push(_report.warm_colors, _id);
-        else array_push(_report.cold_colors, _id);
-    }
-
-    // Mercy colors: when only 1-3 blocks of a single color remain, flag them
-    _report.mercy_colors = [];
-    for (var i = 0; i < array_length(global.activeColors); i++) {
-        var _id = global.activeColors[i];
-        var _c = _counts[_id];
-        if (_c >= 1 && _c <= 4) { // Slightly higher threshold to ensure player has enough to work with
-            array_push(_report.mercy_colors, _id);
-        }
-    }
-
-    return _report;
-}
+// story_level_catalog, story_get_level_def, story_get_level_seed,
+// story_apply_level_palette, story_place_cell, story_get_layout_settings,
+// story_pick_cell_type, story_apply_level_layout
+// → moved to scr_story_data.gml

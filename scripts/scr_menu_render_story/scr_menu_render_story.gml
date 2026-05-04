@@ -100,10 +100,11 @@ function menu_draw_story_select(_cx, _cy, _sw, _sh) {
 
     // Threat / status
     var _threatLabels = ["MINIMAL", "MODERATE", "ELEVATED", "HIGH", "CRITICAL"];
-    draw_set_color(make_color_rgb(180, 200, 230));
-    draw_text_transformed(_panelX1 + 110, _infoY + 42, "THREAT: ", global.TXT_SMALL, global.TXT_SMALL, 0);
-    draw_set_color(_unlocked ? make_color_rgb(255, 180, 70) : c_red);
-    draw_text_transformed(_panelX1 + 160, _infoY + 42, _threatLabels[story_select_index], global.TXT_SMALL, global.TXT_SMALL, 0);
+    var _threatLabel  = _threatLabels[clamp(story_select_index, 0, array_length(_threatLabels) - 1)];
+    draw_set_alpha(0.65); draw_set_color(make_color_rgb(180, 200, 230));
+    draw_text_transformed(_panelX1 + 110, _infoY + 42, "THREAT", global.TXT_SMALL, global.TXT_SMALL, 0);
+    draw_set_alpha(1.0); draw_set_color(_unlocked ? make_color_rgb(255, 180, 70) : c_red);
+    draw_text_transformed(_panelX1 + 220, _infoY + 42, _threatLabel, global.TXT_SMALL, global.TXT_SMALL, 0);
 
     // Mission count
     var _lvlCount = story_world_level_counts[story_select_index];
@@ -112,10 +113,10 @@ function menu_draw_story_select(_cx, _cy, _sw, _sh) {
         if (!story_progress_is_unlocked(story_select_index, ci)) _completedCount++;
         else break;
     }
-    draw_set_color(make_color_rgb(180, 200, 230));
-    draw_text_transformed(_panelX1 + 110, _infoY + 62, "MISSIONS: ", global.TXT_SMALL, global.TXT_SMALL, 0);
-    draw_set_color(_unlocked ? make_color_rgb(100, 255, 150) : c_gray);
-    draw_text_transformed(_panelX1 + 170, _infoY + 62, string(_completedCount) + " / " + string(_lvlCount) + " CLEAR", global.TXT_SMALL, global.TXT_SMALL, 0);
+    draw_set_alpha(0.65); draw_set_color(make_color_rgb(180, 200, 230));
+    draw_text_transformed(_panelX1 + 110, _infoY + 62, "MISSIONS", global.TXT_SMALL, global.TXT_SMALL, 0);
+    draw_set_alpha(1.0); draw_set_color(_unlocked ? make_color_rgb(100, 255, 150) : c_gray);
+    draw_text_transformed(_panelX1 + 220, _infoY + 62, string(_completedCount) + " / " + string(_lvlCount) + " CLEAR", global.TXT_SMALL, global.TXT_SMALL, 0);
 
     // Divider
     draw_set_alpha(0.25); draw_set_color(make_color_rgb(100, 180, 255));
@@ -125,16 +126,21 @@ function menu_draw_story_select(_cx, _cy, _sw, _sh) {
     var _gridY0 = _infoY + 120;
 
     if (in_story_level_select) {
-        // Level grid header
-        draw_set_halign(fa_center); draw_set_alpha(1.0); draw_set_color(c_white);
-        draw_text_transformed(_panelX1 + _panelW * 0.5, _gridY0, "SELECT MISSION", global.TXT_H3, global.TXT_H3, 0);
+        // Level grid header — accent bar + title
+        draw_set_halign(fa_center);
+        draw_set_alpha(0.12); draw_set_color(make_color_rgb(100, 180, 255));
+        draw_roundrect_ext(_panelX1 + 20, _gridY0 - 6, _panelX2 - 20, _gridY0 + 26, 6, 6, false);
+        draw_set_alpha(0.4); draw_set_color(make_color_rgb(120, 200, 255));
+        draw_roundrect_ext(_panelX1 + 20, _gridY0 - 6, _panelX2 - 20, _gridY0 + 26, 6, 6, true);
+        draw_set_alpha(1.0); draw_set_color(make_color_rgb(200, 230, 255));
+        draw_text_transformed(_panelX1 + _panelW * 0.5, _gridY0 + 4, "SELECT MISSION", global.TXT_H3, global.TXT_H3, 0);
 
-        // Grid of level cards (3x2)
+        // Grid of level cards (3 cols, dynamic rows)
         var _cellW = 114;
-        var _cellH = 90;
-        var _cellGap = 14;
+        var _cellH = 76;
+        var _cellGap = 10;
         var _gridStartX = _panelX1 + (_panelW - (_cellW * 3 + _cellGap * 2)) * 0.5;
-        var _gridStartY = _gridY0 + 40;
+        var _gridStartY = _gridY0 + 46;
 
         for (var _li = 0; _li < _lvlCount; _li++) {
             var _col = _li mod 3;
@@ -179,37 +185,51 @@ function menu_draw_story_select(_cx, _cy, _sw, _sh) {
 
             // Mission name
             var _lvlName = _unlockedL ? story_level_names[story_select_index][_li] : "LOCKED";
-            if (string_length(_lvlName) > 10) _lvlName = string_copy(_lvlName, 1, 9) + ".";
+            if (string_length(_lvlName) > 11) _lvlName = string_copy(_lvlName, 1, 10) + ".";
             draw_set_alpha(_unlockedL ? (_selL ? 0.8 : 0.5) : 0.3);
             draw_set_color(_unlockedL ? c_white : c_gray);
             draw_text_transformed(_cxCell, _cyCell + 16, _lvlName, global.TXT_SMALL, global.TXT_SMALL, 0);
         }
 
-        // Level detail below grid
-        var _detailY = _gridStartY + 2 * (_cellH + _cellGap) + 36;
+        // Level detail below ALL grid rows
+        var _numRows  = ceil(_lvlCount / 3);
+        var _detailY  = _gridStartY + _numRows * (_cellH + _cellGap) + 14;
         var _missionName = story_level_names[story_select_index][story_level_index];
         var _def = story_get_level_def(story_select_index, story_level_index);
-        var _objText = "OBJECTIVE PENDING";
+        var _objText = "";
         if (_def != undefined && variable_struct_exists(_def, "objective")) {
-            if (_def.objective.type == "clear_cores") _objText = "CLEAR " + string(_def.objective.value) + " CORES";
-            if (_def.objective.type == "score") _objText = "SCORE " + string(_def.objective.value);
-            if (_def.objective.type == "survive_waves") _objText = "SURVIVE " + string(_def.objective.value) + " WAVES";
-            if (_def.objective.type == "collect_shards") _objText = "COLLECT " + string(_def.objective.value) + " SHARDS";
+            var _ot = _def.objective.type;
+            if (_ot == "clear_board")     _objText = "PURIFY THE PLANET";
+            if (_ot == "clear_cores")     _objText = "CLEAR " + string(_def.objective.value) + " CORES";
+            if (_ot == "score")           _objText = "REACH " + string(_def.objective.value) + " SCORE";
+            if (_ot == "survive_waves")   _objText = "SURVIVE " + string(_def.objective.value) + " WAVES";
+            if (_ot == "collect_shards")  _objText = "COLLECT " + string(_def.objective.value) + " SHARDS";
+        }
+        if (variable_struct_exists(_def, "turn_limit") && _def.turn_limit > 0) {
+            _objText += "  ·  " + string(_def.turn_limit) + " TURNS";
         }
 
-        draw_set_alpha(0.4); draw_set_color(make_color_rgb(100, 200, 255));
-        draw_line_width(_panelX1 + 40, _detailY - 16, _panelX2 - 40, _detailY - 16, 1); draw_set_alpha(1);
+        draw_set_alpha(0.3); draw_set_color(make_color_rgb(100, 200, 255));
+        draw_line_width(_panelX1 + 40, _detailY - 8, _panelX2 - 40, _detailY - 8, 1); draw_set_alpha(1);
 
         draw_set_halign(fa_center);
         draw_set_color(make_color_rgb(255, 220, 90));
-        draw_text_transformed(_panelX1 + _panelW * 0.5, _detailY + 6, _missionName, global.TXT_H4, global.TXT_H4, 0);
-        draw_set_color(make_color_rgb(180, 210, 255));
-        draw_text_transformed(_panelX1 + _panelW * 0.5, _detailY + 32, _objText, global.TXT_SMALL, global.TXT_SMALL, 0);
+        draw_text_transformed(_panelX1 + _panelW * 0.5, _detailY + 4, _missionName, global.TXT_H4, global.TXT_H4, 0);
+        if (_objText != "") {
+            draw_set_alpha(0.75); draw_set_color(make_color_rgb(160, 200, 255));
+            draw_text_transformed(_panelX1 + _panelW * 0.5, _detailY + 26, _objText, global.TXT_SMALL, global.TXT_SMALL, 0);
+        }
 
-        // Prompts
-        draw_set_alpha(0.5); draw_set_color(make_color_rgb(255, 214, 102));
-        draw_text_transformed(_panelX1 + _panelW * 0.5, _sh - 90, "A  DEPLOY    D  DWARF ROUTES", global.TXT_SMALL, global.TXT_SMALL, 0);
-        draw_text_transformed(_panelX1 + _panelW * 0.5, _sh - 70, "S  SHOP    B  BACK TO WORLDS", global.TXT_SMALL, global.TXT_SMALL, 0);
+        // Key prompt strip
+        draw_set_alpha(0.14); draw_set_color(c_black);
+        draw_roundrect_ext(_panelX1 + 16, _sh - 102, _panelX2 - 16, _sh - 52, 8, 8, false);
+        draw_set_alpha(0.3); draw_set_color(make_color_rgb(100, 180, 255));
+        draw_roundrect_ext(_panelX1 + 16, _sh - 102, _panelX2 - 16, _sh - 52, 8, 8, true);
+        draw_set_halign(fa_center);
+        draw_set_alpha(0.9); draw_set_color(make_color_rgb(255, 214, 102));
+        draw_text_transformed(_panelX1 + _panelW * 0.5, _sh - 97, "[A] DEPLOY", global.TXT_SMALL, global.TXT_SMALL, 0);
+        draw_set_alpha(0.6); draw_set_color(make_color_rgb(160, 200, 255));
+        draw_text_transformed(_panelX1 + _panelW * 0.5, _sh - 77, "[D] DWARF ROUTES   [S] SHOP   [B] WORLDS", global.TXT_SMALL, global.TXT_SMALL, 0);
 
     } else {
         // Galaxy view — world flavor text
@@ -398,6 +418,25 @@ function menu_draw_story_select(_cx, _cy, _sw, _sh) {
                     var _ss = (_rad * 2.6) / sprite_get_width(_spo);
                     draw_set_alpha(0.55 * _alphaMul);
                     draw_sprite_ext(_spo, 0, _px, _py, _ss, _ss, story_solar_spin * 0.3, c_white, 1);
+                }
+            }
+
+            // Planet name label — larger and visible when not zoomed
+            var _lblScale = lerp(global.TXT_SMALL * 1.2, global.TXT_SMALL * 0.6, zoom_lerp);
+            var _lblAlpha = (1.0 - zoom_lerp * 0.8) * _alphaMul;
+            if (_lblAlpha > 0.05) {
+                var _lblY    = _py + _rad + 14;
+                var _lblCol  = _unlocked ? (_sel ? make_color_rgb(255, 230, 100) : make_color_rgb(200, 220, 255)) : make_color_rgb(180, 80, 80);
+                draw_set_halign(fa_center);
+                // Shadow
+                draw_set_alpha(_lblAlpha * 0.6); draw_set_color(c_black);
+                draw_text_transformed(_px + 1, _lblY + 2, _w.name, _lblScale, _lblScale, 0);
+                // Main label
+                draw_set_alpha(_lblAlpha); draw_set_color(_lblCol);
+                draw_text_transformed(_px, _lblY, _w.name, _lblScale, _lblScale, 0);
+                if (!_unlocked) {
+                    draw_set_alpha(_lblAlpha * 0.65); draw_set_color(make_color_rgb(200, 80, 80));
+                    draw_text_transformed(_px, _lblY + 14, "LOCKED", _lblScale * 0.8, _lblScale * 0.8, 0);
                 }
             }
         }

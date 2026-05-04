@@ -140,28 +140,30 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     var _lOff1 = _lOff0 + _sH  + _gap;
     var _lOff2 = _lOff1 + _lH  + _gap;
     var _lOff3 = _lOff2 + _hoH + _gap;
-    draw_stat_panel(_lx, _lOff0, _pw, _sH,   "SCORE",    string(global.score),           global.TXT_H3 * global.ui_scales.score);
+
+    // Score flash when it changes
+    if (global.score != ui_score_prev) {
+        ui_score_prev  = global.score;
+        ui_score_pulse = 1.0;
+    }
+    ui_score_pulse = max(0, ui_score_pulse - 0.05);
+    var _scorePanelScale = global.TXT_H3 * global.ui_scales.score * (1.0 + ui_score_pulse * 0.3);
+    if (ui_score_pulse > 0) {
+        gpu_set_blendmode(bm_add);
+        draw_set_alpha(ui_score_pulse * 0.18); draw_set_color(global.COLOR_ACCENT);
+        draw_roundrect_ext(_lx, _lOff0, _lx + _pw, _lOff0 + _sH, 8, 8, false);
+        gpu_set_blendmode(bm_normal);
+    }
+    draw_stat_panel(_lx, _lOff0, _pw, _sH,   "SCORE",    string(global.score),           _scorePanelScale);
     draw_stat_panel(_lx, _lOff1, _pw, _lH,   "LEVEL",    string(global.level),           global.TXT_H3 * global.ui_scales.level);
     draw_stat_panel(_lx, _lOff2, _pw, _hoH,  "HOLD [C]", "");
     draw_stat_panel(_lx, _lOff3, _pw, _bstH, "BEST",     "x" + string(global.bestCombo), global.TXT_H3 * global.ui_scales.combo);
 
     if (global.holdPiece != undefined) {
-        var _hScale = 4.2; // Upscaled from 3.5
+        var _hScale = 4.2;
         var _hcx = _lx + _pw * 0.5;
         var _hcy = _lOff2 + floor(_hoH * 0.5) + 10;
-        var _hSpr = spr_pinkSprite;
-        switch(global.holdPiece.id) {
-            case 1: _hSpr = spr_pinkSprite; break;
-            case 2: _hSpr = spr_orangeSprite; break;
-            case 3: _hSpr = spr_yellowSprite; break;
-            case 4: _hSpr = spr_redSprite; break;
-            case 5: _hSpr = spr_lightblueSprite; break;
-            case 6: _hSpr = spr_greenSprite; break;
-        }
-        if (global.holdPiece.type == "bomb") _hSpr = spr_bomb;
-        if (global.holdPiece.type == "super_bomb") _hSpr = asset_get_index("spr_super_bomb");
-        if (global.holdPiece.type == "drill") _hSpr = spr_drill;
-        if (global.holdPiece.type == "dead") _hSpr = spr_deadmetal;
+        var _hSpr = get_piece_sprite(global.holdPiece);
         gpu_set_texfilter(false);
         draw_sprite_ext(_hSpr, 0, _hcx, _hcy, _hScale, _hScale, 0, c_white, global.canHold ? 1.0 : 0.4);
         if (global.holdPiece.type == "metal") {
@@ -235,24 +237,13 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     draw_sprite_ext(spr_gemshard, 0, _rx + 42, global.shardCounterY + 8, 1.7, 1.7, 0, c_white, 1);
 
     gpu_set_texfilter(false);
-    for (var i = 0; i < array_length(global.nextQueue); i++) {
+    var _qShowCount = min(2, array_length(global.nextQueue));
+    for (var i = 0; i < _qShowCount; i++) {
         var _qPiece = global.nextQueue[i];
-        var _qScale = (i == 0) ? 4.2 : 2.5; // Upscaled from 3.5 / 2.2
+        var _qScale = (i == 0) ? 4.2 : 2.5;
         var _qcx = _rx + _pw * 0.5;
-        var _qcy = _rOff0 + floor(_nH * 0.5) + (i == 0 ? 10 : 60);
-        var _qSpr = spr_pinkSprite;
-        switch(_qPiece.id) {
-            case 1: _qSpr = spr_pinkSprite; break;
-            case 2: _qSpr = spr_orangeSprite; break;
-            case 3: _qSpr = spr_yellowSprite; break;
-            case 4: _qSpr = spr_redSprite; break;
-            case 5: _qSpr = spr_lightblueSprite; break;
-            case 6: _qSpr = spr_greenSprite; break;
-        }
-        if (_qPiece.type == "bomb") _qSpr = spr_bomb;
-        if (_qPiece.type == "super_bomb") _qSpr = asset_get_index("spr_super_bomb");
-        if (_qPiece.type == "drill") _qSpr = spr_drill;
-        if (_qPiece.type == "dead") _qSpr = spr_deadmetal;
+        var _qcy = (i == 0) ? (_rOff0 + floor(_nH * 0.38)) : (_rOff0 + floor(_nH * 0.75));
+        var _qSpr = get_piece_sprite(_qPiece);
         draw_sprite_ext(_qSpr, 0, _qcx, _qcy, _qScale, _qScale, 0, c_white, (i == 0 ? 1.0 : 0.4));
         if (_qPiece.type == "metal") {
             var _qRot = (global.orbitalSide * 90) + (_qPiece.dir == 0 ? 90 : 0);
@@ -262,19 +253,44 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
     gpu_set_texfilter(false);
 
     // --- VERTICAL GAUGES (flanking the board) ---
-    var _gx = _bx2 - 32;
-    var _prog = clamp(global.levelScore / global.scoreToNext, 0, 1);
-    draw_set_color(c_black); draw_set_alpha(0.5);
-    draw_roundrect_ext(_gx, _by2, _gx + 12, _by2 + _bh2, 5, 5, false);
-    draw_set_color(global.COLOR_ACCENT); draw_set_alpha(1.0);
-    draw_roundrect_ext(_gx, _by2 + _bh2 * (1 - _prog), _gx + 12, _by2 + _bh2, 5, 5, false);
+    var _gaugeW  = 12;
+    var _gaugePulse = 0.6 + abs(sin(current_time * 0.005)) * 0.4;
 
-    var _jx = _bx2 + _bw2 + 20;
-    var _jackPct = clamp(global.jackpotMeter / global.jackpotMax, 0, 1);
+    // Level progress gauge (left of board)
+    var _gx = _bx2 - 32;
+    var _prog = clamp(global.levelScore / max(1, global.scoreToNext), 0, 1);
+    var _gFillY  = _by2 + _bh2 * (1 - _prog);
     draw_set_color(c_black); draw_set_alpha(0.5);
-    draw_roundrect_ext(_jx, _by2, _jx + 12, _by2 + _bh2, 5, 5, false);
-    draw_set_color((global.feverTimer > 0) ? c_yellow : global.COLOR_GLOW); draw_set_alpha(1.0);
-    draw_roundrect_ext(_jx, _by2 + _bh2 * (1 - _jackPct), _jx + 12, _by2 + _bh2, 5, 5, false);
+    draw_roundrect_ext(_gx, _by2, _gx + _gaugeW, _by2 + _bh2, 5, 5, false);
+    draw_set_color(global.COLOR_ACCENT); draw_set_alpha(0.85);
+    draw_roundrect_ext(_gx, _gFillY, _gx + _gaugeW, _by2 + _bh2, 5, 5, false);
+    if (_prog > 0.01) {
+        gpu_set_blendmode(bm_add);
+        draw_set_color(global.COLOR_ACCENT); draw_set_alpha(0.5 * _gaugePulse);
+        draw_roundrect_ext(_gx - 2, _gFillY - 2, _gx + _gaugeW + 2, _gFillY + 6, 4, 4, false);
+        gpu_set_blendmode(bm_normal);
+    }
+    draw_set_halign(fa_center); draw_set_alpha(0.55); draw_set_color(global.COLOR_ACCENT);
+    draw_text_transformed(_gx + _gaugeW * 0.5, _by2 - 14, "LVL", global.TXT_SMALL, global.TXT_SMALL, 0);
+
+    // Jackpot gauge (right of board)
+    var _jx = _bx2 + _bw2 + 20;
+    var _jackPct  = clamp(global.jackpotMeter / max(1, global.jackpotMax), 0, 1);
+    var _jFillY   = _by2 + _bh2 * (1 - _jackPct);
+    var _jCol     = (global.feverTimer > 0) ? c_yellow : global.COLOR_GLOW;
+    draw_set_color(c_black); draw_set_alpha(0.5);
+    draw_roundrect_ext(_jx, _by2, _jx + _gaugeW, _by2 + _bh2, 5, 5, false);
+    draw_set_color(_jCol); draw_set_alpha(0.85);
+    draw_roundrect_ext(_jx, _jFillY, _jx + _gaugeW, _by2 + _bh2, 5, 5, false);
+    if (_jackPct > 0.01) {
+        gpu_set_blendmode(bm_add);
+        draw_set_color(_jCol); draw_set_alpha(0.5 * _gaugePulse);
+        draw_roundrect_ext(_jx - 2, _jFillY - 2, _jx + _gaugeW + 2, _jFillY + 6, 4, 4, false);
+        gpu_set_blendmode(bm_normal);
+    }
+    draw_set_halign(fa_center); draw_set_alpha(0.55); draw_set_color(_jCol);
+    draw_text_transformed(_jx + _gaugeW * 0.5, _by2 - 14, "JAX", global.TXT_SMALL, global.TXT_SMALL, 0);
+    draw_set_halign(fa_left);
 
     // --- COMBO CELEBRATIONS ---
     if (global.comboChain >= 3) {
@@ -560,7 +576,7 @@ if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.game
         // ── ACTION BUTTONS ────────────────────────────────────────────────
         var _btnY = _py1 + 340;
         var _btnW = 200; var _btnH = 44; var _btnGap = 30;
-        var _btnCount = _isComplete ? 2 : 2;
+        var _btnCount = 2;
         var _btnTotalW = _btnCount * _btnW + (_btnCount - 1) * _btnGap;
         var _btnStartX = _guiW / 2 - _btnTotalW / 2;
 

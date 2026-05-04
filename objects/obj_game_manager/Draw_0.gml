@@ -523,30 +523,6 @@ if (global.gameState == "PLAYING" && global.tutorialTimer > 0) {
     draw_set_alpha(1.0); draw_set_valign(fa_top);
 }
 
-if (global.gameState == "GAMEOVER") {
-    draw_set_alpha(0.6); draw_set_color(c_black); draw_rectangle(0, 0, global.GAME_W, global.GAME_H, false);
-    draw_set_alpha(1); draw_set_font(main_font); draw_set_halign(fa_center);
-    draw_set_color(global.storyComplete ? c_yellow : c_white);
-    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.38, global.storyComplete ? "STORY COMPLETE!" : "GAME OVER", 2.5, 2.5, 0);
-    draw_set_color(make_color_rgb(180,180,200));
-    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.52, "Score: " + string(global.score), 1.3, 1.3, 0);
-    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.60, "Best: "  + string(global.highScore), 1.1, 1.1, 0);
-    draw_set_color(make_color_rgb(255,214,102));
-    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.72, "R  Retry     Esc  Menu", 1.0, 1.0, 0);
-}
-
-if (global.gameState == "LEVEL_COMPLETE" || (global.gameState == "FINISHING_LEVEL" && global.finishTimer < 35)) {
-    var _fade = (global.gameState == "LEVEL_COMPLETE") ? 1.0 : (1.0 - global.finishTimer / 35);
-    draw_set_alpha(0.6 * _fade); draw_set_color(c_black); draw_rectangle(0, 0, global.GAME_W, global.GAME_H, false);
-    draw_set_alpha(_fade); draw_set_font(main_font); draw_set_halign(fa_center);
-    draw_set_color(c_yellow);
-    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.38, "LEVEL COMPLETE!", 3.0, 3.0, 0);
-    draw_set_color(c_white);
-    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.52, "Score: " + string(global.score), 1.5, 1.5, 0);
-    draw_set_color(make_color_rgb(255,214,102));
-    draw_text_transformed(global.GAME_W/2, global.GAME_H*0.72, "SPACE to Continue", 1.2, 1.2, 0);
-}
-
 // --- Meteor Storm Draw ---
 for (var i = 0; i < array_length(global.meteors); i++) {
     var _m = global.meteors[i];
@@ -562,6 +538,15 @@ for (var i = 0; i < array_length(global.meteors); i++) {
         draw_sprite_ext(_mSpr, 0, _m.x, _m.y, global.PIXEL_SCALE * 0.9, global.PIXEL_SCALE * 0.9, _m.rot, c_white, 1.0);
     }
 }
+
+// Subtle scanline overlay — every other row at very low alpha for retro depth
+gpu_set_blendmode(bm_subtract);
+draw_set_color(c_black);
+for (var _sl = 0; _sl < global.GAME_H; _sl += 2) {
+    draw_set_alpha(0.06);
+    draw_rectangle(0, _sl, global.GAME_W, _sl + 1, false);
+}
+gpu_set_blendmode(bm_normal);
 
 surface_reset_target();
 draw_surface_ext(global.game_surface, 0, 0, 1, 1, 0, c_white, 1);

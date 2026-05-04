@@ -182,3 +182,16 @@ function cluster_core_draw_block(_inst, _bx, _by, _scale, _alphaOverride = -1, _
         draw_set_alpha(1.0);
     }
 }
+
+// Returns the display sprite for a piece data struct (used by HUD panels).
+function get_piece_sprite(_piece) {
+    if (_piece == undefined) return spr_pinkSprite;
+    if (_piece.type == "bomb")       return spr_bomb;
+    if (_piece.type == "super_bomb") return asset_get_index("spr_super_bomb");
+    if (_piece.type == "drill")      return spr_drill;
+    if (_piece.type == "dead")       return spr_deadmetal;
+    if (_piece.type == "metal")      return spr_pinkSprite; // arrow overlay drawn separately
+    var _colorSprites = [spr_pinkSprite, spr_pinkSprite, spr_orangeSprite, spr_yellowSprite, spr_redSprite, spr_lightblueSprite, spr_greenSprite];
+    var _idx = clamp(_piece.id, 0, array_length(_colorSprites) - 1);
+    return _colorSprites[_idx];
+}

@@ -299,7 +299,7 @@ function charge_jackpot(_amount) {
 
         // Rainbow explosion across every grid cell
         for (var _py = global.HIDDEN_ROWS; _py < global.TOTAL_ROWS; _py++) {
-            for (var _px = 0; _px < global.COLS; _px++) {
+            for (var _px = global.HIDDEN_SIDES; _px < global.TOTAL_COLS - global.HIDDEN_SIDES; _px++) {
                 var _hue = irandom(255);
                 create_particles(_px * 16 + 8, (_py - global.HIDDEN_ROWS) * 16 + 8, make_color_hsv(_hue, 220, 255));
             }
