@@ -69,6 +69,7 @@
     {"id":{"name":"scr_menu_render_vfx","path":"scripts/scr_menu_render_vfx/scr_menu_render_vfx.yy",},},
     {"id":{"name":"scr_piece_logic","path":"scripts/scr_piece_logic/scr_piece_logic.yy",},},
     {"id":{"name":"scr_special_blocks","path":"scripts/scr_special_blocks/scr_special_blocks.yy",},},
+    {"id":{"name":"scr_easing","path":"scripts/scr_easing/scr_easing.yy",},},
     {"id":{"name":"scr_story_data","path":"scripts/scr_story_data/scr_story_data.yy",},},
     {"id":{"name":"scr_story_dialogue","path":"scripts/scr_story_dialogue/scr_story_dialogue.yy",},},
     {"id":{"name":"scr_story_objectives","path":"scripts/scr_story_objectives/scr_story_objectives.yy",},},

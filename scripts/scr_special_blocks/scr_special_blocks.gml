@@ -97,6 +97,7 @@ function resolve_bomb(_gx, _gy, _radius = 1) {
 
 
 function resolve_drill(_gx, _gy, _dx, _dy) {
+    if (_dx == 0 && _dy == 0) return 0;
     var _count = 0;
     var _cx = _gx + _dx;
     var _cy = _gy + _dy;

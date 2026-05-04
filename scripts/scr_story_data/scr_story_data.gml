@@ -178,6 +178,44 @@ function story_pick_cell_type(_settings) {
 }
 
 
+// Returns true if placing color _cid at (_gx,_gy) would form a 4+ blob match.
+// Uses a temporary grid write so no permanent state is changed.
+function check_if_cell_creates_match(_gx, _gy, _cid) {
+    var _cols = global.TOTAL_COLS;
+    var _rows = global.TOTAL_ROWS;
+
+    var _old = global.grid[_gy][_gx];
+    global.grid[_gy][_gx] = { id: _cid, type: "normal" };
+
+    var _visited = match_make_bool_grid(_cols, _rows, false);
+    var _queue   = [{ x: _gx, y: _gy }];
+    _visited[_gy][_gx] = true;
+    var _count = 0;
+    var _dx = [0, 0, -1, 1];
+    var _dy = [-1, 1,  0, 0];
+
+    while (array_length(_queue) > 0) {
+        var _cur = _queue[0];
+        array_delete(_queue, 0, 1);
+        _count++;
+        for (var _d = 0; _d < 4; _d++) {
+            var _nx = _cur.x + _dx[_d];
+            var _ny = _cur.y + _dy[_d];
+            if (!match_in_bounds(_cols, _rows, _nx, _ny)) continue;
+            if (_visited[_ny][_nx]) continue;
+            var _nb = global.grid[_ny][_nx];
+            if (match_same_color_or_wild(_nb, _cid)) {
+                _visited[_ny][_nx] = true;
+                array_push(_queue, { x: _nx, y: _ny });
+            }
+        }
+    }
+
+    global.grid[_gy][_gx] = _old;
+    return (_count >= MATCH_MIN);
+}
+
+
 function story_apply_level_layout(_def) {
     if (_def == undefined) return false;
 

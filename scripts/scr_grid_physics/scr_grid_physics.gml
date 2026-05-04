@@ -239,6 +239,7 @@ function lock_piece() {
 
     // ── SPECIALS: resolve immediately upon locking ──────────────────────────
     if (_p.type == "drill") {
+        global.grid[_py][_px] = undefined; // Clear the tool itself
         var _vx = 0; var _vy = 1; 
         if (global.gameMode == "PLANET" || global.gameMode == "STORY") {
             var _rot90 = round(global.targetRotation / 90) mod 4;
@@ -252,34 +253,37 @@ function lock_piece() {
         var _count = resolve_drill(_px, _py, _vx, _vy);
         if (_count > 0) {
              special_clear_reward(_count, 150, "DRILLED", make_color_rgb(200, 220, 255), 4);
-             apply_grid_gravity();
         }
+        apply_grid_gravity();
         instance_destroy(_p);
         global.activePiece = undefined;
+        settle_matches();
         return;
     }
 
     if (_p.type == "bomb") {
+        global.grid[_py][_px] = undefined;
         var _count = resolve_bomb(_px, _py, 1);
         if (_count > 0) {
             special_clear_reward(_count, 100, "ULTRA BLAST!", c_orange, 6);
-            apply_grid_gravity();
         }
-        global.grid[_py][_px] = undefined;
+        apply_grid_gravity();
         instance_destroy(_p);
         global.activePiece = undefined;
+        settle_matches();
         return;
     }
 
     if (_p.type == "super_bomb") {
+        global.grid[_py][_px] = undefined;
         var _count = resolve_super_bomb(_px, _py);
         if (_count > 0) {
             special_clear_reward(_count, 250, "SUPER NOVA!", make_color_rgb(255, 100, 255), 10);
-            apply_grid_gravity();
         }
-        global.grid[_py][_px] = undefined;
+        apply_grid_gravity();
         instance_destroy(_p);
         global.activePiece = undefined;
+        settle_matches();
         return;
     }
 

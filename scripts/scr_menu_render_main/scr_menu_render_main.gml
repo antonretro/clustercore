@@ -108,22 +108,21 @@ function menu_draw_loading_bar(_cx, _cy) {
 }
 
 function menu_draw_name_entry(_cx, _cy, _sw, _sh) {
-    // Dark overlay
     draw_set_alpha(0.9); draw_set_color(make_color_rgb(2, 4, 10));
     draw_rectangle(0, 0, _sw, _sh, false);
 
     var _slot = save_slots[name_entry_index];
 
     // Glass panel
-    var _pw = 700; var _ph = 340;
-    var _px1 = _cx - _pw * 0.5; var _py1 = _cy - _ph * 0.5;
+    var _pw = 680; var _ph = 320;
+    var _px1 = _cx - _pw * 0.5; var _py1 = _cy - _ph * 0.5 - 20;
 
-    draw_set_alpha(0.5); draw_set_color(c_black);
+    draw_set_alpha(0.55); draw_set_color(c_black);
     draw_roundrect_ext(_px1 + 8, _py1 + 8, _px1 + _pw + 8, _py1 + _ph + 8, 20, 20, false);
 
     var _pTop = make_color_rgb(16, 28, 60);
     var _pBot = make_color_rgb(6, 10, 28);
-    draw_set_alpha(0.92);
+    draw_set_alpha(0.93);
     draw_rectangle_colour(_px1, _py1, _px1 + _pw, _py1 + _ph, _pTop, _pTop, _pBot, _pBot, false);
 
     draw_set_alpha(0.03); draw_set_color(c_white);
@@ -133,22 +132,29 @@ function menu_draw_name_entry(_cx, _cy, _sw, _sh) {
     draw_set_alpha(0.5); draw_set_color(make_color_rgb(140, 190, 255));
     draw_roundrect_ext(_px1, _py1, _px1 + _pw, _py1 + _ph, 20, 20, true);
 
-    // Title
-    draw_set_halign(fa_center); draw_set_alpha(1); draw_set_color(c_white);
-    draw_text_transformed(_cx, _py1 + 50, "PILOT REGISTRATION", global.TXT_H1, global.TXT_H1, 0);
-    draw_set_alpha(0.5); draw_set_color(make_color_rgb(140, 200, 255));
-    draw_text_transformed(_cx, _py1 + 90, "Enter your callsign, Pilot.", global.TXT_H4, global.TXT_H4, 0);
+    // Accent bar at top of panel
+    draw_set_alpha(0.7); draw_set_color(make_color_rgb(100, 180, 255));
+    draw_roundrect_ext(_px1, _py1, _px1 + _pw, _py1 + 48, 20, 20, false);
+    draw_set_alpha(0.12); draw_set_color(c_white);
+    draw_roundrect_ext(_px1, _py1, _px1 + _pw, _py1 + 48, 20, 20, false);
+
+    // Title in accent bar
+    draw_set_halign(fa_center); draw_set_alpha(1.0); draw_set_color(c_white);
+    draw_text_transformed(_cx, _py1 + 24, "PILOT REGISTRATION", global.TXT_H3, global.TXT_H3, 0);
+
+    // Subtitle
+    draw_set_alpha(0.55); draw_set_color(make_color_rgb(160, 210, 255));
+    draw_text_transformed(_cx, _py1 + 72, "Enter your callsign, Pilot.", global.TXT_H4, global.TXT_H4, 0);
 
     // Input field
-    var _fieldW = 440; var _fieldH = 56;
-    var _fx = _cx - _fieldW * 0.5; var _fy = _py1 + 140;
+    var _fieldW = 460; var _fieldH = 58;
+    var _fx = _cx - _fieldW * 0.5; var _fy = _py1 + 108;
 
-    draw_set_alpha(0.12); draw_set_color(c_white);
+    draw_set_alpha(0.14); draw_set_color(c_white);
     draw_roundrect_ext(_fx, _fy, _fx + _fieldW, _fy + _fieldH, 10, 10, false);
-    draw_set_alpha(0.6); draw_set_color(make_color_rgb(100, 200, 255));
+    draw_set_alpha(0.7); draw_set_color(make_color_rgb(100, 200, 255));
     draw_roundrect_ext(_fx, _fy, _fx + _fieldW, _fy + _fieldH, 10, 10, true);
 
-    // Text in field
     var _displayText = name_entry_text;
     var _cursor = (floor(current_time / 500) mod 2 == 0);
     if (_cursor) _displayText += "_";
@@ -158,11 +164,13 @@ function menu_draw_name_entry(_cx, _cy, _sw, _sh) {
 
     // Slot info
     draw_set_alpha(0.4); draw_set_color(make_color_rgb(180, 200, 230));
-    draw_text_transformed(_cx, _py1 + 220, "DATA SLOT " + string(name_entry_index + 1) + "   |   PROGRESS " + string(_slot.progress) + "%", global.TXT_H4, global.TXT_H4, 0);
+    draw_text_transformed(_cx, _py1 + 200, "DATA SLOT " + string(name_entry_index + 1) + "   |   PROGRESS " + string(_slot.progress) + "%", global.TXT_H4, global.TXT_H4, 0);
 
-    // Hint
-    draw_set_alpha(0.5); draw_set_color(make_color_rgb(255, 214, 102));
-    draw_text_transformed(_cx, _py1 + 275, "TYPE NAME    [ENTER] CONFIRM    [ESC] CANCEL", global.TXT_H4, global.TXT_H4, 0);
+    // Hint strip
+    draw_set_alpha(0.08); draw_set_color(make_color_rgb(255, 214, 102));
+    draw_roundrect_ext(_px1 + 20, _py1 + 256, _px1 + _pw - 20, _py1 + _ph - 16, 8, 8, false);
+    draw_set_alpha(0.6); draw_set_color(make_color_rgb(255, 214, 102));
+    draw_text_transformed(_cx, _py1 + 278, "TYPE NAME    [ENTER] CONFIRM    [ESC] CANCEL", global.TXT_H4, global.TXT_H4, 0);
 }
 
 function menu_draw_main_deck(_cx, _cy, _sw, _sh) {

@@ -4,7 +4,7 @@ draw_set_font(main_font);
 gpu_set_texfilter(false); // pixel font — keep crisp, no smoothing
 
 // --- In-Game HUD ---
-if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.gameState == "GAMEOVER") {
+if (global.gameState == "PLAYING" || global.gameState == "PAUSED" || global.gameState == "GAMEOVER" || global.gameState == "LEVEL_COMPLETE" || global.gameState == "FINISHING_LEVEL") {
     draw_set_halign(fa_left);
     draw_set_valign(fa_top);
     

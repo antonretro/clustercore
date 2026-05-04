@@ -316,9 +316,9 @@ if (in_save_slots && !is_loading) {
     }
 } else if (in_story_level_select) {
     var _lvlCount = story_world_level_counts[story_select_index];
-    var _cellW = 114; var _cellH = 90; var _cellGap = 14;
+    var _cellW = 114; var _cellH = 76; var _cellGap = 10;
     var _gridStartX = 20 + (440 - (_cellW * 3 + _cellGap * 2)) * 0.5;
-    var _gridStartY = (80 + 90 + 120) + 40;
+    var _gridStartY = (80 + 90 + 120) + 46;
     for (var i = 0; i < _lvlCount; i++) {
         var _col = i mod 3; var _row = i div 3;
         var _cxCell = _gridStartX + _col * (_cellW + _cellGap) + _cellW * 0.5;

@@ -1,4 +1,4 @@
-/// @module scr_menu_render_extras
+// @module scr_menu_render_extras
 /// Settings, Achievements, Encyclopedia, Inventory, Shop, and Refabricator.
 
 function _menu_draw_sub_screen_base(_cx, _cy, _sw, _sh, _title, _subtitle) {
@@ -274,88 +274,140 @@ function menu_draw_how_to_play(_cx, _cy, _sw, _sh) {
         draw_set_alpha(0.9); draw_set_color(make_color_rgb(100, 255, 150));
         draw_text_transformed(_contentX + 20, _boxY + 16, "CORE RULE", 1.2, 1.2, 0);
         draw_set_alpha(0.6); draw_set_color(c_white);
-        draw_text_transformed(_contentX + 20, _boxY + 44, "Match 3+ blocks of the same color in a straight line OR connected cluster to clear them. Clearing multiple groups in one launch triggers combo bonuses.", 0.85, 0.85, 0);
+        draw_text_transformed(_contentX + 20, _boxY + 44, "Match 4+ blocks of the same color in a connected cluster or straight line to clear them. Clearing multiple groups in one launch triggers combo bonuses.", 0.85, 0.85, 0);
     }
     else if (how_to_page == 1) { // BLOCK DATA
         draw_set_alpha(1.0); draw_set_color(make_color_rgb(255, 220, 100));
         draw_text_transformed(_contentX, _contentY, "// BLOCK CLASSIFICATION", global.TXT_H2, global.TXT_H2, 0);
 
-        var _blocks = [
-            { name: "CORE BLOCKS",     icon: "[O]", desc: "Standard restoration units. Clear in CLUSTERS of 3+ or LINES of 3+.",                           col: make_color_rgb(100, 255, 150), detail: "Most common block type. Appears in all mission types. No special clearing requirements." },
-            { name: "ARROW METAL",     icon: "[>]", desc: "Reinforced directional blocks. Only clear in a straight LINE of 4+ along their arrow axis.", col: make_color_rgb(255, 200, 80),  detail: "Arrows indicate valid clearing direction. Line must be exactly aligned with arrow. Ignores cluster clears." },
-            { name: "ASTEROIDS",       icon: "[*]", desc: "Dense mineral obstacles. Requires 2 adjacent clearing events to fully break.",                  col: c_gray,                        detail: "First clear cracks the asteroid (visual change). Second clear on an adjacent tile removes it. Persists between turns." },
-            { name: "CORE GEMS",       icon: "[<>]",desc: "High-value crystal formations. Extract these for Shards used in Refabrication.",               col: make_color_rgb(255, 100, 255), detail: "Clears like a core block but also rewards +1 Shard per gem cleared. Essential for wallet economy." },
-            { name: "WILD CORES",      icon: "[?]", desc: "Anomalous blocks that link with any color sequence. Universal wildcard.",                       col: c_white,                       detail: "Counts as any color for matching purposes. Cannot be the anchor of a match — must connect to at least one colored block." }
+        draw_set_alpha(0.35); draw_set_color(make_color_rgb(140, 180, 255));
+        draw_text_transformed(_contentX, _contentY + 36, "All block types encountered in planetary restoration operations.", 0.85, 0.85, 0);
+
+        draw_set_alpha(0.12); draw_set_color(make_color_rgb(100, 160, 255));
+        draw_line_width(_contentX, _contentY + 58, _contentX + _contentW, _contentY + 58, 1);
+
+        var _blockDefs = [
+            { name: "COLOR BLOCK",  spr: "spr_pinkSprite",  col: make_color_rgb(255,140,200), desc: "Match 4+ connected same-color blocks in any shape to clear them." },
+            { name: "METAL ARROW",  spr: "spr_lr_arrows",   col: make_color_rgb(255,200,80),  desc: "Directional block. Only clears in a straight LINE of 4+ along its marked axis." },
+            { name: "WILDCARD",     spr: "spr_wildcard",    col: c_white,                     desc: "Matches any color. Joins any cluster or line — but cannot anchor one alone." },
+            { name: "BOMB",         spr: "spr_bomb",        col: make_color_rgb(255,100,80),  desc: "Explosive piece. Detonates on placement, clearing all blocks in a small radius." },
+            { name: "SUPER BOMB",   spr: "spr_super_bomb",  col: make_color_rgb(255,60,60),   desc: "High-yield explosive. Same as a Bomb but with a significantly larger blast radius." },
+            { name: "DRILL",        spr: "spr_drill",       col: make_color_rgb(80,200,255),  desc: "Penetrating tool. Bores through a full row or column, clearing all in its path." },
+            { name: "ASTEROID",     spr: "spr_space_rock",  col: c_gray,                      desc: "Dense obstacle. Requires 2 adjacent clearing events to fully break apart." },
+            { name: "LOCKED CAGE",  spr: "spr_locked_cage", col: make_color_rgb(200,160,80),  desc: "Encased block. Clear an adjacent match to free it before it can participate." },
+            { name: "DEAD METAL",   spr: "spr_deadmetal",   col: make_color_rgb(100,100,120), desc: "Inert obstruction. Cannot be matched — must be removed with Drills or Bombs." },
+            { name: "CORE GEM",     spr: "spr_shard_on_block", col: make_color_rgb(180,100,255), desc: "Crystalline formation. Clears like a color block and rewards bonus Shards." }
         ];
 
-        for (var b = 0; b < 5; b++) {
-            var _by = _contentY + 50 + b * 108;
-            // Color swatch
-            draw_set_alpha(1.0); draw_set_color(_blocks[b].col);
-            draw_roundrect_ext(_contentX, _by, _contentX + 40, _by + 40, 8, 8, false);
-            draw_set_alpha(0.3); draw_set_color(c_black);
-            draw_roundrect_ext(_contentX, _by, _contentX + 40, _by + 40, 8, 8, true);
+        var _colW    = floor(_contentW / 2) - 10;
+        var _rowH    = 78;
+        var _startY  = _contentY + 70;
+        var _iconBox = 40;
+
+        for (var b = 0; b < array_length(_blockDefs); b++) {
+            var _bCol = b % 2;
+            var _bRow = floor(b / 2);
+            var _bx   = _contentX + _bCol * (_colW + 20);
+            var _by   = _startY + _bRow * _rowH;
+
+            // Row background
+            draw_set_alpha(0.06 + (_bRow % 2) * 0.03); draw_set_color(c_white);
+            draw_roundrect_ext(_bx, _by - 2, _bx + _colW, _by + _rowH - 4, 8, 8, false);
+
+            // Sprite icon centered in 40×40 box
+            var _si = asset_get_index(_blockDefs[b].spr);
+            if (_si != -1 && sprite_exists(_si)) {
+                var _sw2 = sprite_get_width(_si);
+                var _sh2 = sprite_get_height(_si);
+                var _sc  = min(_iconBox / max(_sw2, 1), _iconBox / max(_sh2, 1));
+                draw_set_alpha(1.0);
+                draw_sprite_ext(_si, 0, _bx + 22, _by + _rowH * 0.5 - 6, _sc, _sc, 0, c_white, 1);
+            } else {
+                draw_set_alpha(0.8); draw_set_color(_blockDefs[b].col);
+                draw_circle(_bx + 22, _by + _rowH * 0.5 - 6, 14, false);
+            }
 
             // Name
-            draw_set_alpha(1.0); draw_set_color(c_white);
-            draw_text_transformed(_contentX + 56, _by + 4, _blocks[b].name, 1.1, 1.1, 0);
-            // Description
-            draw_set_alpha(0.55); draw_set_color(make_color_rgb(180, 210, 240));
-            draw_text_transformed(_contentX + 56, _by + 26, _blocks[b].desc, 0.82, 0.82, 0);
-            // Detail line
-            draw_set_alpha(0.35); draw_set_color(make_color_rgb(140, 180, 220));
-            draw_text_transformed(_contentX + 56, _by + 48, _blocks[b].detail, 0.75, 0.75, 0);
+            draw_set_halign(fa_left); draw_set_alpha(1.0);
+            draw_set_color(_blockDefs[b].col);
+            draw_text_transformed(_bx + 50, _by + 8, _blockDefs[b].name, 0.88, 0.88, 0);
 
-            // Separator
-            if (b < 4) {
-                draw_set_alpha(0.08); draw_set_color(make_color_rgb(100, 180, 255));
-                draw_line_width(_contentX + 20, _by + 90, _contentX + _contentW - 20, _by + 90, 1);
-            }
+            // Description
+            draw_set_alpha(0.5); draw_set_color(make_color_rgb(160, 195, 230));
+            draw_text_ext_transformed(_bx + 50, _by + 30, _blockDefs[b].desc, -1, _colW - 56, 0.74, 0.74, 0);
         }
     }
     else if (how_to_page == 2) { // PLANET LOG
         draw_set_alpha(1.0); draw_set_color(make_color_rgb(255, 220, 100));
-        draw_text_transformed(_contentX, _contentY, "// SOLAR SYSTEM SURVEY", global.TXT_H2, global.TXT_H2, 0);
+        draw_text_transformed(_contentX, _contentY, "// MISSION ZONE SURVEY", global.TXT_H2, global.TXT_H2, 0);
 
-        draw_set_alpha(0.55); draw_set_color(make_color_rgb(180, 210, 240));
-        draw_text_ext_transformed(_contentX, _contentY + 45,
-            "Each world in the system presents unique gravitational conditions and threat profiles. Planetary data is updated in real-time as restoration progresses.", -1, _contentW, 0.9, 0.9, 0);
+        draw_set_alpha(0.35); draw_set_color(make_color_rgb(140, 180, 255));
+        draw_text_transformed(_contentX, _contentY + 36, "Each sector presents unique hazards and block compositions. Unlock zones by clearing the previous one.", 0.85, 0.85, 0);
 
-        var _planets = [
-            { name: "MERCURY",   threat: "MINIMAL",  grav: "0.38G",  temp: "430C", note: "Low gravity training zone. High orbital velocity. Ideal for new pilots mastering basic piece placement and rotation timing." },
-            { name: "MARS",      threat: "MODERATE", grav: "0.38G",  temp: "-63C",  note: "Abandoned industrial complexes. Static defense grids create blocked columns. Requires strategic hold-piece usage." },
-            { name: "VENUS",     threat: "ELEVATED", grav: "0.91G",  temp: "462C",  note: "Dense atmosphere creates high block density. Acidic corrosion may randomly damage unprotected blocks." },
-            { name: "SATURN",    threat: "HIGH",     grav: "1.07G",  temp: "-178C", note: "Ring debris introduces junk blocks at high frequency. Multi-ring orbital lanes require perspective rotation." },
-            { name: "JUPITER",   threat: "CRITICAL", grav: "2.53G",  temp: "-145C", note: "Extreme gravity accelerates piece descent. Color-locked gates and solar teeth. Only elite pilots survive." }
+        draw_set_alpha(0.12); draw_set_color(make_color_rgb(100, 160, 255));
+        draw_line_width(_contentX, _contentY + 58, _contentX + _contentW, _contentY + 58, 1);
+
+        var _worlds = [
+            { name: "TIN MOON",      id: 0, spr: "spr_earthmoon",  threat: "TRAINING",  missions: "10 missions", col: make_color_rgb(160, 220, 255),
+              note: "Barren training ground. Sparse block density and a forgiving palette of 3-4 colors. Ideal for learning cluster mechanics and piece rotation." },
+            { name: "RUST GARDEN",   id: 1, spr: "spr_mars",       threat: "MODERATE",  missions: "10 missions", col: make_color_rgb(255, 160, 80),
+              note: "Oxidized terrain. Locked cage blocks and encrusted spores complicate clearing. Requires precise targeting to free caged pieces before they cluster." },
+            { name: "CASINO COMET",  id: 2, spr: "spr_saturn",     threat: "ELEVATED",  missions: "10 missions", col: make_color_rgb(255, 220, 100),
+              note: "Volatile trajectory with high gem density. Score multiplier blocks appear here for the first time. High risk, high reward — master combos or lose ground fast." },
+            { name: "DEAD ORBIT",    id: 3, spr: "spr_neptune",    threat: "CRITICAL",  missions: "10 missions", col: make_color_rgb(100, 140, 255),
+              note: "Gravity hazards and void blocks warp normal physics. Full color palette at max difficulty. Only seasoned pilots navigate without losing the core." }
         ];
 
-        for (var p = 0; p < 5; p++) {
-            var _pyP = _contentY + 130 + p * 95;
-            // Planet row background
-            draw_set_alpha(0.04); draw_set_color(c_white);
-            draw_roundrect_ext(_contentX, _pyP - 4, _contentX + _contentW, _pyP + 76, 8, 8, false);
+        var _threatCols = [
+            make_color_rgb(100, 255, 150), make_color_rgb(255, 200, 80),
+            make_color_rgb(255, 140, 60),  make_color_rgb(255, 80, 80)
+        ];
 
-            // Planet icon placeholder
-            draw_set_alpha(1.0);
-            var _pCol = make_color_rgb(100 + p * 30, 180 - p * 20, 255 - p * 25);
-            draw_circle_color(_contentX + 22, _pyP + 36, 18, _pCol, merge_color(_pCol, c_black, 0.6), false);
+        for (var p = 0; p < 4; p++) {
+            var _pyP = _contentY + 75 + p * 118;
+            var _unlocked = (variable_global_exists("story_unlocked_world") && global.story_unlocked_world >= p);
 
-            // Planet name + threat badge
-            draw_set_alpha(1.0); draw_set_color(c_white);
-            draw_text_transformed(_contentX + 56, _pyP + 8, _planets[p].name, 1.15, 1.15, 0);
+            // Row background — tinted by world color
+            draw_set_alpha(0.06); draw_set_color(_worlds[p].col);
+            draw_roundrect_ext(_contentX, _pyP - 4, _contentX + _contentW, _pyP + 96, 10, 10, false);
+            if (!_unlocked) { draw_set_alpha(0.4); draw_set_color(c_black); draw_roundrect_ext(_contentX, _pyP - 4, _contentX + _contentW, _pyP + 96, 10, 10, false); }
 
-            // Threat badge
-            var _threatCols = [make_color_rgb(100,255,150), make_color_rgb(255,220,80), make_color_rgb(255,180,60), make_color_rgb(255,120,80), make_color_rgb(255,60,60)];
-            draw_set_alpha(0.8); draw_set_color(_threatCols[p]);
-            draw_text_transformed(_contentX + 170, _pyP + 8, _planets[p].threat, 0.75, 0.75, 0);
+            // Planet sprite icon
+            var _psi = asset_get_index(_worlds[p].spr);
+            if (_psi != -1 && sprite_exists(_psi)) {
+                var _piScale = 56 / max(sprite_get_width(_psi), sprite_get_height(_psi));
+                draw_set_alpha(_unlocked ? 1.0 : 0.3);
+                draw_sprite_ext(_psi, 0, _contentX + 34, _pyP + 46, _piScale, _piScale, current_time * 0.00015, c_white, 1);
+            } else {
+                var _pColCirc = _worlds[p].col;
+                draw_set_alpha(_unlocked ? 0.9 : 0.3);
+                draw_circle_color(_contentX + 34, _pyP + 46, 24, _pColCirc, merge_color(_pColCirc, c_black, 0.5), false);
+            }
 
-            // Stats: gravity + temp
-            draw_set_alpha(0.4); draw_set_color(make_color_rgb(140, 200, 255));
-            draw_text_transformed(_contentX + 56, _pyP + 32, "Gravity: " + _planets[p].grav + "    Surface: " + _planets[p].temp, 0.75, 0.75, 0);
+            // World index badge
+            draw_set_alpha(0.6); draw_set_color(_worlds[p].col);
+            draw_set_halign(fa_left);
+            draw_text_transformed(_contentX + 76, _pyP + 6, "WORLD " + string(p + 1), 0.72, 0.72, 0);
+
+            // World name
+            draw_set_alpha(_unlocked ? 1.0 : 0.4); draw_set_color(c_white);
+            draw_text_transformed(_contentX + 76, _pyP + 24, _worlds[p].name, 1.1, 1.1, 0);
+
+            // Threat + missions strip
+            draw_set_alpha(0.9); draw_set_color(_threatCols[p]);
+            draw_text_transformed(_contentX + 76, _pyP + 48, _worlds[p].threat, 0.75, 0.75, 0);
+            draw_set_alpha(0.4); draw_set_color(make_color_rgb(160, 200, 255));
+            draw_text_transformed(_contentX + 200, _pyP + 48, _worlds[p].missions, 0.75, 0.75, 0);
 
             // Flavor note
-            draw_set_alpha(0.5); draw_set_color(make_color_rgb(160, 190, 220));
-            draw_text_ext_transformed(_contentX + 56, _pyP + 52, _planets[p].note, -1, _contentW - 80, 0.72, 0.72, 0);
+            draw_set_alpha(_unlocked ? 0.45 : 0.25); draw_set_color(make_color_rgb(160, 190, 225));
+            draw_text_ext_transformed(_contentX + 76, _pyP + 68, _worlds[p].note, -1, _contentW - 90, 0.72, 0.72, 0);
+
+            // LOCKED overlay
+            if (!_unlocked && p > 0) {
+                draw_set_halign(fa_right); draw_set_alpha(0.55); draw_set_color(make_color_rgb(255, 100, 80));
+                draw_text_transformed(_contentX + _contentW - 16, _pyP + 44, "CLASSIFIED", 0.78, 0.78, 0);
+            }
         }
     }
     else { // ADVANCED
