@@ -60,3 +60,5 @@ Temporary Items
 
 # Backup archives
 clustercore_html5_backup.zip
+# Python
+__pycache__/

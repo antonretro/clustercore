@@ -1,0 +1,609 @@
+// Cluster Core campaign levels. Read by the game (scr_cc_levels) and by tools/ccsim.py.
+// Cells:  .  empty   #  wall   *  stone   C  core (centre)
+//         p o y g b r  colour block (pink orange yellow green blue red)
+//         UPPER CASE   the same block inside a cage
+//         r- r|        arrow block (clears only in a straight line of 3 along its arrow)
+// Queue:  colour letters, ! bomb, ^ drill, ? paint
+// core:   colours the core needs, in order (one per layer)
+// par/sol are written by `python tools/ccsim.py --write` (fewest shots + one solution).
+
+@ Spark
+par 2
+sol 0,0 0,2
+world 0
+core r
+queue r r
+tip LEFT/RIGHT to aim, SPACE to fire. Clear 3 of the core's colour touching it.
+grid
+. . . . . . .
+. . . . . . .
+. . . . . . .
+. . . C . . .
+. . . r . . .
+. . . . . . .
+. . . . . . .
+end
+
+@ Swing Around
+par 1
+sol 1,0
+world 0
+core b
+queue b
+tip Keep moving past the edge to swing the planet round.
+grid
+. . . . . . .
+. . . b . . .
+. . . b . . .
+. . . C . . .
+. . . . . . .
+. . . . . . .
+# # # # # # #
+end
+
+@ Gravity Well
+par 2
+sol 0,2 0,0
+world 0
+core g
+queue y g
+tip Everything falls towards the core. Clear the way!
+grid
+. . . . . . .
+. . . . . . .
+. . . . . . .
+. g y C . . .
+. g y . . . .
+. . . . . . .
+. . . . . . .
+end
+
+@ Chain Reaction
+par 1
+sol 0,0
+world 0
+core p
+queue y
+tip One shot. Make it count.
+grid
+. . . . . . .
+. . . . . . .
+. . p . . . .
+p y y C . . .
+. . p . . . .
+. . . . . . .
+. . . . . . .
+end
+
+@ Layers
+par 4
+sol 0,0 0,0 H 0,0 H 1,2
+world 0
+core r b
+queue r b b r
+tip Some cores have layers. Each layer needs its own colour.
+grid
+. . . . . . .
+. . . . . . .
+. . . b . . .
+. . r C . . .
+. . . . . . .
+. . . . . . .
+. . . . . . .
+end
+
+@ Hold That Thought
+par 2
+sol H 0,5 0,5
+world 0
+core o
+queue g o o
+tip C holds a block for later. Use it to change the order.
+grid
+. . . . . . .
+. . . # . . .
+. . # g # . .
+. . . C o . .
+. . # g # . .
+. . . # . . .
+. . . . . . .
+end
+
+// ── VENUS ─ stones ──
+
+@ Dead Weight
+par 2
+sol 0,4 2,2
+world 1
+tip Stones never clear. They just fall towards the core and get in the way.
+core y
+queue y y
+grid
+. . . . . . .
+. . . . . . .
+. . . y . . .
+. . * C . . .
+. . . * . . .
+. . . . . . .
+. . . . . . .
+end
+
+@ Rockfall
+par 3
+sol 0,1 0,0 0,0
+world 1
+core b
+queue o b b
+grid
+. . . . . . .
+. . y . . . .
+. . o o b y .
+. o b C o y .
+. . o y y . .
+. . * * . . .
+. . . . . . .
+end
+
+@ Pebble Path
+par 3
+sol 0,0 0,0 0,0
+world 1
+core o
+queue p o o
+grid
+. . . . . . .
+. . o . . . .
+. . b b * p .
+. p o C * . .
+. p b b p . .
+. . . . . . .
+. . . . . . .
+end
+
+@ Yellow Sun
+par 3
+sol 0,2 0,3 0,3
+world 1
+core y
+queue y y y
+grid
+. . . . . . .
+. . . y y . .
+. . y r r * .
+. * o C * o .
+. o r . o r .
+. . . . . . .
+. . . . . . .
+end
+
+@ Domino Drop
+par 3
+sol 0,3 2,2 0,5
+world 1
+tip Clear one colour to drop another into place.
+core y g
+queue y y o
+grid
+. . . . . . .
+. . . g y g .
+. . o y o o .
+. . y C y . .
+. y o . y g .
+. . y . . . .
+. . . . . . .
+end
+
+@ Grit
+par 3
+sol 0,6 0,6 0,6
+world 1
+core o
+queue y y o
+grid
+. . . . . . .
+. . . y . y .
+. . r r * o .
+. . * C o y .
+. . r r * o .
+. . . . . r .
+. . . . . . .
+end
+
+// ── EARTH ──
+
+@ Locked In
+par 4
+sol 0,0 0,0 0,0 0,0
+world 2
+tip Caged blocks never fall. Match them to break the cage, then match again.
+core g g
+queue g g g g
+grid
+. . . . . . .
+. . . . . . .
+. . . . . . .
+. . G C . . .
+. . . . . . .
+. . . . . . .
+. . . . . . .
+end
+
+@ Cell Block
+par 3
+sol 0,0 0,3 0,4
+world 2
+core p b
+queue b p o
+grid
+. . . . . . .
+. . . . . B .
+. . p B o b .
+. . B C b . .
+. . p o o p .
+. . b . . p .
+. . . . . . .
+end
+
+@ Jailbreak
+par 3
+sol 0,6 2,1 2,2
+world 2
+core o
+queue g g o
+grid
+. . . . . . .
+. . o b o . .
+. . * o g . .
+. . B C B . .
+. O b g o g .
+. . . . g o .
+. . . . . . .
+end
+
+@ Double Lock
+par 4
+sol 0,4 0,0 0,0 0,0
+world 2
+core r r
+queue r b r b
+grid
+. . . . . . .
+. b r b . . .
+. g r g . . .
+. . b C g R .
+. g r . R b .
+. . . R . b .
+. . . . . . .
+end
+
+@ Far Cell
+par 3
+sol 0,4 0,4 0,4
+world 2
+tip Some cages are far from home.
+core y
+queue g g y
+grid
+. . . . . . .
+. . o y . . .
+. o y o y g .
+. g o C g o .
+. G . y . . .
+. . . . . Y .
+. . . . . . .
+end
+
+@ Master Key
+par 3
+sol 2,2 0,1 2,2
+world 2
+core b g
+queue r b r
+grid
+. . . . . . .
+. . b g . . .
+. g g R R . .
+. r B C * . .
+. . b r g g .
+. . r b . b .
+. . . . . . .
+end
+
+// ── MARS ──
+
+@ Straight Talk
+par 2
+sol 0,3 0,3
+world 3
+tip Arrow blocks only clear in a straight line of 3, along the arrow.
+core r
+queue r r
+grid
+. . . . . . .
+. . . . . . .
+. . . . . . .
+. . . C . . .
+. . . r| . . .
+. . . . . . .
+. . . . . . .
+end
+
+@ Lineup
+par 4
+sol 0,2 0,3 0,2 0,3
+world 3
+core y
+queue y g y y
+grid
+. . . . . . .
+. . y . . . .
+. g- b b y b- .
+. . g- C g b .
+. . . g b . .
+. . . . g . .
+. . . . . . .
+end
+
+@ Crossroads
+par 4
+sol 1,0 2,1 2,2 1,0
+world 3
+core p p
+queue p p o p
+grid
+. . . . . . .
+. . . p . . .
+. r| r o o r .
+. . o C p p .
+. p r- r| . . .
+. . r p| . . .
+. . . . . . .
+end
+
+@ Signal
+par 3
+sol 0,0 2,2 0,0
+world 3
+core r p
+queue g r g
+grid
+. . . . . . .
+. . r . . . .
+. . p . r . .
+. . g C r| p .
+. . p . p g- .
+. . p . . . .
+. . . . . . .
+end
+
+@ Railway
+par 4
+sol 2,2 0,5 2,1 0,0
+world 3
+core b g
+queue o b g g
+grid
+. . . . . . .
+. . o . o . .
+. . g . o| g .
+. . g C g . .
+. . b g- b . .
+. . . b b| . .
+. . . . . . .
+end
+
+@ Bullseye
+par 3
+sol 0,5 H 0,5 H 2,2
+world 3
+core b
+queue r b r
+grid
+. . . . . . .
+. . o . b . .
+. b| b o b| . .
+. . o C r . .
+. . o r o . .
+. . . . . . .
+. . . . . . .
+end
+
+// ── JUPITER ──
+
+@ Demolition
+par 4
+sol 0,1 0,0 0,0 0,0
+world 4
+tip BOMB: blows up everything around where it lands (not the core).
+core b
+queue ! b b b
+grid
+. . . . . . .
+. . . . . . .
+. . * * * . .
+. . * C * . .
+. . * * * . .
+. . . . . . .
+. . . . . . .
+end
+
+@ Core Sample
+par 4
+sol 0,3 0,2 0,2 0,3
+world 4
+tip DRILL: bores through the first 3 blocks in its lane, even if the lane is full.
+core o
+queue ^ o o o
+grid
+. . . . . . .
+. . . . . . .
+. . . # . . .
+. . # C # . .
+. . . * . . .
+. . . * . . .
+. . . g . . .
+end
+
+@ Copycat
+par 2
+sol 1,2 1,2
+world 4
+tip PAINT: copies the colour of whatever it hits. Hit nothing and it turns to stone.
+core p
+queue ? ?
+grid
+. . . . . . .
+. . . . . . .
+. . . p . . .
+. . . C . . .
+. . . . . . .
+. . . . . . .
+. . . . . . .
+end
+
+@ Mimic
+par 3
+sol 0,3 0,3 0,3
+world 4
+core g
+queue ? ? g
+grid
+. . . . . . .
+. . r r . . .
+. r p p * . .
+. r g C r . .
+. * r p g * .
+. . g . g r .
+. . . . . . .
+end
+
+@ Blast Radius
+par 3
+sol 0,2 0,3 1,2
+world 4
+core g
+queue ! ! ^
+grid
+. . . . . . .
+. . g . . . .
+. * r p * . .
+. R g C r . .
+. g r g r * .
+. . * * p . .
+. . . . . . .
+end
+
+@ Mixed Bag
+par 3
+sol 0,2 0,1 0,3
+world 4
+core b p
+queue ? b p
+grid
+. . . . . . .
+. r . b . . .
+. p * r b * .
+. p b C r . .
+. . b r p p .
+. . r . . . .
+. . . . . . .
+end
+
+// ── NEPTUNE ──
+
+@ Undertow
+par 2
+sol 1,0 0,0
+world 5
+tip Neptune: every puzzle here has exactly one answer.
+core p b
+queue p y
+grid
+. . . . . . .
+. b . . . . .
+. y b p p . .
+. y b C b . .
+. . p y p . .
+. . b . . . .
+. . . . . . .
+end
+
+@ Tidal Lock
+par 2
+sol H 1,1 H 0,3
+world 5
+core p g
+queue g p
+grid
+. . . . . . .
+. . . r . . .
+. . p p r g .
+. . g C g r .
+. . r g p . .
+. . . . g . .
+. . . . . . .
+end
+
+@ Deep Current
+par 2
+sol H 0,5 H 0,1
+world 5
+core o g
+queue b o
+grid
+. . . . . . .
+. . . . g . .
+. . b g b b .
+. g g C o o .
+. b b g b . .
+. . g . . . .
+. . . . . . .
+end
+
+@ Trench
+par 3
+sol H 1,1 0,6 H 2,2
+world 5
+core g
+queue g y r
+grid
+. . . . . . .
+. . r g . . .
+. . y- y . . .
+. . g C r r .
+. y| y . g y .
+. . y| . r . .
+. . . . . . .
+end
+
+@ Abyss
+par 3
+sol H 0,2 0,3 H 1,0
+world 5
+core b y
+queue y b b
+grid
+. . . . . . .
+. . o . . b .
+. b y y o o .
+. . o C y . .
+. b o b . . .
+. . . . . . .
+. . . . . . .
+end
+
+@ Leviathan
+par 3
+sol H 0,0 0,0 H 0,5
+world 5
+core y o
+queue o y y
+grid
+. . . . . . .
+. . . . . . .
+. p p . o p .
+. . y C p o .
+. . p o o . .
+. . p y y . .
+. . . . . . .
+end
